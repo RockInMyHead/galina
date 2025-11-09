@@ -31,6 +31,46 @@ const Voice = () => {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Audio feedback functions
+  const playBeep = useCallback(() => {
+    if (!('AudioContext' in window) && !('webkitAudioContext' in window)) return;
+
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+      console.warn('Could not play beep:', error);
+    }
+  }, []);
+
+  const startBeepInterval = useCallback(() => {
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+    }
+    beepIntervalRef.current = setInterval(playBeep, 3000); // Every 3 seconds
+  }, [playBeep]);
+
+  const stopBeepInterval = useCallback(() => {
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+      beepIntervalRef.current = null;
+    }
+  }, []);
 
   // Initialize Web Speech API
   useEffect(() => {
@@ -99,6 +139,21 @@ const Voice = () => {
       }
     };
   }, []);
+
+  // Manage beep interval based on app state
+  useEffect(() => {
+    // Start beep when not loading and not actively listening
+    if (!isLoading && !isContinuousListening) {
+      startBeepInterval();
+    } else {
+      stopBeepInterval();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      stopBeepInterval();
+    };
+  }, [isLoading, isContinuousListening, startBeepInterval, stopBeepInterval]);
 
   // TTS function for AI responses using OpenAI
   const speakAIResponse = async (text: string) => {
@@ -423,10 +478,10 @@ const Voice = () => {
 
                   <div className="text-center space-y-2">
                     <h2 className="text-2xl font-bold text-foreground">
-                      {isLoading ? "Обработка..." : "Галина"}
+                      {isLoading ? "Обработка..." : ""}
                     </h2>
                     <p className="text-muted-foreground">
-                      {isLoading ? "Получаю ответ..." : "Ваш AI-юрист"}
+                      {isLoading ? "Получаю ответ..." : ""}
                     </p>
                   </div>
 
