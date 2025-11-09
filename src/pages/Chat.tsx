@@ -332,13 +332,35 @@ const Chat = () => {
 
                 try {
                   const parsed = JSON.parse(data);
-                  const contentChunk = parsed.choices?.[0]?.delta?.content;
-                  if (contentChunk) {
+                  console.log('📋 Streaming chunk:', parsed);
+                  
+                  // Проверяем разные форматы ответа
+                  // API возвращает { content: fullContent } - полный накопленный контент
+                  let contentChunk = null;
+                  
+                  if (parsed.content) {
+                    // API возвращает полный накопленный контент
+                    planContent = parsed.content;
+                    contentChunk = parsed.content;
+                  } else if (parsed.choices?.[0]?.delta?.content) {
+                    // OpenAI streaming формат - инкрементальные чанки
+                    contentChunk = parsed.choices[0].delta.content;
                     planContent += contentChunk;
+                  } else if (parsed.choices?.[0]?.message?.content) {
+                    // Не streaming формат
+                    planContent = parsed.choices[0].message.content;
+                    contentChunk = parsed.choices[0].message.content;
+                  }
+                  
+                  if (contentChunk) {
+                    console.log('📋 Plan content so far:', planContent);
                     // Показываем план серым цветом как промежуточный результат
                     setStreamingMessage(`<div style="color: #6b7280; font-style: italic;">📋 План ответа:\n\n${planContent}</div>`);
+                  } else {
+                    console.log('⚠️ No content in chunk:', parsed);
                   }
                 } catch (e) {
+                  console.warn('⚠️ Failed to parse JSON chunk:', data, e);
                   // Игнорируем некорректный JSON
                 }
               }

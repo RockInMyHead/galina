@@ -154,8 +154,11 @@ app.post('/chat', async (req, res) => {
                   if (content) {
                     fullContent += content;
                     res.write(`data: ${JSON.stringify({ content: fullContent })}\n\n`);
+                  } else {
+                    console.log('⚠️ No content in streaming chunk:', parsed);
                   }
                 } catch (e) {
+                  console.warn('⚠️ Failed to parse streaming JSON:', data, e);
                   // Ignore invalid JSON
                 }
               }
@@ -823,9 +826,9 @@ const searchDuckDuckGo = async (query) => {
           court = courtMatch[1];
         }
         
-        cases.push({
+              cases.push({
           title: link.title.substring(0, 200),
-          court: court,
+                court: court,
           date: new Date().toLocaleDateString('ru-RU'),
           source: source,
           url: link.url.startsWith('http') ? link.url : `https://${link.url}`
@@ -852,7 +855,7 @@ const searchDuckDuckGo = async (query) => {
         }
       }
     }
-    
+
     return cases;
   } catch (error) {
     console.error('❌ DuckDuckGo search error:', error);
