@@ -5,6 +5,8 @@ import { useState } from "react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
@@ -96,6 +98,8 @@ const Header = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="w-[300px]">
+            <SheetTitle className="sr-only">Мобильное меню навигации</SheetTitle>
+            <SheetDescription className="sr-only">Навигация по разделам приложения</SheetDescription>
             <div className="flex flex-col space-y-4 mt-8">
               {navigation.map((item) => (
                 <Link
