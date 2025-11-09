@@ -768,45 +768,91 @@ const searchDuckDuckGo = async (query) => {
     console.log('📄 DuckDuckGo HTML preview:', html.substring(0, 500));
 
     const cases = [];
-
-    // Простой парсинг HTML результатов поиска
-    // Ищем ссылки на судебные сайты
-    const sudrfRegex = /<a[^>]*href="([^"]*sudrf[^"]*)"[^>]*>([^<]*)<\/a>/gi;
-    const sudactRegex = /<a[^>]*href="([^"]*sudact[^"]*)"[^>]*>([^<]*)<\/a>/gi;
-    const rospravosudieRegex = /<a[^>]*href="([^"]*rospravosudie[^"]*)"[^>]*>([^<]*)<\/a>/gi;
-    
-    let match;
     const seenUrls = new Set();
     
-    // Парсим результаты с разных сайтов
-    const patterns = [
-      { regex: sudrfRegex, source: 'sudrf.ru' },
-      { regex: sudactRegex, source: 'sudact.ru' },
-      { regex: rospravosudieRegex, source: 'rospravosudie.com' }
+    // Ищем все ссылки в HTML
+    const linkRegex = /<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+    const allLinks = [];
+    let match;
+    
+    while ((match = linkRegex.exec(html)) !== null) {
+      const url = match[1];
+      const title = match[2].replace(/<[^>]*>/g, '').trim();
+      
+      if (url && title && title.length > 10) {
+        allLinks.push({ url, title });
+      }
+    }
+    
+    console.log(`📊 Total links found in HTML: ${allLinks.length}`);
+    
+    // Ключевые слова для поиска судебных дел
+    const courtKeywords = [
+      'sudrf', 'sudact', 'rospravosudie', 'kad.arbitr',
+      'суд', 'судебн', 'решение', 'дело', 'арбитраж',
+      'court', 'judicial', 'verdict', 'case'
     ];
     
-    for (const pattern of patterns) {
-      let matchCount = 0;
-      while ((match = pattern.regex.exec(html)) !== null && cases.length < 10) {
-        matchCount++;
-        const url = match[1];
-        const title = match[2].replace(/<[^>]*>/g, '').trim();
+    // Ищем ссылки, которые содержат ключевые слова
+    for (const link of allLinks) {
+      if (cases.length >= 10) break;
+      
+      const urlLower = link.url.toLowerCase();
+      const titleLower = link.title.toLowerCase();
+      
+      // Проверяем, содержит ли URL или заголовок ключевые слова
+      const hasCourtKeyword = courtKeywords.some(keyword => 
+        urlLower.includes(keyword) || titleLower.includes(keyword)
+      );
+      
+      if (hasCourtKeyword && !seenUrls.has(link.url)) {
+        seenUrls.add(link.url);
         
-        if (url && title && !seenUrls.has(url)) {
-          seenUrls.add(url);
-          cases.push({
-            title: title.substring(0, 200),
-            court: pattern.source,
-            date: new Date().toLocaleDateString('ru-RU'),
-            source: pattern.source,
-            url: url.startsWith('http') ? url : `https://${url}`
-          });
+        // Определяем источник по URL
+        let source = 'unknown';
+        if (urlLower.includes('sudrf')) source = 'sudrf.ru';
+        else if (urlLower.includes('sudact')) source = 'sudact.ru';
+        else if (urlLower.includes('rospravosudie')) source = 'rospravosudie.com';
+        else if (urlLower.includes('kad.arbitr')) source = 'kad.arbitr.ru';
+        else if (urlLower.includes('суд') || urlLower.includes('court')) source = 'court.ru';
+        
+        // Извлекаем название суда из URL или заголовка
+        let court = source;
+        const courtMatch = link.url.match(/([^\/]+\.(ru|com|org))/i);
+        if (courtMatch) {
+          court = courtMatch[1];
         }
+        
+        cases.push({
+          title: link.title.substring(0, 200),
+          court: court,
+          date: new Date().toLocaleDateString('ru-RU'),
+          source: source,
+          url: link.url.startsWith('http') ? link.url : `https://${link.url}`
+        });
       }
-      console.log(`📊 Found ${matchCount} matches for ${pattern.source}`);
     }
     
     console.log(`⚖️ Total court cases found: ${cases.length}`);
+    
+    // Если не нашли через ключевые слова, возвращаем первые несколько ссылок как примеры
+    if (cases.length === 0 && allLinks.length > 0) {
+      console.log('⚠️ No court-specific links found, returning general legal links');
+      for (let i = 0; i < Math.min(3, allLinks.length); i++) {
+        const link = allLinks[i];
+        if (!seenUrls.has(link.url)) {
+          seenUrls.add(link.url);
+          cases.push({
+            title: link.title.substring(0, 200),
+            court: 'general',
+            date: new Date().toLocaleDateString('ru-RU'),
+            source: 'search',
+            url: link.url.startsWith('http') ? link.url : `https://${link.url}`
+          });
+        }
+      }
+    }
+    
     return cases;
   } catch (error) {
     console.error('❌ DuckDuckGo search error:', error);
