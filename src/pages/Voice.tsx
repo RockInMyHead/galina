@@ -302,7 +302,6 @@ const Voice = () => {
         const step = reasoningSteps[i].trim();
         if (step.length > 0) {
           setReasoningText(step);
-          console.log(`📋 Step ${i + 1}:`, step);
           await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
         }
       }
