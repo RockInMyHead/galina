@@ -167,8 +167,8 @@ const DocumentFilling = () => {
                 type: 'image_url',
                 image_url: {
                   url: uploadedFile.data.startsWith('data:')
-                    ? `data:image/jpeg;base64,${uploadedFile.data.split(',')[1]}`
-                    : uploadedFile.data
+                    ? uploadedFile.data
+                    : `data:image/jpeg;base64,${uploadedFile.data}`
                 }
               }
           ]
@@ -183,7 +183,7 @@ const DocumentFilling = () => {
         },
         body: JSON.stringify({
           messages: openaiMessages,
-          model: 'gpt-4-vision-preview',
+          model: 'gpt-4o',
           max_tokens: 1500,
           temperature: 0.3, // Более точный анализ
           stream: false // Для анализа используем не streaming
