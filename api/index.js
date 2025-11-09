@@ -744,6 +744,67 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// Поиск судебных дел через DuckDuckGo API (бесплатно, без API ключей)
+const searchDuckDuckGo = async (query) => {
+  try {
+    const searchQuery = `${query} судебное дело решение`;
+    const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️ DuckDuckGo search failed:', response.status);
+      return [];
+    }
+
+    const html = await response.text();
+    const cases = [];
+    
+    // Простой парсинг HTML результатов поиска
+    // Ищем ссылки на судебные сайты
+    const sudrfRegex = /<a[^>]*href="([^"]*sudrf[^"]*)"[^>]*>([^<]*)<\/a>/gi;
+    const sudactRegex = /<a[^>]*href="([^"]*sudact[^"]*)"[^>]*>([^<]*)<\/a>/gi;
+    const rospravosudieRegex = /<a[^>]*href="([^"]*rospravosudie[^"]*)"[^>]*>([^<]*)<\/a>/gi;
+    
+    let match;
+    const seenUrls = new Set();
+    
+    // Парсим результаты с разных сайтов
+    const patterns = [
+      { regex: sudrfRegex, source: 'sudrf.ru' },
+      { regex: sudactRegex, source: 'sudact.ru' },
+      { regex: rospravosudieRegex, source: 'rospravosudie.com' }
+    ];
+    
+    for (const pattern of patterns) {
+      while ((match = pattern.regex.exec(html)) !== null && cases.length < 10) {
+        const url = match[1];
+        const title = match[2].replace(/<[^>]*>/g, '').trim();
+        
+        if (url && title && !seenUrls.has(url)) {
+          seenUrls.add(url);
+          cases.push({
+            title: title.substring(0, 200),
+            court: pattern.source,
+            date: new Date().toLocaleDateString('ru-RU'),
+            source: pattern.source,
+            url: url.startsWith('http') ? url : `https://${url}`
+          });
+        }
+      }
+    }
+    
+    return cases;
+  } catch (error) {
+    console.error('❌ DuckDuckGo search error:', error);
+    return [];
+  }
+};
+
 // Поиск судебных дел
 app.post('/api/search-court-cases', async (req, res) => {
   try {
@@ -755,15 +816,13 @@ app.post('/api/search-court-cases', async (req, res) => {
 
     console.log('🔍 Searching court cases for query:', query);
 
-    // TODO: Реализовать реальный поиск судебных дел через:
-    // 1. Google Custom Search API
-    // 2. Bing Search API
-    // 3. Парсинг сайтов судебных решений (sudrf.ru, sudact.ru)
-    // 4. Специализированные базы данных судебных решений
-
-    // Временная заглушка - возвращаем пустой массив
-    // В будущем здесь будет реальный поиск через API или парсинг
-    const courtCases = [];
+    // Вариант 1: DuckDuckGo API (бесплатно, без API ключей)
+    let courtCases = await searchDuckDuckGo(query);
+    
+    // Если результатов мало, можно добавить другие источники:
+    // - Парсинг sudrf.ru напрямую
+    // - Парсинг sudact.ru напрямую
+    // - Использование других бесплатных API
 
     console.log(`⚖️ Found ${courtCases.length} court cases for query: "${query}"`);
 
