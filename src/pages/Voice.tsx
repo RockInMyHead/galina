@@ -74,6 +74,7 @@ const Voice = () => {
           setTranscript(finalTranscript.trim());
           setInterimTranscript('');
           // Automatically send the message when speech recognition is complete
+          console.log('🎯 Triggering handleSendMessage from speech recognition...');
           handleSendMessage(finalTranscript.trim());
         }
       };
@@ -99,6 +100,79 @@ const Voice = () => {
       }
     };
   }, []);
+
+  // TTS function for AI responses
+  const speakAIResponse = async (text: string) => {
+    try {
+      console.log('🎵 Preparing to speak AI response...');
+
+      if (!('speechSynthesis' in window)) {
+        console.warn('⚠️ Speech synthesis not supported in this browser');
+        return;
+      }
+
+      // Split text into sentences for natural speech
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      console.log('📝 Split into', sentences.length, 'sentences for TTS');
+
+      // Speak each sentence sequentially
+      for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i].trim();
+        if (sentence.length === 0) continue;
+
+        console.log(`🔊 Speaking sentence ${i + 1}/${sentences.length}: "${sentence.substring(0, 50)}..."`);
+        await speakSentence(sentence);
+
+        // Small pause between sentences
+        if (i < sentences.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+
+      console.log('✅ TTS completed for AI response');
+    } catch (error) {
+      console.error('❌ Error in TTS:', error);
+    }
+  };
+
+  // Speak a single sentence using browser's SpeechSynthesis
+  const speakSentence = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+
+      // Configure voice settings
+      utterance.lang = 'ru-RU'; // Russian language
+      utterance.rate = 0.9; // Slightly slower for clarity
+      utterance.pitch = 1.0; // Normal pitch
+      utterance.volume = 0.8; // Good volume
+
+      // Try to find a Russian voice
+      const voices = speechSynthesis.getVoices();
+      const russianVoice = voices.find(voice =>
+        voice.lang.startsWith('ru') || voice.name.toLowerCase().includes('russian')
+      );
+      if (russianVoice) {
+        utterance.voice = russianVoice;
+        console.log('🎤 Using Russian voice:', russianVoice.name);
+      }
+
+      utterance.onstart = () => {
+        console.log('▶️ TTS started for sentence');
+      };
+
+      utterance.onend = () => {
+        console.log('⏹️ TTS ended for sentence');
+        resolve();
+      };
+
+      utterance.onerror = (event) => {
+        console.error('❌ TTS error:', event.error);
+        resolve(); // Continue even if error
+      };
+
+      speechSynthesis.speak(utterance);
+    });
+  };
 
   // Voice control functions
   const startListening = useCallback(() => {
@@ -207,6 +281,7 @@ const Voice = () => {
   const handleSendMessage = async (messageText: string) => {
     if (!messageText.trim()) return;
 
+    console.log('🎯 handleSendMessage called with:', messageText);
     setIsLoading(true);
     setReasoningText('Галина думает...');
 
@@ -222,6 +297,7 @@ const Voice = () => {
     setTranscript('');
 
     try {
+      console.log('🔄 Starting AI reasoning steps...');
       // Simulate AI reasoning steps
       const reasoningSteps = [
         'Анализирую ваш вопрос...',
@@ -233,10 +309,12 @@ const Voice = () => {
         const step = reasoningSteps[i].trim();
         if (step.length > 0) {
           setReasoningText(step);
+          console.log(`📋 Step ${i + 1}:`, step);
           await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
         }
       }
 
+      console.log('🚀 Calling AI API...');
       // Call AI API
       const response = await fetch('http://localhost:3001/chat', {
         method: 'POST',
@@ -261,11 +339,17 @@ const Voice = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('❌ API error:', response.status, errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
+      console.log('📥 API response received, parsing...');
       const data = await response.json();
+      console.log('📄 Raw API response:', data);
+
       const aiResponse = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка при обработке вашего запроса.';
+      console.log('💬 AI response extracted:', aiResponse.substring(0, 100) + '...');
 
       // Add AI response
       const assistantMessage: Message = {
@@ -275,10 +359,15 @@ const Voice = () => {
         timestamp: new Date()
       };
 
+      console.log('✅ Adding AI message to chat...');
       setMessages(prev => [...prev, assistantMessage]);
 
+      // Speak the AI response using browser TTS
+      console.log('🔊 Starting TTS for AI response...');
+      await speakAIResponse(aiResponse);
+
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error in handleSendMessage:', error);
 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -287,8 +376,10 @@ const Voice = () => {
         timestamp: new Date()
       };
 
+      console.log('🚨 Adding error message to chat...');
       setMessages(prev => [...prev, errorMessage]);
     } finally {
+      console.log('🏁 handleSendMessage finished');
       setIsLoading(false);
       setReasoningText('');
     }
