@@ -105,7 +105,6 @@ const DocumentFilling = () => {
       }
     }
   };
-  };
 
   // Запуск камеры
   const startCamera = useCallback(async () => {
