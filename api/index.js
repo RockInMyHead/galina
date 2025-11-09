@@ -13,7 +13,14 @@ console.log('Database URL:', process.env.DATABASE_URL);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// Configure CORS for development
+const corsOptions = {
+  origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Увеличиваем лимит для JSON
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Для form data
 
