@@ -750,6 +750,8 @@ const searchDuckDuckGo = async (query) => {
     const searchQuery = `${query} судебное дело решение`;
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
     
+    console.log('🔍 DuckDuckGo search URL:', url);
+    
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -757,13 +759,16 @@ const searchDuckDuckGo = async (query) => {
     });
 
     if (!response.ok) {
-      console.warn('⚠️ DuckDuckGo search failed:', response.status);
+      console.warn('⚠️ DuckDuckGo search failed:', response.status, response.statusText);
       return [];
     }
 
     const html = await response.text();
+    console.log('📄 DuckDuckGo HTML length:', html.length);
+    console.log('📄 DuckDuckGo HTML preview:', html.substring(0, 500));
+
     const cases = [];
-    
+
     // Простой парсинг HTML результатов поиска
     // Ищем ссылки на судебные сайты
     const sudrfRegex = /<a[^>]*href="([^"]*sudrf[^"]*)"[^>]*>([^<]*)<\/a>/gi;
@@ -781,7 +786,9 @@ const searchDuckDuckGo = async (query) => {
     ];
     
     for (const pattern of patterns) {
+      let matchCount = 0;
       while ((match = pattern.regex.exec(html)) !== null && cases.length < 10) {
+        matchCount++;
         const url = match[1];
         const title = match[2].replace(/<[^>]*>/g, '').trim();
         
@@ -796,8 +803,10 @@ const searchDuckDuckGo = async (query) => {
           });
         }
       }
+      console.log(`📊 Found ${matchCount} matches for ${pattern.source}`);
     }
     
+    console.log(`⚖️ Total court cases found: ${cases.length}`);
     return cases;
   } catch (error) {
     console.error('❌ DuckDuckGo search error:', error);
@@ -834,9 +843,9 @@ app.post('/api/search-court-cases', async (req, res) => {
     });
   } catch (error) {
     console.error('Error searching court cases:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to search court cases',
-      details: error.message 
+      details: error.message
     });
   }
 });
