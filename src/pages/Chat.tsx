@@ -14,46 +14,6 @@ import { fileToBase64, fileToText, formatFileSize, processFile } from "@/utils/f
 import { chatStorage } from "@/utils/storageUtils";
 import ReactMarkdown from 'react-markdown';
 
-interface CourtCase {
-  title: string;
-  court: string;
-  date: string;
-  source: string;
-  url?: string;
-}
-
-// Поиск судебных дел через API
-const searchCourtCases = async (query: string): Promise<CourtCase[]> => {
-  try {
-    console.log('🔍 Searching court cases for query:', query);
-    
-    const response = await fetch('http://localhost:3001/api/search-court-cases', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      console.warn('⚠️ Court cases search API error:', response.status);
-      return [];
-    }
-
-    const data = await response.json();
-    
-    if (data.success && data.cases) {
-      console.log(`⚖️ Found ${data.cases.length} court cases for query: "${query}"`);
-      return data.cases;
-    }
-
-    return [];
-  } catch (error) {
-    console.error('❌ Error searching court cases:', error);
-    return [];
-  }
-};
-
 const Chat = () => {
   const [message, setMessage] = useState("");
 
@@ -562,21 +522,8 @@ const Chat = () => {
         // Показываем какой пункт сейчас обрабатывается
         setStreamingMessage(`${analysisType.name} раздела ${i + 1}: ${point}...\n\n`);
 
-        // Ищем судебные дела по теме раздела
-        let courtCases: CourtCase[] = [];
-        try {
-          courtCases = await searchCourtCases(point);
-          console.log('⚖️ Найдено судебных дел для раздела:', point, courtCases.length);
-        } catch (error) {
-          console.warn('⚠️ Ошибка поиска судебных дел:', error);
-          courtCases = [];
-        }
-
-        const courtCasesText = courtCases.length > 0
-          ? `\n\nНайденные судебные дела по теме "${point}":\n${courtCases.map((case_, index) =>
-              `${index + 1}. ${case_.title}\n   Суд: ${case_.court}\n   Дата: ${case_.date}\n   Источник: ${case_.source}${case_.url ? `\n   Ссылка: ${case_.url}` : ''}`
-            ).join('\n\n')}`
-          : '\n\nПо данной теме найдены следующие тенденции судебной практики:';
+        // Текст для судебной практики (без поиска по интернету)
+        const courtCasesText = '\n\nПо данной теме найдены следующие тенденции судебной практики:';
 
         const pointPrompt = `Ты - Галина, элитный AI-юрист. Разработай подробный раздел ответа по теме: "${point}"
 
