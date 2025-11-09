@@ -16,6 +16,13 @@ const DocumentFilling = () => {
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
   const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<typeof DOCUMENT_TEMPLATES[0] | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{
+    name: string;
+    data: string;
+    type: string;
+  } | null>(null);
+  const [isAnalyzingDocument, setIsAnalyzingDocument] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -83,26 +90,15 @@ const DocumentFilling = () => {
       reader.onload = async () => {
         const base64 = reader.result as string;
 
-        // Создаем сообщение пользователя с файлом
-        const userMessage = {
-          id: Date.now().toString(),
-          content: `Я загрузил документ "${file.name}". Проанализируй его содержимое и определи какие персональные данные можно извлечь (ФИО, паспортные данные, адреса, контактная информация и т.д.). После анализа спроси меня, какие именно данные я хочу использовать для заполнения документов.`,
-          role: 'user' as const,
-          timestamp: new Date(),
-          uploadedFile: {
-            name: file.name,
-            data: base64,
-            type: file.type
-          }
-        };
+        // Сохраняем файл локально в состоянии компонента
+        setUploadedFile({
+          name: file.name,
+          data: base64,
+          type: file.type
+        });
 
-        // Сохраняем сообщение в localStorage
-        const existingMessages = JSON.parse(localStorage.getItem('galina-chat-messages') || '[]');
-        const updatedMessages = [...existingMessages, userMessage];
-        localStorage.setItem('galina-chat-messages', JSON.stringify(updatedMessages));
-
-        // Переходим в чат
-        navigate('/chat');
+        // Очищаем предыдущие результаты анализа
+        setAnalysisResult('');
       };
       reader.readAsDataURL(file);
 
@@ -115,6 +111,96 @@ const DocumentFilling = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }
+  };
+
+  // Функция анализа документа
+  const handleAnalyzeDocument = async () => {
+    if (!uploadedFile) return;
+
+    setIsAnalyzingDocument(true);
+    setAnalysisResult('');
+
+    try {
+      // Создаем сообщение для анализа документа
+      const analysisPrompt = `Ты - Галина, опытный AI-юрист. Пользователь загрузил документ для анализа.
+
+ТВОЯ ЗАДАЧА:
+1. Проанализируй изображение документа и извлеки всю видимую информацию
+2. Определи тип документа (паспорт, договор, свидетельство, справка и т.д.)
+3. Найди все персональные данные, которые можно извлечь:
+   - ФИО (полностью)
+   - Дата рождения
+   - Паспортные данные (серия, номер, когда и кем выдан)
+   - Адреса регистрации/проживания
+   - Контактные данные (телефон, email)
+   - Другие идентифицирующие данные
+
+4. После анализа сообщи пользователю:
+   - Какой тип документа ты распознала
+   - Какие данные удалось извлечь
+   - Какие данные пользователь может использовать для заполнения документов
+   - Предложи варианты использования этих данных
+
+ВАЖНО:
+- Будь максимально точным в извлечении данных
+- Если данные трудно прочитать, укажи это
+- Не придумывай данные, которых нет на изображении
+- Будь полезным и предложи конкретные действия
+
+Ответь на русском языке в дружелюбной форме.`;
+
+      const analysisMessages = [
+        {
+          role: 'system' as const,
+          content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.'
+        },
+        {
+          role: 'user' as const,
+          content: [
+            {
+              type: 'text',
+              text: analysisPrompt
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: uploadedFile.data
+              }
+            }
+          ]
+        }
+      ];
+
+      // Отправляем запрос на анализ
+      const response = await fetch('http://localhost:3001/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: analysisMessages,
+          model: 'gpt-4o',
+          max_tokens: 1500,
+          temperature: 0.3, // Более точный анализ
+          stream: false // Для анализа используем не streaming
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const analysisText = data.choices[0]?.message?.content || 'Не удалось проанализировать документ';
+
+      setAnalysisResult(analysisText);
+
+    } catch (error) {
+      console.error('Ошибка анализа документа:', error);
+      setAnalysisResult('Произошла ошибка при анализе документа. Попробуйте еще раз.');
+    } finally {
+      setIsAnalyzingDocument(false);
     }
   };
 
@@ -376,18 +462,25 @@ const DocumentFilling = () => {
                   </Card>
 
                   {/* Кнопка загрузки */}
-                  <Card className="border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer" onClick={handleUploadDocument}>
+                  <Card className={`border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer ${
+                    uploadedFile ? 'border-green-200 bg-green-50/50' : ''
+                  }`} onClick={handleUploadDocument}>
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-600">
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${
+                          uploadedFile ? 'bg-green-500/20 text-green-700' : 'bg-green-500/10 text-green-600'
+                        }`}>
                           <Upload className="h-6 w-6" />
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-foreground group-hover:text-primary transition-smooth">
-                            Загрузить документ
+                            {uploadedFile ? 'Заменить документ' : 'Загрузить документ'}
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            {isUploadingFile ? "Загрузка..." : "Выберите файл с компьютера (JPEG, PNG, PDF до 10MB)"}
+                            {isUploadingFile ? "Загрузка..." :
+                             uploadedFile ?
+                             `Загружен: ${uploadedFile.name}` :
+                             "Выберите файл с компьютера (JPEG, PNG, PDF до 10MB)"}
                           </p>
                         </div>
                         <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-smooth flex-shrink-0" />
@@ -404,6 +497,109 @@ const DocumentFilling = () => {
                     className="hidden"
                   />
                 </div>
+
+                {/* Секция загруженного документа */}
+                {uploadedFile && (
+                  <div className="mt-8">
+                    <Card className="border-border/50">
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-foreground">
+                              Загруженный документ
+                            </h3>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setUploadedFile(null)}
+                            >
+                              Удалить
+                            </Button>
+                          </div>
+
+                          {/* Превью файла */}
+                          <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                            {uploadedFile.type.startsWith('image/') ? (
+                              <div className="flex items-center gap-3">
+                                <div className="w-16 h-16 bg-white rounded border overflow-hidden flex items-center justify-center">
+                                  <img
+                                    src={uploadedFile.data}
+                                    alt={uploadedFile.name}
+                                    className="max-w-full max-h-full object-contain"
+                                  />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{uploadedFile.name}</p>
+                                  <p className="text-sm text-muted-foreground">Изображение</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-3">
+                                <div className="w-16 h-16 bg-white rounded border flex items-center justify-center">
+                                  <FileText className="h-8 w-8 text-muted-foreground" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{uploadedFile.name}</p>
+                                  <p className="text-sm text-muted-foreground">PDF документ</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Кнопка анализа */}
+                          {!analysisResult && (
+                            <Button
+                              onClick={handleAnalyzeDocument}
+                              disabled={isAnalyzingDocument}
+                              className="w-full"
+                            >
+                              {isAnalyzingDocument ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Анализ документа...
+                                </>
+                              ) : (
+                                'Анализировать документ'
+                              )}
+                            </Button>
+                          )}
+
+                          {/* Результаты анализа */}
+                          {analysisResult && (
+                            <div className="space-y-4">
+                              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <h4 className="font-semibold text-blue-900 mb-2">Результаты анализа:</h4>
+                                <div className="text-sm text-blue-800 whitespace-pre-wrap">
+                                  {analysisResult}
+                                </div>
+                              </div>
+
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => {
+                                    // Сохраняем анализ в localStorage для использования в чате
+                                    localStorage.setItem('documentAnalysis', analysisResult);
+                                    localStorage.setItem('analyzedFile', JSON.stringify(uploadedFile));
+                                    navigate('/chat');
+                                  }}
+                                  className="flex-1"
+                                >
+                                  Использовать данные в чате
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setAnalysisResult('')}
+                                >
+                                  Новый анализ
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
               </div>
 
               <Card className="border-border/50 bg-primary/5">
