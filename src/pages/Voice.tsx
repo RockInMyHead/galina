@@ -63,7 +63,7 @@ const Voice = () => {
   const startBeepInterval = useCallback(() => {
     if (beepIntervalRef.current) {
       clearInterval(beepIntervalRef.current);
-    }
+        }
     beepIntervalRef.current = setInterval(playBeep, 3000); // Every 3 seconds
   }, [playBeep]);
 
@@ -389,11 +389,11 @@ const Voice = () => {
         },
         body: JSON.stringify({
           messages: [
-            {
+        {
               role: 'system',
               content: AI_SYSTEM_MESSAGES.voice
-            },
-            {
+        },
+        {
               role: 'user',
               content: messageText
             }
@@ -509,7 +509,7 @@ const Voice = () => {
                       </h2>
                       <p className="text-muted-foreground">
                       {isLoading ? "" : ""}
-                    </p>
+                      </p>
                     </div>
 
 

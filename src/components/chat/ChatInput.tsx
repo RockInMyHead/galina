@@ -49,13 +49,13 @@ export const ChatInput = ({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragOver(true)
+      setIsDragOver(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragOver(false)
+      setIsDragOver(false)
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -80,7 +80,7 @@ export const ChatInput = ({
     >
       {/* File Previews */}
       {selectedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
           {selectedFiles.map((file, index) => (
             <div
               key={index}
@@ -88,64 +88,64 @@ export const ChatInput = ({
             >
               {file.type.startsWith('image/') ? (
                 <Image className="h-4 w-4" />
-              ) : (
+                ) : (
                 <FileText className="h-4 w-4" />
-              )}
+                )}
               <span className="truncate max-w-32">{file.name}</span>
               <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onRemoveFile(index)}
+                  onClick={() => onRemoveFile(index)}
                 className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-              >
+                >
                 <X className="h-3 w-3" />
               </Button>
-            </div>
-          ))}
+              </div>
+            ))}
         </div>
       )}
 
       {/* Input Area */}
-      <div className="flex gap-2">
-        <input
-          type="file"
-          ref={fileInputRef}
+        <div className="flex gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
           onChange={(e) => e.target.files && onFileSelect(Array.from(e.target.files))}
-          multiple
-          accept="image/*,.pdf,.txt,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx"
-          className="hidden"
-        />
+            multiple
+            accept="image/*,.pdf,.txt,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ppt,.pptx"
+            className="hidden"
+          />
 
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || disabled}
+            title="Прикрепить файлы"
+          >
+            <Upload className="h-4 w-4" />
+          </Button>
+
+          <Input
+            placeholder="Напишите ваш вопрос..."
+            value={message}
+            onChange={(e) => onMessageChange(e.target.value)}
+            className="flex-1"
           disabled={isLoading || disabled}
-          title="Прикрепить файлы"
-        >
-          <Upload className="h-4 w-4" />
-        </Button>
+            onKeyDown={handleKeyDown}
+          />
 
-        <Input
-          placeholder="Напишите ваш вопрос..."
-          value={message}
-          onChange={(e) => onMessageChange(e.target.value)}
-          className="flex-1"
-          disabled={isLoading || disabled}
-          onKeyDown={handleKeyDown}
-        />
-
-        <Button
-          size="icon"
+          <Button
+            size="icon"
           className="shadow-elegant"
           onClick={onSendMessage}
           disabled={isLoading || disabled || (!message.trim() && selectedFiles.length === 0)}
           title="Отправить сообщение"
         >
-          <Send className="h-4 w-4" />
+            <Send className="h-4 w-4" />
         </Button>
-      </div>
+        </div>
     </div>
   )
 }
