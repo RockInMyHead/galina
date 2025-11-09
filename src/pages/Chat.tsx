@@ -400,7 +400,7 @@ const Chat = () => {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Очищаем план и начинаем генерацию основного ответа
-        setStreamingMessage('🔄 Разрабатываю подробный ответ...\n\n');
+        setStreamingMessage('Разрабатываю подробный ответ...\n\n');
 
       } catch (error) {
         clearTimeout(timeoutId);
