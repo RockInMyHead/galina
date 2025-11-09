@@ -879,9 +879,11 @@ ${analysisType.structure}
                     variant="outline"
                     size="sm"
                     className="flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+                    title="Новый чат"
                   >
                     <Plus className="h-4 w-4" />
-                    Новый чат
+                    <span className="hidden md:inline">Новый чат</span>
+                    <span className="md:hidden">Новый</span>
                   </Button>
                 </div>
 
