@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { FileEdit, FileText, CheckCircle2, ArrowRight, Scan, Camera, X, RotateCw, ZoomIn } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { DOCUMENT_TEMPLATES } from "@/config/constants";
 
 const DocumentFilling = () => {
   const navigate = useNavigate();
@@ -12,28 +13,14 @@ const DocumentFilling = () => {
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<typeof DOCUMENT_TEMPLATES[0] | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const templates = [
-    { name: "Договор купли-продажи", description: "Стандартный договор купли-продажи недвижимости" },
-    { name: "Трудовой договор", description: "Договор с работником по ТК РФ" },
-    { name: "Договор аренды", description: "Договор аренды жилого помещения" },
-    { name: "Исковое заявление", description: "Исковое заявление в суд общей юрисдикции" },
-    { name: "Доверенность", description: "Доверенность на представление интересов" },
-    { name: "Претензия", description: "Претензия по защите прав потребителей" },
-  ];
-
-  // Полный список всех доступных шаблонов
-  const allTemplates = [
-    { name: "Договор купли-продажи", description: "Стандартный договор купли-продажи недвижимости" },
-    { name: "Трудовой договор", description: "Договор с работником по ТК РФ" },
-    { name: "Договор аренды", description: "Договор аренды жилого помещения" },
-    { name: "Исковое заявление", description: "Исковое заявление в суд общей юрисдикции" },
-    { name: "Доверенность", description: "Доверенность на представление интересов" },
-    { name: "Претензия", description: "Претензия по защите прав потребителей" },
-  ];
+  // Используем шаблоны из констант
+  const allTemplates = DOCUMENT_TEMPLATES;
 
   // Функция для обработки клика по шаблону
   const handleTemplateClick = (templateName: string) => {
@@ -42,18 +29,19 @@ const DocumentFilling = () => {
 
     // Сохраняем выбранный шаблон в localStorage для использования в чате
     localStorage.setItem('selectedTemplate', templateName);
-    localStorage.setItem('templateRequest',
-      `Мне нужно создать ${templateName.toLowerCase()}. ${template?.description || ''}
-
-Пожалуйста, помоги мне заполнить этот документ. Задавай вопросы по порядку, начиная с основных данных сторон, и учти требования законодательства РФ.
-
-После сбора всей информации создай готовый документ в правильном формате.
-
-Начинай с первого вопроса.`
-    );
+    localStorage.setItem('templateRequest', template?.requestText || `Мне нужно создать ${templateName.toLowerCase()}. ${template?.description || ''}`);
 
     // Переходим в чат
     navigate('/chat');
+  };
+
+  // Функция для просмотра шаблона
+  const handleTemplatePreview = (templateName: string) => {
+    const template = allTemplates.find(t => t.name === templateName);
+    if (template) {
+      setSelectedTemplateForPreview(template);
+      setShowTemplatePreview(true);
+    }
   };
 
   // Функция для открытия камеры
@@ -277,7 +265,20 @@ const DocumentFilling = () => {
                               {template.description}
                             </p>
                           </div>
-                          <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-smooth flex-shrink-0" />
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTemplatePreview(template.name);
+                              }}
+                              className="h-8 px-2 text-xs"
+                            >
+                              Просмотр
+                            </Button>
+                            <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-smooth" />
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -489,6 +490,42 @@ const DocumentFilling = () => {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Модальное окно просмотра шаблона */}
+      <Dialog open={showTemplatePreview} onOpenChange={setShowTemplatePreview}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedTemplateForPreview?.name}</DialogTitle>
+            <DialogDescription>{selectedTemplateForPreview?.description}</DialogDescription>
+          </DialogHeader>
+
+          {selectedTemplateForPreview?.template && (
+            <div className="space-y-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">Шаблон документа:</h4>
+                <pre className="text-sm whitespace-pre-wrap font-mono bg-background p-3 rounded border overflow-x-auto">
+                  {selectedTemplateForPreview.template}
+                </pre>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleTemplateClick(selectedTemplateForPreview.name)}
+                  className="flex-1"
+                >
+                  Создать документ
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTemplatePreview(false)}
+                >
+                  Закрыть
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
