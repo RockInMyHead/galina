@@ -31,7 +31,6 @@ const Voice = () => {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [reasoningText, setReasoningText] = useState('');
 
   // Initialize Web Speech API
   useEffect(() => {
@@ -276,7 +275,6 @@ const Voice = () => {
 
     console.log('🎯 handleSendMessage called with:', messageText);
     setIsLoading(true);
-    setReasoningText('Галина думает...');
 
     // Add user message
     const userMessage: Message = {
@@ -290,22 +288,6 @@ const Voice = () => {
     setTranscript('');
 
     try {
-      console.log('🔄 Starting AI reasoning steps...');
-      // Simulate AI reasoning steps
-      const reasoningSteps = [
-        'Анализирую ваш вопрос...',
-        'Ищу релевантную юридическую информацию...',
-        'Формирую ответ на основе законодательства...'
-      ];
-
-      for (let i = 0; i < reasoningSteps.length; i++) {
-        const step = reasoningSteps[i].trim();
-        if (step.length > 0) {
-          setReasoningText(step);
-          await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
-        }
-      }
-
       console.log('🚀 Calling AI API...');
       // Call AI API
       const response = await fetch('http://localhost:3001/chat', {
@@ -373,7 +355,6 @@ const Voice = () => {
     } finally {
       console.log('🏁 handleSendMessage finished');
       setIsLoading(false);
-      setReasoningText('');
     }
   };
 
@@ -442,10 +423,10 @@ const Voice = () => {
 
                   <div className="text-center space-y-2">
                     <h2 className="text-2xl font-bold text-foreground">
-                      {isLoading ? reasoningText : "Галина"}
+                      {isLoading ? "Обработка..." : "Галина"}
                     </h2>
                     <p className="text-muted-foreground">
-                      {isLoading ? reasoningText : "Ваш AI-юрист"}
+                      {isLoading ? "Получаю ответ..." : "Ваш AI-юрист"}
                     </p>
                   </div>
 
