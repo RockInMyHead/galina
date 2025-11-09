@@ -5,6 +5,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: Date;
   files?: File[];
+  uploadedFile?: {
+    name: string;
+    data: string; // base64
+    type: string;
+  };
 }
 
 export interface FilePreview {

@@ -129,7 +129,43 @@ export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
                       ({file?.size ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : 'размер неизвестен'})
                   </span>
                 </div>
-              ))}
+                ))}
+            </div>
+          )}
+
+          {/* Uploaded file attachment */}
+          {message.uploadedFile && (
+            <div className="mb-3">
+              <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                isAssistant ? 'bg-black/10' : 'bg-white/20'
+              }`}>
+                {message.uploadedFile.type && message.uploadedFile.type.startsWith('image/') ? (
+                  <Image className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span className={`text-xs truncate ${isAssistant ? '' : 'text-white'}`}>
+                  {message.uploadedFile.name}
+                </span>
+                <span className={`text-xs ${isAssistant ? 'opacity-70' : 'text-white/70'}`}>
+                  (загружено)
+                </span>
+                {message.uploadedFile.type.startsWith('image/') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const img = new Image();
+                      img.src = message.uploadedFile!.data;
+                      const newWindow = window.open();
+                      newWindow?.document.write(`<img src="${message.uploadedFile!.data}" style="max-width: 100%; height: auto;" />`);
+                    }}
+                    className="h-6 px-2 ml-auto"
+                  >
+                    <Download className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 

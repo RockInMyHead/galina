@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FileEdit, FileText, CheckCircle2, ArrowRight, Scan, Camera, X, RotateCw, ZoomIn } from "lucide-react";
+import { FileEdit, FileText, CheckCircle2, ArrowRight, Scan, Camera, X, RotateCw, ZoomIn, Upload } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { DOCUMENT_TEMPLATES } from "@/config/constants";
@@ -15,9 +15,11 @@ const DocumentFilling = () => {
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
   const [selectedTemplateForPreview, setSelectedTemplateForPreview] = useState<typeof DOCUMENT_TEMPLATES[0] | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Используем шаблоны из констант
   const allTemplates = DOCUMENT_TEMPLATES;
@@ -48,6 +50,61 @@ const DocumentFilling = () => {
   const handleScanDocument = () => {
     setShowCamera(true);
     startCamera();
+  };
+
+  // Функция для открытия диалога выбора файла
+  const handleUploadDocument = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Функция обработки выбора файла
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Проверяем размер файла (максимум 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Файл слишком большой. Максимальный размер: 10MB');
+      return;
+    }
+
+    // Проверяем тип файла
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Неподдерживаемый тип файла. Разрешены: JPEG, PNG, PDF');
+      return;
+    }
+
+    setIsUploadingFile(true);
+
+    try {
+      // Сохраняем информацию о файле для чата
+      localStorage.setItem('uploadRequest', `Я загрузил документ "${file.name}". Проанализируй его и помоги с заполнением или создай соответствующий шаблон.`);
+
+      // Сохраняем файл в localStorage как base64 (для простоты)
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result as string;
+        localStorage.setItem('uploadedFile', base64);
+        localStorage.setItem('uploadedFileName', file.name);
+        localStorage.setItem('uploadedFileType', file.type);
+
+        // Переходим в чат
+        navigate('/chat');
+      };
+      reader.readAsDataURL(file);
+
+    } catch (error) {
+      console.error('Ошибка при загрузке файла:', error);
+      alert('Произошла ошибка при загрузке файла');
+    } finally {
+      setIsUploadingFile(false);
+      // Сбрасываем значение input для возможности повторного выбора того же файла
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
   };
 
   // Запуск камеры
@@ -285,8 +342,9 @@ const DocumentFilling = () => {
                   ))}
                 </div>
 
-                {/* Кнопка сканирования */}
-                <div className="mt-6">
+                {/* Кнопки сканирования и загрузки */}
+                <div className="mt-6 space-y-4">
+                  {/* Кнопка сканирования */}
                   <Card className="border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer" onClick={handleScanDocument}>
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4">
@@ -305,6 +363,35 @@ const DocumentFilling = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Кнопка загрузки */}
+                  <Card className="border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer" onClick={handleUploadDocument}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-600">
+                          <Upload className="h-6 w-6" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground group-hover:text-primary transition-smooth">
+                            Загрузить документ
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {isUploadingFile ? "Загрузка..." : "Выберите файл с компьютера (JPEG, PNG, PDF до 10MB)"}
+                          </p>
+                        </div>
+                        <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-smooth flex-shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Скрытый input для выбора файла */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                 </div>
               </div>
 

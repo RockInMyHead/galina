@@ -46,10 +46,11 @@ const Chat = () => {
     chatStorage.set(messages);
   }, [messages]);
 
-  // Обработка выбранного шаблона документа при загрузке страницы
+  // Обработка выбранного шаблона документа или загруженного файла при загрузке страницы
   useEffect(() => {
     const selectedTemplate = localStorage.getItem('selectedTemplate');
     const templateRequest = localStorage.getItem('templateRequest');
+    const uploadRequest = localStorage.getItem('uploadRequest');
 
     if (selectedTemplate && templateRequest) {
       // Очищаем данные из localStorage
@@ -70,6 +71,37 @@ const Chat = () => {
       // Автоматически отправляем запрос к AI
       setTimeout(() => {
         handleSendMessage(templateRequest, false);
+      }, 500); // Небольшая задержка для плавности
+    } else if (uploadRequest) {
+      // Обработка загруженного файла
+      const uploadedFile = localStorage.getItem('uploadedFile');
+      const uploadedFileName = localStorage.getItem('uploadedFileName');
+
+      // Очищаем данные из localStorage
+      localStorage.removeItem('uploadRequest');
+      localStorage.removeItem('uploadedFile');
+      localStorage.removeItem('uploadedFileName');
+      localStorage.removeItem('uploadedFileType');
+
+      // Создаем сообщение от пользователя с информацией о файле
+      const userMessage: ChatMessageType = {
+        id: Date.now().toString(),
+        content: uploadRequest,
+        role: 'user',
+        timestamp: new Date(),
+        uploadedFile: uploadedFile ? {
+          name: uploadedFileName || 'uploaded_file',
+          data: uploadedFile,
+          type: localStorage.getItem('uploadedFileType') || 'application/octet-stream'
+        } : undefined
+      };
+
+      // Добавляем сообщение в чат
+      setMessages(prev => [...prev, userMessage]);
+
+      // Автоматически отправляем запрос к AI
+      setTimeout(() => {
+        handleSendMessage(uploadRequest, false);
       }, 500); // Небольшая задержка для плавности
     }
   }, []);
