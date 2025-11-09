@@ -31,6 +31,7 @@ const Voice = () => {
     }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Audio feedback functions
@@ -140,10 +141,10 @@ const Voice = () => {
     };
   }, []);
 
-  // Manage beep interval based on app state
+  // Manage beep interval based on app state - beep only during AI/TTS processing
   useEffect(() => {
-    // Start beep when not loading and not actively listening
-    if (!isLoading && !isContinuousListening) {
+    // Start beep when loading (AI thinking) or when TTS is being generated
+    if (isLoading || isGeneratingTTS) {
       startBeepInterval();
     } else {
       stopBeepInterval();
@@ -153,12 +154,13 @@ const Voice = () => {
     return () => {
       stopBeepInterval();
     };
-  }, [isLoading, isContinuousListening, startBeepInterval, stopBeepInterval]);
+  }, [isLoading, isGeneratingTTS, startBeepInterval, stopBeepInterval]);
 
   // TTS function for AI responses using OpenAI with parallel generation
   const speakAIResponse = async (text: string) => {
     try {
       console.log('🎵 Preparing parallel OpenAI TTS for AI response...');
+      setIsGeneratingTTS(true);
 
       // Split text into sentences
       const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
@@ -205,6 +207,8 @@ const Voice = () => {
       console.log('✅ Parallel TTS completed for all sentences');
     } catch (error) {
       console.error('❌ Error in parallel OpenAI TTS:', error);
+    } finally {
+      setIsGeneratingTTS(false);
     }
   };
 
