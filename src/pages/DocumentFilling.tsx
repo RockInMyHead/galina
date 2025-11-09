@@ -69,9 +69,9 @@ const DocumentFilling = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Проверяем размер файла (максимум 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Файл слишком большой. Максимальный размер: 10MB');
+    // Проверяем размер файла (максимум 15MB для совместимости с Vision API)
+    if (file.size > 15 * 1024 * 1024) {
+      alert('Файл слишком большой. Максимальный размер: 15MB для изображений');
       return;
     }
 
@@ -210,12 +210,21 @@ ${analysisPrompt}
       let analysisText;
 
       try {
+        // Проверяем размер файла перед отправкой (OpenAI ограничивает ~20MB для изображений)
+        const fileSizeMB = uploadedFile.data.length / (1024 * 1024);
+
+        if (fileSizeMB > 15) { // Если файл больше 15MB, сразу переходим к fallback
+          console.log(`Файл слишком большой (${fileSizeMB.toFixed(1)}MB), используем текстовый анализ`);
+          throw new Error('FILE_TOO_LARGE');
+        }
+
         console.log('Отправка запроса анализа документа с изображением:', {
           messages: openaiMessages,
           model: 'gpt-4o',
           max_tokens: 1500,
           temperature: 0.3,
-          stream: false
+          stream: false,
+          fileSize: `${fileSizeMB.toFixed(1)}MB`
         });
 
         response = await fetch('http://localhost:3001/chat', {
@@ -240,7 +249,11 @@ ${analysisPrompt}
         analysisText = data.choices[0]?.message?.content || 'Не удалось проанализировать документ';
 
       } catch (visionError) {
-        console.log('Vision API недоступен, переключаемся на интеллектуальный анализ по типу документа');
+        if (visionError.message === 'FILE_TOO_LARGE') {
+          console.log('Файл слишком большой для Vision API, переключаемся на текстовый анализ');
+        } else {
+          console.log('Vision API недоступен, переключаемся на интеллектуальный анализ по типу документа');
+        }
 
         // Fallback к текстовому анализу
         console.log('Отправка fallback запроса анализа документа:', {
