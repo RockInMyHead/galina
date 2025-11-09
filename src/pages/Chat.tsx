@@ -14,6 +14,21 @@ import { fileToBase64, fileToText, formatFileSize, processFile } from "@/utils/f
 import { chatStorage } from "@/utils/storageUtils";
 import ReactMarkdown from 'react-markdown';
 
+interface CourtCase {
+  title: string;
+  court: string;
+  date: string;
+  source: string;
+  url?: string;
+}
+
+// Заглушка для поиска судебных дел
+const searchCourtCases = async (query: string): Promise<CourtCase[]> => {
+  // TODO: Реализовать поиск судебных дел через API
+  // Пока возвращаем пустой массив
+  return [];
+};
+
 const Chat = () => {
   const [message, setMessage] = useState("");
 
@@ -491,7 +506,7 @@ const Chat = () => {
         console.log(`🔍 Этап ${i + 2}: Обработка пункта "${point}" (${analysisType.name})`);
 
         // Показываем какой пункт сейчас обрабатывается
-        setStreamingMessage(`🔄 ${analysisType.name} раздела ${i + 1}: ${point}...\n\n`);
+        setStreamingMessage(`${analysisType.name} раздела ${i + 1}: ${point}...\n\n`);
 
         // Ищем судебные дела по теме раздела
         let courtCases: CourtCase[] = [];
