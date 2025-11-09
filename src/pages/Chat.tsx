@@ -16,13 +16,14 @@ import ReactMarkdown from 'react-markdown';
 
 const Chat = () => {
   const [message, setMessage] = useState("");
+  const voice = useVoice();
 
   // Загружаем сообщения из localStorage или используем дефолтные
   const [messages, setMessages] = useState<ChatMessageType[]>(() => {
-    const savedMessages = chatStorage.get();
+    const savedMessages = chatStorage.get() as any[];
     if (savedMessages && savedMessages.length > 0) {
       // Преобразуем timestamp обратно в Date объекты
-      return savedMessages.map(msg => ({
+      return savedMessages.map((msg: any) => ({
         ...msg,
         timestamp: new Date(msg.timestamp)
       }));
@@ -70,7 +71,7 @@ const Chat = () => {
 
       // Автоматически отправляем запрос к AI
       setTimeout(() => {
-        handleSendMessage(templateRequest, false);
+        handleSendMessage();
       }, 500); // Небольшая задержка для плавности
     } else if (uploadRequest) {
       // Обработка загруженного файла
@@ -101,7 +102,7 @@ const Chat = () => {
 
       // Автоматически отправляем запрос к AI
       setTimeout(() => {
-        handleSendMessage(uploadRequest, false);
+        handleSendMessage();
       }, 500); // Небольшая задержка для плавности
     }
   }, []);
