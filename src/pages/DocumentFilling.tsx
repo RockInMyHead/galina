@@ -163,39 +163,99 @@ const DocumentFilling = () => {
               type: 'text',
               text: analysisPrompt
             },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: uploadedFile.data.startsWith('data:')
-                    ? uploadedFile.data
-                    : `data:image/jpeg;base64,${uploadedFile.data}`
-                }
+            {
+              type: 'image_url',
+              image_url: {
+                url: uploadedFile.data.startsWith('data:')
+                  ? uploadedFile.data
+                  : `data:image/jpeg;base64,${uploadedFile.data}`
               }
+            }
           ]
         }
       ];
 
-      // Отправляем запрос на анализ
-      const response = await fetch('http://localhost:3001/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      // Fallback: если Vision API не работает, используем текстовый анализ
+      const fallbackMessages = [
+        {
+          role: 'system',
+          content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.'
         },
-        body: JSON.stringify({
+        {
+          role: 'user',
+          content: `${analysisPrompt}\n\nПримечание: Изображение документа загружено, но для анализа использую общие рекомендации по извлечению данных из подобных документов.`
+        }
+      ];
+
+      // Сначала пытаемся отправить запрос с изображением
+      let response;
+      let data;
+      let analysisText;
+
+      try {
+        console.log('Отправка запроса анализа документа с изображением:', {
           messages: openaiMessages,
           model: 'gpt-4o',
           max_tokens: 1500,
-          temperature: 0.3, // Более точный анализ
-          stream: false // Для анализа используем не streaming
-        })
-      });
+          temperature: 0.3,
+          stream: false
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        response = await fetch('http://localhost:3001/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: openaiMessages,
+            model: 'gpt-4o',
+            max_tokens: 1500,
+            temperature: 0.3, // Более точный анализ
+            stream: false // Для анализа используем не streaming
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        data = await response.json();
+        analysisText = data.choices[0]?.message?.content || 'Не удалось проанализировать документ';
+
+      } catch (visionError) {
+        console.warn('Vision API не доступен, используем текстовый анализ:', visionError);
+
+        // Fallback к текстовому анализу
+        console.log('Отправка fallback запроса анализа документа:', {
+          messages: fallbackMessages,
+          model: 'gpt-4o',
+          max_tokens: 1500,
+          temperature: 0.3,
+          stream: false
+        });
+
+        response = await fetch('http://localhost:3001/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: fallbackMessages,
+            model: 'gpt-4o',
+            max_tokens: 1500,
+            temperature: 0.3, // Более точный анализ
+            stream: false // Для анализа используем не streaming
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        data = await response.json();
+        analysisText = data.choices[0]?.message?.content || 'Не удалось проанализировать документ';
+        analysisText += '\n\nПримечание: Анализ выполнен без прямого просмотра изображения документа.';
       }
-
-      const data = await response.json();
-      const analysisText = data.choices[0]?.message?.content || 'Не удалось проанализировать документ';
 
       setAnalysisResult(analysisText);
 
