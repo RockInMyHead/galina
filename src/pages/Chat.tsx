@@ -882,7 +882,7 @@ ${analysisType.structure}
                     title="Новый чат"
                   >
                     <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="font-medium">НОВЫЙ ЧАТ</span>
+                    <span className="font-medium">Новый чат</span>
                   </Button>
                 </div>
 
