@@ -871,18 +871,16 @@ ${analysisType.structure}
 
           <div className="max-w-4xl mx-auto flex flex-col flex-1">
                 {/* Chat Controls */}
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex-1">
-                  </div>
+                <div className="flex justify-end items-center mb-4">
                   <Button
                     onClick={startNewChat}
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors px-2 sm:px-3 text-xs sm:text-sm"
+                    className="flex items-center gap-1 hover:bg-primary hover:text-primary-foreground transition-colors px-1.5 sm:px-3 text-xs sm:text-sm min-w-0"
                     title="Новый чат"
                   >
-                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="font-medium">Новый чат</span>
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                    <span className="hidden sm:inline font-medium">Новый чат</span>
                   </Button>
                 </div>
 
