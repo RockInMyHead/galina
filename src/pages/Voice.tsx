@@ -497,20 +497,10 @@ const Voice = () => {
                     <div className="relative">
                       <div
                         onClick={toggleVoiceMode}
-                      className={`relative flex h-32 w-32 items-center justify-center rounded-full transition-smooth cursor-pointer mx-auto ${
-                          isRecording
-                            ? "bg-red-500 shadow-glow animate-pulse"
-                            : "bg-primary/10 hover:bg-primary/20"
-                        }`}
+                        className="relative flex h-32 w-32 items-center justify-center rounded-full transition-smooth cursor-pointer mx-auto bg-primary/10 hover:bg-primary/20"
                       >
-                      {isLoading ? (
-                        <Sparkles className="h-8 w-8 text-primary animate-spin" />
-                      ) : isRecording ? (
-                        <MicOff className="h-8 w-8 text-white" />
-                      ) : (
                         <Mic className="h-8 w-8 text-primary" />
-                      )}
-                    </div>
+                      </div>
                     </div>
 
                     <div className="text-center space-y-2">
