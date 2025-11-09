@@ -867,20 +867,20 @@ ${analysisType.structure}
       <Header />
       
       <main className="flex-1 flex flex-col">
-        <div className="container mx-auto px-4 pb-6 flex-1 flex flex-col">
+        <div className="container mx-auto px-2 sm:px-4 pb-6 flex-1 flex flex-col">
 
           <div className="max-w-4xl mx-auto flex flex-col flex-1">
                 {/* Chat Controls */}
-                <div className="flex justify-end items-center mb-4 -mr-1 sm:mr-0">
+                <div className="flex justify-end items-center mb-4">
                   <Button
                     onClick={startNewChat}
                     variant="outline"
                     size="sm"
-                    className="flex items-center justify-center gap-0 sm:gap-1 hover:bg-primary hover:text-primary-foreground transition-colors p-1 sm:px-3 sm:py-2 h-7 sm:h-9 text-xs sm:text-sm min-w-0 w-7 sm:w-auto"
+                    className="flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors p-0.5 sm:px-3 sm:py-2 h-6 sm:h-9 text-xs sm:text-sm w-6 sm:w-auto min-w-[24px] sm:min-w-0"
                     title="Новый чат"
                   >
                     <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    <span className="hidden sm:inline font-medium">Новый чат</span>
+                    <span className="hidden sm:inline font-medium ml-1">Новый чат</span>
                   </Button>
                 </div>
 
