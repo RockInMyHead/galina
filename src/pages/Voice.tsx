@@ -359,38 +359,13 @@ const Voice = () => {
 
                   <div className="text-center space-y-2">
                     <h2 className="text-2xl font-bold text-foreground">
-                      {isLoading ? reasoningText :
-                       isRecording ? "🎤 Слушаю..." :
-                       "Готова слушать"}
+                      {isLoading ? reasoningText : "Галина"}
                     </h2>
                     <p className="text-muted-foreground">
-                      {isLoading ? reasoningText :
-                        isRecording
-                        ? "🎤 Непрерывное прослушивание активно - говорите естественно!"
-                        : "Нажмите кнопку для начала непрерывного прослушивания"}
+                      {isLoading ? reasoningText : "Ваш AI-юрист"}
                     </p>
                   </div>
 
-                  {isContinuousListening && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-sm text-blue-700 font-medium mb-1">
-                        🎤 Слушаю...
-                      </p>
-                      {interimTranscript && (
-                        <div className="mt-2 text-sm text-blue-700 italic">
-                          "{interimTranscript}"
-                        </div>
-                      )}
-                      <p className="text-blue-600 italic mt-2">Говорите естественно, я слушаю</p>
-                    </div>
-                  )}
-
-                  {isProcessingAudio && (
-                    <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                      <p className="text-sm text-orange-700 font-medium mb-1">🔄 Обработка аудио...</p>
-                      <p className="text-orange-600 italic">Распознавание речи через AI</p>
-                    </div>
-                  )}
 
                   {/* Action buttons */}
                   <div className="flex gap-4 justify-center">
