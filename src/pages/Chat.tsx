@@ -878,12 +878,11 @@ ${analysisType.structure}
                     onClick={startNewChat}
                     variant="outline"
                     size="sm"
-                    className="flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+                    className="flex items-center gap-1.5 hover:bg-primary hover:text-primary-foreground transition-colors px-2 sm:px-3 text-xs sm:text-sm"
                     title="Новый чат"
                   >
-                    <Plus className="h-4 w-4" />
-                    <span className="hidden md:inline">Новый чат</span>
-                    <span className="md:hidden">Новый</span>
+                    <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="font-medium">НОВЫЙ ЧАТ</span>
                   </Button>
                 </div>
 
