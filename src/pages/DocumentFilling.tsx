@@ -78,16 +78,28 @@ const DocumentFilling = () => {
     setIsUploadingFile(true);
 
     try {
-      // Сохраняем информацию о файле для чата
-      localStorage.setItem('uploadRequest', `Я загрузил документ "${file.name}". Проанализируй его и помоги с заполнением или создай соответствующий шаблон.`);
-
-      // Сохраняем файл в localStorage как base64 (для простоты)
+      // Конвертируем файл в base64
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         const base64 = reader.result as string;
-        localStorage.setItem('uploadedFile', base64);
-        localStorage.setItem('uploadedFileName', file.name);
-        localStorage.setItem('uploadedFileType', file.type);
+
+        // Создаем сообщение пользователя с файлом
+        const userMessage = {
+          id: Date.now().toString(),
+          content: `Я загрузил документ "${file.name}". Проанализируй его содержимое и определи какие персональные данные можно извлечь (ФИО, паспортные данные, адреса, контактная информация и т.д.). После анализа спроси меня, какие именно данные я хочу использовать для заполнения документов.`,
+          role: 'user' as const,
+          timestamp: new Date(),
+          uploadedFile: {
+            name: file.name,
+            data: base64,
+            type: file.type
+          }
+        };
+
+        // Сохраняем сообщение в localStorage
+        const existingMessages = JSON.parse(localStorage.getItem('galina-chat-messages') || '[]');
+        const updatedMessages = [...existingMessages, userMessage];
+        localStorage.setItem('galina-chat-messages', JSON.stringify(updatedMessages));
 
         // Переходим в чат
         navigate('/chat');

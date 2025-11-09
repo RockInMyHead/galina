@@ -47,11 +47,10 @@ const Chat = () => {
     chatStorage.set(messages);
   }, [messages]);
 
-  // Обработка выбранного шаблона документа или загруженного файла при загрузке страницы
+  // Обработка выбранного шаблона документа при загрузке страницы
   useEffect(() => {
     const selectedTemplate = localStorage.getItem('selectedTemplate');
     const templateRequest = localStorage.getItem('templateRequest');
-    const uploadRequest = localStorage.getItem('uploadRequest');
 
     if (selectedTemplate && templateRequest) {
       // Очищаем данные из localStorage
@@ -64,37 +63,6 @@ const Chat = () => {
         content: templateRequest,
         role: 'user',
         timestamp: new Date()
-      };
-
-      // Добавляем сообщение в чат
-      setMessages(prev => [...prev, userMessage]);
-
-      // Автоматически отправляем запрос к AI
-      setTimeout(() => {
-        handleSendMessage();
-      }, 500); // Небольшая задержка для плавности
-    } else if (uploadRequest) {
-      // Обработка загруженного файла
-      const uploadedFile = localStorage.getItem('uploadedFile');
-      const uploadedFileName = localStorage.getItem('uploadedFileName');
-
-      // Очищаем данные из localStorage
-      localStorage.removeItem('uploadRequest');
-      localStorage.removeItem('uploadedFile');
-      localStorage.removeItem('uploadedFileName');
-      localStorage.removeItem('uploadedFileType');
-
-      // Создаем сообщение от пользователя с информацией о файле
-      const userMessage: ChatMessageType = {
-        id: Date.now().toString(),
-        content: uploadRequest,
-        role: 'user',
-        timestamp: new Date(),
-        uploadedFile: uploadedFile ? {
-          name: uploadedFileName || 'uploaded_file',
-          data: uploadedFile,
-          type: localStorage.getItem('uploadedFileType') || 'application/octet-stream'
-        } : undefined
       };
 
       // Добавляем сообщение в чат
@@ -220,6 +188,20 @@ const Chat = () => {
     try {
       const currentMessages = [...messages];
 
+      // Проверяем, есть ли в последних сообщениях uploadedFile
+      const lastMessage = currentMessages[currentMessages.length - 1];
+      let hasUploadedFile = false;
+      let uploadedFileData = null;
+      let isDocumentAnalysis = false;
+
+      if (lastMessage && lastMessage.uploadedFile) {
+        hasUploadedFile = true;
+        uploadedFileData = lastMessage.uploadedFile;
+        // Проверяем, является ли это запросом на анализ документа
+        isDocumentAnalysis = userMessage.includes('Проанализируй его содержимое') ||
+                           userMessage.includes('заполнением или создай соответствующий шаблон');
+      }
+
       // Если есть файлы, добавляем их в сообщение
       let content = userMessage;
       if (files.length > 0) {
@@ -267,6 +249,135 @@ const Chat = () => {
           } else {
             content += `\nФайл "${file.name}" (${file.type || 'неизвестный тип'}, размер: ${formatFileSize(file.size)})`;
           }
+        }
+      }
+
+      // Если это анализ документа, используем специальный режим
+      if (isDocumentAnalysis && hasUploadedFile && uploadedFileData) {
+        console.log('📄 Начинаем анализ документа');
+
+        // Создаем сообщение для анализа документа
+        const analysisPrompt = `Ты - Галина, опытный AI-юрист. Пользователь загрузил документ для анализа.
+
+ТВОЯ ЗАДАЧА:
+1. Проанализируй изображение документа и извлеки всю видимую информацию
+2. Определи тип документа (паспорт, договор, свидетельство, справка и т.д.)
+3. Найди все персональные данные, которые можно извлечь:
+   - ФИО (полностью)
+   - Дата рождения
+   - Паспортные данные (серия, номер, когда и кем выдан)
+   - Адреса регистрации/проживания
+   - Контактные данные (телефон, email)
+   - Другие идентифицирующие данные
+
+4. После анализа сообщи пользователю:
+   - Какой тип документа ты распознала
+   - Какие данные удалось извлечь
+   - Какие данные пользователь может использовать для заполнения документов
+   - Предложи варианты использования этих данных
+
+ВАЖНО:
+- Будь максимально точным в извлечении данных
+- Если данные трудно прочитать, укажи это
+- Не придумывай данные, которых нет на изображении
+- Будь полезным и предложи конкретные действия
+
+Ответь на русском языке в дружелюбной форме.`;
+
+        const analysisMessages = [
+          {
+            role: 'system' as const,
+            content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.'
+          },
+          {
+            role: 'user' as const,
+            content: [
+              {
+                type: 'text',
+                text: analysisPrompt
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: uploadedFileData.data
+                }
+              }
+            ]
+          }
+        ];
+
+        // Отправляем запрос на анализ
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+        try {
+          const response = await fetch('http://localhost:3001/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: analysisMessages,
+              model: 'gpt-4o',
+              max_tokens: 1500,
+              temperature: 0.3, // Более точный анализ
+              stream: true
+            }),
+            signal: controller.signal
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          return new Promise((resolve, reject) => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullContent = '';
+
+            const readStream = async () => {
+              try {
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  const chunk = decoder.decode(value);
+                  const lines = chunk.split('\n');
+
+                  for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                      const data = line.slice(6);
+                      if (data === '[DONE]') {
+                        resolve(fullContent);
+                        return;
+                      }
+
+                      try {
+                        const parsed = JSON.parse(data);
+                        const content = parsed.choices[0]?.delta?.content;
+                        if (content) {
+                          fullContent += content;
+                          setStreamingMessage(fullContent);
+                        }
+                      } catch (e) {
+                        console.warn('⚠️ Failed to parse streaming JSON:', data, e);
+                      }
+                    }
+                  }
+                }
+              } catch (error) {
+                reject(error);
+              }
+            };
+
+            readStream();
+          });
+
+        } catch (error) {
+          console.error('Ошибка анализа документа:', error);
+          throw error;
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
 
@@ -615,14 +726,40 @@ ${courtCasesText}
           console.log(`🚀 Отправляем запрос на генерацию раздела "${point}"`);
           console.log('📝 Промпт:', pointPrompt.substring(0, 200) + '...');
 
+          // Подготавливаем сообщения для API
+          let apiMessages = pointMessages;
+
+          // Если есть загруженное изображение, добавляем его в первое пользовательское сообщение
+          if (hasUploadedFile && uploadedFileData && uploadedFileData.type.startsWith('image/')) {
+            // Находим первое пользовательское сообщение и добавляем изображение
+            const userMessageIndex = apiMessages.findIndex(msg => msg.role === 'user');
+            if (userMessageIndex !== -1) {
+              apiMessages[userMessageIndex] = {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: pointPrompt
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: uploadedFileData.data
+                    }
+                  }
+                ]
+              };
+            }
+          }
+
           const response = await fetch('http://localhost:3001/chat', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              messages: pointMessages,
-              model: 'gpt-4o',
+              messages: apiMessages,
+              model: hasUploadedFile && uploadedFileData?.type.startsWith('image/') ? 'gpt-4o' : 'gpt-4o',
               max_tokens: 1200, // Для каждого раздела (минимум 200 слов)
               temperature: 0.8,
               top_p: 0.9,
@@ -813,7 +950,14 @@ ${courtCasesText}
       const hasFiles = files.length > 0;
       const systemMessage = hasFiles ? AI_SYSTEM_MESSAGES.DOCUMENT_ANALYSIS : AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT;
 
-      const chatMessages = [
+      const chatMessages: Array<{
+        role: string;
+        content: string | Array<{
+          type: 'text' | 'image_url';
+          text?: string;
+          image_url?: { url: string };
+        }>;
+      }> = [
         {
           role: 'system' as const,
           content: systemMessage
@@ -900,12 +1044,25 @@ ${courtCasesText}
     setIsLoading(true);
 
     try {
-      console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
-      await simulateReasoning(message);
+      // Проверяем, есть ли в сообщении загруженный файл
+      const lastMessage = messages[messages.length - 1];
+      const hasUploadedFile = lastMessage && lastMessage.uploadedFile;
 
-      console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
-      const aiResponse = await sendStreamingMessageToAI(message, files);
-      console.log('handleSendMessage: Получен ответ от AI:', aiResponse);
+      let aiResponse: string;
+
+      if (hasUploadedFile) {
+        console.log('handleSendMessage: Обнаружен загруженный файл, запускаем анализ документа');
+        // Для загруженных файлов используем специальный режим анализа
+        aiResponse = await sendStreamingMessageToAI(message, files);
+        console.log('handleSendMessage: Получен анализ документа от AI:', aiResponse);
+      } else {
+        console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
+        await simulateReasoning(message);
+
+        console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
+        aiResponse = await sendStreamingMessageToAI(message, files);
+        console.log('handleSendMessage: Получен ответ от AI:', aiResponse);
+      }
 
       const assistantMessage: ChatMessageType = {
         id: (Date.now() + 1).toString(),

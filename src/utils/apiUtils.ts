@@ -47,7 +47,14 @@ export const apiRequest = async <T = any>(
  * Chat API request
  */
 export const sendChatMessage = async (
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<{
+    role: string;
+    content: string | Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: { url: string };
+    }>
+  }>,
   options: {
     model?: string
     max_tokens?: number

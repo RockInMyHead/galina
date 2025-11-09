@@ -1,7 +1,13 @@
 // Chat specific types
 export interface ChatMessage {
   id: string;
-  content: string;
+  content: string | Array<{
+    type: 'text' | 'image_url';
+    text?: string;
+    image_url?: {
+      url: string;
+    };
+  }>;
   role: 'user' | 'assistant';
   timestamp: Date;
   files?: File[];
