@@ -1,11 +1,9 @@
 import { ChatMessage as ChatMessageType, FilePreview } from '@/types'
-import { Sparkles, User, FileText, Image, Download, FileDown, Volume2, VolumeX } from 'lucide-react'
+import { Sparkles, User, FileText, Image, Download, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import ReactMarkdown from 'react-markdown'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
-import { useState } from 'react'
-import { textToSpeech, playAudioBlob } from '@/utils/apiUtils'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -14,8 +12,6 @@ interface ChatMessageProps {
 
 export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
   const isAssistant = message.role === 'assistant'
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false)
 
   // Функция генерации PDF из сообщения
   const generatePDF = async () => {
@@ -97,31 +93,6 @@ export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
     }
   }
 
-  // Функция озвучки текста с использованием OpenAI TTS
-  const speakMessage = async () => {
-    if (isPlaying || isLoadingAudio) return
-
-    try {
-      setIsLoadingAudio(true)
-      console.log('Starting TTS for message:', message.content.substring(0, 100) + '...')
-
-      const audioBlob = await textToSpeech(message.content)
-      if (audioBlob) {
-        setIsPlaying(true)
-        await playAudioBlob(audioBlob)
-        console.log('TTS playback completed')
-      } else {
-        console.error('Failed to get audio blob from TTS')
-        alert('Не удалось сгенерировать аудио. Попробуйте еще раз.')
-      }
-    } catch (error) {
-      console.error('TTS error:', error)
-      alert('Ошибка при озвучке сообщения. Попробуйте еще раз.')
-    } finally {
-      setIsLoadingAudio(false)
-      setIsPlaying(false)
-    }
-  }
 
   return (
     <div className={`flex items-start gap-3 ${isAssistant ? '' : 'justify-end'}`}>
@@ -143,22 +114,22 @@ export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
               {message.files
                 .filter(file => file != null) // Filter out null/undefined files
                 .map((file, index) => (
-                  <div key={index} className={`flex items-center gap-2 p-2 rounded-lg ${
-                    isAssistant ? 'bg-black/10' : 'bg-white/20'
-                  }`}>
+                <div key={index} className={`flex items-center gap-2 p-2 rounded-lg ${
+                  isAssistant ? 'bg-black/10' : 'bg-white/20'
+                }`}>
                     {file && file.type && typeof file.type === 'string' && file.type.startsWith('image/') ? (
-                      <Image className="h-4 w-4 flex-shrink-0" />
-                    ) : (
-                      <FileText className="h-4 w-4 flex-shrink-0" />
-                    )}
-                    <span className={`text-xs truncate ${isAssistant ? '' : 'text-white'}`}>
+                    <Image className="h-4 w-4 flex-shrink-0" />
+                  ) : (
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                  )}
+                  <span className={`text-xs truncate ${isAssistant ? '' : 'text-white'}`}>
                       {file?.name || 'Неизвестный файл'}
-                    </span>
-                    <span className={`text-xs ${isAssistant ? 'opacity-70' : 'text-white/70'}`}>
+                  </span>
+                  <span className={`text-xs ${isAssistant ? 'opacity-70' : 'text-white/70'}`}>
                       ({file?.size ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : 'размер неизвестен'})
-                    </span>
-                  </div>
-                ))}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -172,22 +143,6 @@ export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
           {/* Action buttons for assistant messages */}
           {isAssistant && (
             <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={speakMessage}
-                disabled={isPlaying || isLoadingAudio}
-                className="flex items-center gap-1 text-xs"
-              >
-                {isLoadingAudio ? (
-                  <div className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
-                ) : isPlaying ? (
-                  <VolumeX className="h-3 w-3" />
-                ) : (
-                  <Volume2 className="h-3 w-3" />
-                )}
-                {isLoadingAudio ? 'Генерация...' : isPlaying ? 'Останова' : 'Озвучить'}
-              </Button>
               <Button
                 size="sm"
                 variant="outline"

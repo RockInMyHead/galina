@@ -11,3 +11,6 @@ console.log('apiKey negative check:', !apiKey);
 console.log('apiKey === undefined:', apiKey === undefined);
 console.log('apiKey === null:', apiKey === null);
 console.log('typeof apiKey:', typeof apiKey);
+
+
+

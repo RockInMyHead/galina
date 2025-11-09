@@ -4,16 +4,30 @@ interface VoiceStatusProps {
   isListening: boolean
   isVoiceMode: boolean
   isSpeaking: boolean
+  isContinuousListening?: boolean
+  interimTranscript?: string
 }
 
-export const VoiceStatus = ({ isListening, isVoiceMode, isSpeaking }: VoiceStatusProps) => {
-  if (!isListening && !isVoiceMode && !isSpeaking) return null
+export const VoiceStatus = ({
+  isListening,
+  isVoiceMode,
+  isSpeaking,
+  isContinuousListening,
+  interimTranscript
+}: VoiceStatusProps) => {
+  if (!isListening && !isVoiceMode && !isSpeaking && !isContinuousListening) return null
 
   return (
     <Card className="border-border/50 mb-4">
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
-          {isListening && (
+          {isContinuousListening && (
+            <>
+              <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="text-blue-600 font-medium">🎤 Непрерывное прослушивание активно</span>
+            </>
+          )}
+          {isListening && !isContinuousListening && (
             <>
               <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
               <span className="text-blue-600 font-medium">🎤 Галина вас слушает...</span>
@@ -32,9 +46,21 @@ export const VoiceStatus = ({ isListening, isVoiceMode, isSpeaking }: VoiceStatu
             </>
           )}
         </div>
-        {isListening && (
+        {isContinuousListening && interimTranscript && (
+          <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
+            <p className="text-sm text-blue-700">
+              <strong>Вы говорите:</strong> "{interimTranscript}"
+            </p>
+          </div>
+        )}
+        {isListening && !isContinuousListening && (
           <p className="text-sm text-muted-foreground mt-2">
-            Говорите ваш вопрос четко и разборчиво. Скажите "Завершить" для окончания записи.
+            Говорите ваш вопрос четко и разборчиво.
+          </p>
+        )}
+        {isContinuousListening && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Режим непрерывного прослушивания: говорите естественно, система автоматически распознает паузы.
           </p>
         )}
       </CardContent>

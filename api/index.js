@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
 require('dotenv').config({ path: './.env.local' });
 
@@ -13,7 +14,41 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Увеличиваем лимит для JSON
+app.use(express.urlencoded({ limit: '50mb', extended: true })); // Для form data
+
+// Middleware для обработки raw binary data для /stt/raw
+app.use('/stt/raw', express.raw({ limit: '50mb', type: 'audio/*' }));
+
+// Настройка multer для обработки больших файлов
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    console.log('🎵 Multer file filter:', {
+      fieldname: file.fieldname,
+      originalname: file.originalname,
+      mimetype: file.mimetype
+    });
+    cb(null, true);
+  }
+});
+
+// Middleware для обработки ошибок multer
+const handleMulterError = (error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    console.error('🚨 Multer error:', error.code, error.message);
+    return res.status(400).json({
+      error: 'File upload error',
+      details: error.message,
+      code: error.code
+    });
+  }
+  next(error);
+};
 
 
 app.post('/chat', async (req, res) => {
@@ -292,23 +327,165 @@ app.post('/tts', async (req, res) => {
   }
 });
 
-// Speech to Text endpoint
-app.post('/stt', async (req, res) => {
+// Speech to Text endpoint - supports both multipart and raw binary
+const sttHandler = async (req, res) => {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.log('No API key - returning mock STT response');
-      return res.json({ text: 'Это голосовое сообщение (демо)' });
+    console.log('🎤 STT Request received');
+    console.log('📋 Content-Type:', req.headers['content-type']);
+
+    let audioBuffer;
+    let mimeType = 'audio/wav';
+    let fileName = 'recording.wav';
+
+    // Check if it's multipart/form-data (multer processed)
+    if (req.file) {
+      console.log('📁 Received as multipart/form-data');
+      audioBuffer = req.file.buffer;
+      mimeType = req.file.mimetype;
+      fileName = req.file.originalname;
+    }
+    // Check if it's raw body (express raw parser for /stt/raw)
+    else if (req.body && Buffer.isBuffer(req.body)) {
+      console.log('📁 Received as raw body buffer (express.raw)');
+      audioBuffer = req.body;
+      mimeType = req.headers['content-type'] || 'audio/wav';
+      fileName = req.headers['content-disposition']?.match(/filename="([^"]+)"/)?.[1] || 'recording.wav';
+    }
+    // Check if it's raw binary data (fallback for manual streaming)
+    else if (req.headers['content-type'] && req.headers['content-type'].includes('audio/')) {
+      console.log('📁 Received as raw binary data (manual streaming)');
+      audioBuffer = Buffer.from(await new Promise((resolve, reject) => {
+        const chunks = [];
+        req.on('data', chunk => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      }));
+      mimeType = req.headers['content-type'];
+      fileName = req.headers['content-disposition']?.match(/filename="([^"]+)"/)?.[1] || 'recording.wav';
+    }
+    else {
+      console.log('❌ No audio data found in request');
+      console.log('📋 Request keys:', Object.keys(req));
+      console.log('📋 Body type:', typeof req.body);
+      return res.status(400).json({ error: 'No audio data received. Expected multipart/form-data with "audio" field or raw binary data.' });
     }
 
-    // This endpoint would need to receive audio file from client
-    // For now, returning error as we need file handling setup
-    res.status(400).json({ error: 'STT endpoint requires audio file setup' });
+    console.log('🎵 Audio processing info:', {
+      bufferSize: audioBuffer.length,
+      mimeType,
+      fileName,
+      sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2)
+    });
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    console.log('🔑 API Key check:', {
+      exists: !!apiKey,
+      length: apiKey?.length,
+      isEmpty: !apiKey || apiKey.trim() === '',
+      startsWith: apiKey?.substring(0, 15) + '...' || 'undefined',
+      envVarSet: 'OPENAI_API_KEY' in process.env,
+      rawValue: apiKey ? `"${apiKey}"` : 'null'
+    });
+
+    // Дополнительная проверка - если ключ существует, но некорректный, возвращаем демо
+    if (apiKey && (apiKey.trim() === '' || apiKey.length < 20 || (!apiKey.startsWith('sk-') && !apiKey.startsWith('sk-proj-') && !apiKey.startsWith('sk-svc-')))) {
+      console.log('🚨 API key exists but invalid - returning demo response');
+      return res.json({
+        success: true,
+        text: 'Привет! Я Галина, ваш AI-юрист. API ключ OpenAI некорректен. Для полноценной работы установите правильный OPENAI_API_KEY в файле api/.env'
+      });
+    }
+
+    // Проверяем на различные случаи отсутствия ключа
+    if (!apiKey || apiKey.trim() === '' || apiKey === 'sk-your-actual-openai-api-key-here') {
+      console.log('⚠️ No valid API key configured - returning demo response');
+      console.log('💡 To enable real STT, create api/.env file with: OPENAI_API_KEY=your_actual_key_here');
+      return res.json({
+        success: true,
+        text: 'Привет! Я Галина, ваш AI-юрист. К сожалению, API ключ OpenAI не настроен, поэтому я работаю в демо-режиме. Для полноценной работы с голосом установите OPENAI_API_KEY в файле api/.env'
+      });
+    }
+
+    console.log('📤 About to send to OpenAI - final check:');
+    console.log('   API Key exists:', !!apiKey);
+    console.log('   API Key length:', apiKey?.length);
+    console.log('   API Key starts with:', apiKey?.substring(0, 15) + '...');
+
+    // Дополнительная проверка - если ключ некорректный, возвращаем демо
+    if (!apiKey || apiKey.length < 20 || (!apiKey.startsWith('sk-') && !apiKey.startsWith('sk-proj-'))) {
+      console.log('🚨 API key validation failed - returning demo response');
+      return res.json({
+        success: true,
+        text: 'Привет! Я Галина, ваш AI-юрист. API ключ OpenAI некорректен. Проверьте правильность ключа в файле api/.env'
+      });
+    }
+
+    // Используем простой подход с fetch и FormData
+    const formData = new FormData();
+    const audioBlob = new Blob([audioBuffer], { type: mimeType });
+    formData.append('file', audioBlob, fileName || 'audio.wav');
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'ru');
+    formData.append('response_format', 'json');
+
+    console.log('📝 Prepared FormData for OpenAI:');
+    console.log('   Audio blob size:', audioBlob.size);
+    console.log('   Audio blob type:', audioBlob.type);
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    console.log('📥 OpenAI response status:', response.status);
+    console.log('📥 OpenAI response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI STT API error:', response.status, errorText);
+      return res.status(response.status).json({
+        success: false,
+        error: 'Failed to transcribe audio',
+        details: errorText
+      });
+    }
+
+    const result = await response.json();
+    console.log('✅ OpenAI STT successful:', {
+      text: result.text,
+      language: result.language,
+      duration: result.duration
+    });
+
+    if (!result.text || result.text.trim().length === 0) {
+      console.warn('⚠️ OpenAI returned empty text');
+      return res.json({
+        success: true,
+        text: 'Извините, не удалось распознать речь. Попробуйте говорить четче.'
+      });
+    }
+
+    res.json({
+      success: true,
+      text: result.text.trim()
+    });
+
   } catch (error) {
     console.error('STT Server error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
   }
-});
+};
+
+// Routes for STT with different upload methods
+app.post('/stt', upload.single('audio'), handleMulterError, sttHandler); // multipart/form-data
+app.post('/stt/raw', sttHandler); // raw binary - middleware applied above
 
 // ===== DATABASE API ENDPOINTS =====
 

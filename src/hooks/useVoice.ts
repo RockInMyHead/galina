@@ -3,13 +3,16 @@ import { VOICE_CONFIG, SPEECH_CONFIG, BEEP_CONFIG } from '@/config/constants'
 
 interface UseVoiceOptions {
   onTranscript?: (transcript: string) => void
+  onInterimTranscript?: (transcript: string) => void
   onError?: (error: string) => void
   onStart?: () => void
   onEnd?: () => void
+  onSpeakingStart?: () => void
+  onSpeakingEnd?: () => void
 }
 
 export const useVoice = (options: UseVoiceOptions = {}) => {
-  const { onTranscript, onError, onStart, onEnd } = options
+  const { onTranscript, onInterimTranscript, onError, onStart, onEnd, onSpeakingStart, onSpeakingEnd } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -94,6 +97,12 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
           } else {
             interimTranscript += transcript
           }
+        }
+
+        // Отправляем промежуточные результаты в реальном времени
+        if (interimTranscript) {
+          console.log('Interim transcript:', interimTranscript)
+          onInterimTranscript?.(interimTranscript)
         }
 
         // Используем финальный результат, если он есть, иначе промежуточный
@@ -244,6 +253,7 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
   const speak = useCallback((text: string) => {
     if (synthRef.current) {
       setIsSpeaking(true)
+      onSpeakingStart?.()
 
       // Cancel previous speech
       synthRef.current.cancel()
@@ -256,25 +266,28 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
 
       utterance.onend = () => {
         setIsSpeaking(false)
+        onSpeakingEnd?.()
       }
 
       utterance.onerror = (event) => {
         console.error('Speech synthesis error:', event)
         setIsSpeaking(false)
+        onSpeakingEnd?.()
         onError?.('Ошибка синтеза речи')
       }
 
       synthRef.current.speak(utterance)
     }
-  }, [onError])
+  }, [onError, onSpeakingStart, onSpeakingEnd])
 
   // Stop speaking
   const stopSpeaking = useCallback(() => {
     if (synthRef.current) {
       synthRef.current.cancel()
       setIsSpeaking(false)
+      onSpeakingEnd?.()
     }
-  }, [])
+  }, [onSpeakingEnd])
 
   // Clear transcript
   const clearTranscript = useCallback(() => {

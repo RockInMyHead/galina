@@ -76,7 +76,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
   if (file.type.startsWith('image/')) {
     type = 'image'
     try {
-      content = await fileToBase64(file)
+    content = await fileToBase64(file)
     } catch (error) {
       console.error('Error processing image:', error)
       content = `Изображение: ${file.name} (${formatFileSize(file.size)}) - не удалось обработать`
@@ -84,7 +84,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
   } else if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
     type = 'text'
     try {
-      content = await fileToText(file)
+    content = await fileToText(file)
     } catch (error) {
       console.error('Error processing text file:', error)
       content = `Текстовый файл: ${file.name} - не удалось прочитать содержимое`
@@ -92,7 +92,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
   } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
     type = 'pdf'
     try {
-      content = await extractTextFromPDF(file)
+    content = await extractTextFromPDF(file)
       console.log('PDF processed successfully, content length:', content.length)
     } catch (error) {
       console.error('Error processing PDF:', error)
@@ -101,7 +101,7 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
   } else {
     type = 'document'
     try {
-      content = await fileToText(file)
+    content = await fileToText(file)
     } catch (error) {
       console.error('Error processing document:', error)
       content = `Документ: ${file.name} (${formatFileSize(file.size)}, тип: ${file.type}) - не удалось извлечь содержимое`
@@ -184,16 +184,16 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
             )
 
             const page = await Promise.race([pagePromise, pageTimeout])
-            const textContent = await page.getTextContent()
+          const textContent = await page.getTextContent()
 
-            const pageText = textContent.items
+          const pageText = textContent.items
               .filter((item: any) => item.str && item.str.trim())
               .map((item: any) => item.str.trim())
-              .join(' ')
+            .join(' ')
               .replace(/\s+/g, ' ') // Normalize whitespace
 
             if (pageText.trim()) {
-              fullText += `${pageText}\n`
+          fullText += `${pageText}\n`
               console.log(`Page ${i} extracted ${pageText.length} characters`)
             } else {
               console.log(`Page ${i} contains no extractable text`)
@@ -212,7 +212,7 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         } else if (finalText.length < 100) {
           resolve(`Найден текст: "${finalText}". Возможно, PDF содержит в основном изображения или имеет ограничения на копирование.`)
         } else {
-          resolve(finalText)
+        resolve(finalText)
         }
       } catch (error) {
         console.error('Error extracting text from PDF:', error)

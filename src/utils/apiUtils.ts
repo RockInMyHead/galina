@@ -118,60 +118,11 @@ export const createErrorMessage = (code: string, details?: any): string => {
   return errorMessages[code] || 'Произошла ошибка. Попробуйте еще раз.'
 }
 
-/**
- * Text to Speech using OpenAI TTS
- */
-export const textToSpeech = async (text: string): Promise<Blob | null> => {
-  try {
-    const response = await fetch('http://localhost:3001/tts', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text,
-        voice: 'alloy',
-        model: 'tts-1',
-      }),
-    })
+// Speech to Text is now handled locally by Web Speech API in the browser
+// No backend API calls needed for speech recognition
 
-    if (!response.ok) {
-      throw new Error(`TTS API error: ${response.status}`)
-    }
-
-    const audioBlob = await response.blob()
-    return audioBlob
-  } catch (error) {
-    console.error('Text to Speech error:', error)
-    return null
-  }
-}
-
-/**
- * Play audio from blob
- */
-export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
-  return new Promise((resolve) => {
-    const audioUrl = URL.createObjectURL(audioBlob)
-    const audio = new Audio(audioUrl)
-
-    audio.onended = () => {
-      URL.revokeObjectURL(audioUrl)
-      resolve()
-    }
-
-    audio.onerror = () => {
-      URL.revokeObjectURL(audioUrl)
-      resolve()
-    }
-
-    audio.play().catch((error) => {
-      console.error('Audio playback error:', error)
-      URL.revokeObjectURL(audioUrl)
-      resolve()
-    })
-  })
-}
+// Text to Speech is now handled locally by browser's SpeechSynthesis API
+// No backend API calls needed for speech synthesis
 
 /**
  * Retry mechanism for API calls

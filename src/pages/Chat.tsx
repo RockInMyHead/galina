@@ -3,10 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { VoiceStatus } from "@/components/chat/VoiceStatus";
 import { useVoice } from "@/hooks/useVoice";
 import { useFileUpload } from "@/hooks/useFileUpload";
-import { sendChatMessage, textToSpeech, playAudioBlob } from "@/utils/apiUtils";
+import { sendChatMessage } from "@/utils/apiUtils";
 import { EXAMPLE_QUESTIONS, STORAGE_KEYS, AI_SYSTEM_MESSAGES } from "@/config/constants";
 import { ChatMessage as ChatMessageType } from "@/types";
 import { useState, useEffect } from "react";
@@ -47,6 +46,34 @@ const Chat = () => {
     chatStorage.set(messages);
   }, [messages]);
 
+  // Обработка выбранного шаблона документа при загрузке страницы
+  useEffect(() => {
+    const selectedTemplate = localStorage.getItem('selectedTemplate');
+    const templateRequest = localStorage.getItem('templateRequest');
+
+    if (selectedTemplate && templateRequest) {
+      // Очищаем данные из localStorage
+      localStorage.removeItem('selectedTemplate');
+      localStorage.removeItem('templateRequest');
+
+      // Создаем сообщение от пользователя
+      const userMessage: ChatMessageType = {
+        id: Date.now().toString(),
+        content: templateRequest,
+        role: 'user',
+        timestamp: new Date()
+      };
+
+      // Добавляем сообщение в чат
+      setMessages(prev => [...prev, userMessage]);
+
+      // Автоматически отправляем запрос к AI
+      setTimeout(() => {
+        handleSendMessage(templateRequest, false);
+      }, 500); // Небольшая задержка для плавности
+    }
+  }, []);
+
   // Функция для создания нового чата
   const startNewChat = () => {
     const welcomeMessage: ChatMessageType = {
@@ -63,52 +90,99 @@ const Chat = () => {
   };
 
 
-
-  // Custom hooks
-  const voice = useVoice({
-    onTranscript: (transcript) => {
-      const lowerTranscript = transcript.toLowerCase().trim();
-
-      // Проверяем на команду завершения
-      if (lowerTranscript.includes('завершить') || lowerTranscript.includes('заверши') || lowerTranscript.includes('стоп')) {
-        console.log('Voice command: завершить');
-        if (message.trim()) {
-          setIsVoiceMode(true);
-          voice.stopListening();
-        }
-        return;
-      }
-
-      setMessage(transcript);
-      setIsVoiceMode(true);
-    },
-    onError: (error) => console.error('Voice error:', error),
-  });
-
   const fileUpload = useFileUpload({
     onError: (error) => console.error('File upload error:', error),
   });
 
-  // Функция имитации размышлений LLM
+  // Функция настоящего процесса размышлений LLM
   const simulateReasoning = async (userQuery: string): Promise<void> => {
-    const reasoningSteps = [
-      "Анализирую ваш юридический вопрос...",
-      "Проверяю актуальное законодательство РФ...",
-      "Ищу релевантные нормы и судебную практику...",
-      "Формулирую юридически точный ответ...",
-      "Проверяю полноту и корректность информации..."
-    ];
+    try {
+      console.log('🤔 Начинаем настоящий процесс размышлений LLM');
 
-    for (const step of reasoningSteps) {
+      // Создаем запрос для генерации цепочки размышлений
+      const reasoningPrompt = `Ты - Галина, элитный AI-юрист. Проанализируй этот вопрос пользователя и создай цепочку размышлений (ровно 5 шагов), которая покажет твой мыслительный процесс.
+
+Вопрос пользователя: "${userQuery}"
+
+Требования к размышлениям:
+- РОВНО 5 шагов размышления
+- Каждый шаг должен быть конкретным и содержательным
+- Определить тип правовой проблемы
+- Указать ключевые нормы законодательства
+- Оценить возможные риски и последствия
+- Определить оптимальную стратегию действий
+- Сформулировать ключевые выводы
+
+Формат вывода: только шаги размышлений, каждый с новой строки, без нумерации или маркеров.`;
+
+      const reasoningMessages = [
+        {
+          role: 'system' as const,
+          content: 'Ты - Галина, опытный юрист. Создай реалистичную цепочку размышлений для анализа юридического вопроса.'
+        },
+        {
+          role: 'user' as const,
+          content: reasoningPrompt
+        }
+      ];
+
+      console.log('📝 Отправляем запрос на генерацию размышлений');
+
+      const reasoningResponse = await sendChatMessage(reasoningMessages, {
+        model: 'gpt-4o',
+        max_tokens: 800,
+        temperature: 0.7
+      });
+
+      if (reasoningResponse.success && reasoningResponse.data?.content) {
+        const reasoningText = reasoningResponse.data.content.trim();
+        const reasoningSteps = reasoningText.split('\n').filter(step => step.trim().length > 0);
+
+        console.log('🧠 Сгенерированы шаги размышлений:', reasoningSteps.length);
+
+        // Показываем каждый шаг размышлений с реалистичной задержкой
+        for (let i = 0; i < reasoningSteps.length; i++) {
+          const step = reasoningSteps[i].trim();
+          if (step.length > 0) {
+            setReasoningText(step);
+            // Для 5 шагов используем комфортную задержку (1.2-2 секунды)
+            await new Promise(resolve => setTimeout(resolve, 1200 + Math.random() * 800));
+          }
+        }
+
+        console.log('✅ Процесс размышлений завершен');
+      } else {
+        console.warn('⚠️ Не удалось сгенерировать размышления, используем fallback');
+
+        // Fallback на простые шаги
+        const fallbackSteps = [
+          "Анализирую юридические аспекты вашего вопроса...",
+          "Определяю применимые нормы законодательства РФ...",
+          "Оцениваю потенциальные правовые последствия...",
+          "Формулирую рекомендации на основе анализа..."
+        ];
+
+        for (const step of fallbackSteps) {
       setReasoningText(step);
-      await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400)); // 800-1200ms
-    }
+          await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
+        }
+      }
 
-    setReasoningText("Генерирую окончательный ответ...");
+      setReasoningText("Готовлю окончательный ответ на основе анализа...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+    } catch (error) {
+      console.error('❌ Ошибка в процессе размышлений:', error);
+
+      // Emergency fallback
+      setReasoningText("Анализирую ваш вопрос...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setReasoningText("Готовлю юридическую консультацию...");
     await new Promise(resolve => setTimeout(resolve, 500));
+    }
   };
 
-  // Функция для обработки streaming ответа
+  // Функция для обработки streaming ответа с модульной генерацией
   const sendStreamingMessageToAI = async (userMessage: string, files: File[] = []): Promise<string> => {
     try {
       const currentMessages = [...messages];
@@ -123,14 +197,14 @@ const Chat = () => {
             if (file.size > 1024 * 1024) { // 1MB
               content += `\nИзображение "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите изображение меньшего размера)`;
             } else {
-              const base64 = await fileToBase64(file);
-              content += `\nИзображение: ${file.name} (содержимое закодировано в base64: ${base64.substring(0, 100)}...)`;
+            const base64 = await fileToBase64(file);
+            content += `\nИзображение: ${file.name} (содержимое закодировано в base64: ${base64.substring(0, 100)}...)`;
             }
           } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             // Проверяем размер файла - для больших PDF отправляем только описание
             if (file.size > 2 * 1024 * 1024) { // 2MB
               content += `\nPDF документ "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите файл меньшего размера)`;
-            } else {
+          } else {
               try {
                 const processedFile = await processFile(file);
                 content += `\nPDF документ "${file.name}":\n${processedFile.content}`;
@@ -163,46 +237,60 @@ const Chat = () => {
         }
       }
 
-      // Определяем, какой промпт использовать
-      const hasFiles = files.length > 0;
-      const systemMessage = hasFiles ? AI_SYSTEM_MESSAGES.DOCUMENT_ANALYSIS : AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT;
+      console.log('🚀 Начинаем модульную генерацию ответа');
 
-      const chatMessages = [
+      // Переменные для хранения плана
+      let planPoints: string[] = [];
+      let planContent: string = '';
+
+      // ЭТАП 1: Создаем план ответа из 3 пунктов через streaming (серым цветом)
+      console.log('📋 Этап 1: Создание плана ответа');
+
+      const planPrompt = `Создай краткий план ответа на вопрос пользователя. План должен содержать ровно 3 основных пункта, которые полностью охватывают тему вопроса.
+
+Вопрос пользователя: ${content}
+
+План должен быть в формате:
+1. [Краткий заголовок первого пункта]
+2. [Краткий заголовок второго пункта]
+3. [Краткий заголовок третьего пункта]
+
+Требования к плану:
+- Каждый пункт должен быть развернутым заголовком (5-10 слов)
+- План должен полностью охватывать юридический аспект вопроса
+- Избегай общих фраз типа "Анализ ситуации" - будь конкретен
+- Фокус на практических аспектах и юридических последствиях`;
+
+      const systemMessage = AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT;
+      const planMessages = [
         {
           role: 'system' as const,
-          content: systemMessage
+          content: 'Ты - помощник юриста. Создай краткий план из 3 пунктов для ответа на юридический вопрос. Будь максимально конкретен и практичен.'
         },
-        ...currentMessages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
         {
           role: 'user' as const,
-          content
+          content: planPrompt
         }
       ];
 
-      console.log('Отправка streaming запроса в AI');
+      // Streaming генерация плана (серым цветом)
+      setIsStreaming(true);
+      setStreamingMessage('');
 
-      // Создаем AbortController для таймаута
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 минуты таймаут
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       try {
-        // Создаем streaming соединение через fetch с чтением тела как текст
         const response = await fetch('http://localhost:3001/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            messages: chatMessages,
+            messages: planMessages,
             model: 'gpt-4o',
-            max_tokens: 16000, // Максимально длинные ответы для модульной генерации
-            temperature: 0.95, // Максимальная креативность для длинных ответов
-            top_p: 0.9, // Более разнообразный выбор слов
-            presence_penalty: 0.2, // Активно поощряем новые темы
-            frequency_penalty: 0.2, // Сильно избегаем повторений
+            max_tokens: 1000,
+            temperature: 0.7,
             stream: true
           }),
           signal: controller.signal
@@ -214,116 +302,354 @@ const Chat = () => {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        setIsStreaming(true);
-        setStreamingMessage('');
-        let fullContent = '';
-
         const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        planContent = '';
+
         if (!reader) {
-          throw new Error('Unable to read response stream');
+          throw new Error('Response body is not readable');
         }
 
-        const decoder = new TextDecoder();
-
+        let isDone = false;
         try {
-          let buffer = '';
-          let streamDone = false;
-
-          while (true) {
+          while (!isDone) {
             const { done, value } = await reader.read();
-            if (done || streamDone) break;
+            if (done) {
+              isDone = true;
+              break;
+            }
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-
-            // Оставляем неполную строку в буфере
-            buffer = lines.pop() || '';
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
 
             for (const line of lines) {
               if (line.startsWith('data: ')) {
-                const data = line.slice(6).trim();
+                const data = line.slice(6);
                 if (data === '[DONE]') {
-                  streamDone = true;
+                  isDone = true;
                   break;
                 }
 
                 try {
                   const parsed = JSON.parse(data);
-                  const content = parsed.content;
-                  if (content && content !== fullContent) {
-                    // Получаем только новый контент
-                    const newContent = content.slice(fullContent.length);
-                    fullContent = content;
-                    setStreamingMessage(fullContent);
-                    setReasoningText(`Генерирую ответ: ${fullContent.length} символов...`);
+                  const contentChunk = parsed.choices?.[0]?.delta?.content;
+                  if (contentChunk) {
+                    planContent += contentChunk;
+                    // Показываем план серым цветом как промежуточный результат
+                    setStreamingMessage(`<div style="color: #6b7280; font-style: italic;">📋 План ответа:\n\n${planContent}</div>`);
                   }
                 } catch (e) {
-                  // Игнорируем невалидный JSON
-                  console.log('Invalid JSON in stream:', data);
+                  // Игнорируем некорректный JSON
                 }
               }
             }
           }
         } finally {
           reader.releaseLock();
-          setReasoningText('');
         }
 
-        console.log('Streaming завершен, полный контент:', fullContent.length, 'символов');
-        
-        if (!fullContent || fullContent.trim().length === 0) {
-          throw new Error('Получен пустой ответ от AI');
-        }
-        
-        return fullContent;
+        console.log('📋 Создан план:', planContent);
+        console.log('📋 Длина плана:', planContent.length);
+        console.log('📋 Строки плана:', planContent.split('\n'));
 
-      } catch (error: any) {
+        // Парсим план на пункты - пробуем разные варианты
+        let planLines = planContent.split('\n').filter(line => line.trim().match(/^\d+\./));
+
+        // Если не нашли пункты с точкой, попробуем с тире или другими разделителями
+        if (planLines.length === 0) {
+          planLines = planContent.split('\n').filter(line =>
+            line.trim().match(/^[-*]\s/) ||
+            line.trim().match(/^\d+\)/) ||
+            line.trim().match(/^[а-яА-Я]/) // Русские буквы в начале
+          );
+        }
+
+        // Если все еще не нашли, попробуем найти все строки с цифрами
+        if (planLines.length === 0) {
+          planLines = planContent.split('\n').filter(line =>
+            line.trim().match(/\d+/) &&
+            line.trim().length > 10 // Не слишком короткие строки
+          );
+        }
+
+        console.log('📋 Найденные строки плана:', planLines);
+
+        // Берем первые 3 подходящие строки и очищаем их
+        planPoints = planLines.slice(0, 3).map(line => {
+          // Убираем маркеры списков и лишние пробелы
+          return line
+            .trim()
+            .replace(/^\d+[\.)]\s*/, '') // 1. или 1)
+            .replace(/^[-*]\s*/, '') // - или *
+            .trim();
+        });
+
+        console.log('📋 Пункты плана после обработки:', planPoints);
+
+        // Если все еще пустой массив, создаем дефолтные пункты
+        if (planPoints.length === 0) {
+          console.warn('📋 План не распознан, создаем дефолтные пункты');
+          planPoints = [
+            'Анализ правовой ситуации',
+            'Практические рекомендации',
+            'Возможные риски и решения'
+          ];
+        }
+
+        // Ждем немного, чтобы пользователь увидел план
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Очищаем план и начинаем генерацию основного ответа
+        setStreamingMessage('🔄 Разрабатываю подробный ответ...\n\n');
+
+      } catch (error) {
         clearTimeout(timeoutId);
-        console.error('Ошибка streaming:', error);
-        
-        if (error.name === 'AbortError') {
-          throw new Error('Превышено время ожидания ответа от сервера. Попробуйте еще раз.');
-        }
-        
-        throw error;
-      } finally {
-        setIsStreaming(false);
-        setReasoningText('');
+        console.error('Ошибка при генерации плана:', error);
+        setStreamingMessage('⚠️ Ошибка при создании плана. Начинаю стандартный ответ...\n\n');
+
+        // При ошибке создаем дефолтные пункты плана
+        planPoints = [
+          'Анализ правовой ситуации',
+          'Практические рекомендации',
+          'Возможные риски и решения'
+        ];
       }
+
+      // ЭТАП 2: Последовательно обрабатываем каждый пункт плана
+      let fullResponse = '';
+
+      console.log('🚀 Начинаем обработку пунктов плана, количество:', planPoints.length);
+
+      // Разные типы анализа для разнообразия ответов
+      const analysisTypes = [
+        {
+          name: 'Теоретический анализ',
+          focus: 'Дай глубокий теоретический анализ правовой природы проблемы. Объясни фундаментальные принципы и доктринальные подходы права.',
+          requirements: '- Философский анализ права\n- Доктринальные подходы\n- Фундаментальные принципы\n- Правовая природа проблемы',
+          structure: '1. Теоретические основы\n2. Доктринальные подходы\n3. Правовая природа проблемы\n4. Выводы'
+        },
+        {
+          name: 'Практический разбор',
+          focus: 'Сделай детальный практический разбор с пошаговыми инструкциями. Опиши реальные процедуры, документы, сроки.',
+          requirements: '- Пошаговые инструкции\n- Формы документов\n- Процессуальные сроки\n- Практические примеры',
+          structure: '1. Алгоритм действий\n2. Необходимые документы\n3. Сроки и этапы\n4. Практические советы'
+        },
+        {
+          name: 'Судебная практика',
+          focus: 'Проанализируй судебную практику по данной теме. Разбери ключевые дела, позиции судов, тенденции.',
+          requirements: '- Анализ прецедентов\n- Судебная статистика\n- Тенденции правоприменения\n- Прогнозы развития',
+          structure: '1. Ключевые судебные дела\n2. Статистика и тенденции\n3. Анализ позиций судов\n4. Прогнозы'
+        },
+        {
+          name: 'Риск-анализ',
+          focus: 'Проведи детальный анализ рисков. Выяви скрытые угрозы, потенциальные проблемы, способы минимизации.',
+          requirements: '- Идентификация рисков\n- Вероятность наступления\n- Последствия\n- Меры минимизации',
+          structure: '1. Идентификация рисков\n2. Оценка вероятности\n3. Анализ последствий\n4. Меры минимизации'
+        },
+        {
+          name: 'Стратегический подход',
+          focus: 'Разработай стратегический план действий. Определи приоритеты, этапы, ресурсы.',
+          requirements: '- Стратегическое планирование\n- Приоритизация действий\n- Ресурсное обеспечение\n- Контрольные точки',
+          structure: '1. Стратегические цели\n2. Этапы реализации\n3. Необходимые ресурсы\n4. Контроль и корректировка'
+        },
+        {
+          name: 'Экспертная оценка',
+          focus: 'Дай экспертную оценку ситуации как практикующий юрист. Поделись практическими советами.',
+          requirements: '- Экспертные рекомендации\n- Типичные ошибки\n- Лучшие практики\n- Прогноз развития',
+          structure: '1. Экспертная оценка\n2. Практические рекомендации\n3. Предупреждение об ошибках\n4. Прогноз'
+        },
+        {
+          name: 'Комплексный анализ',
+          focus: 'Сделай комплексный анализ с разных точек зрения: экономической, социальной, политической.',
+          requirements: '- Мультидисциплинарный подход\n- Экономические последствия\n- Социальные аспекты\n- Политическое влияние',
+          structure: '1. Экономический анализ\n2. Социальные последствия\n3. Политические аспекты\n4. Комплексные выводы'
+        },
+        {
+          name: 'Альтернативные решения',
+          focus: 'Рассмотри все возможные варианты решения проблемы. Сравни плюсы и минусы каждого подхода.',
+          requirements: '- Варианты решений\n- Сравнительный анализ\n- Оптимизация выбора\n- Альтернативные сценарии',
+          structure: '1. Варианты решения\n2. Сравнение преимуществ\n3. Анализ недостатков\n4. Рекомендации'
+        },
+        {
+          name: 'Профилактика и предотвращение',
+          focus: 'Разработай систему профилактики подобных ситуаций. Создай чек-листы, инструкции.',
+          requirements: '- Профилактические меры\n- Системы контроля\n- Чек-листы безопасности\n- Мониторинг рисков',
+          structure: '1. Профилактические меры\n2. Системы контроля\n3. Чек-листы и инструкции\n4. Мониторинг'
+        },
+        {
+          name: 'Итоговые рекомендации',
+          focus: 'Подведи итоги анализа. Дай окончательные рекомендации, приоритизируй действия.',
+          requirements: '- Итоговые выводы\n- Приоритизация\n- Сроки исполнения\n- Ответственность',
+          structure: '1. Итоговые выводы\n2. Приоритетные действия\n3. Сроки и этапы\n4. Ответственность'
+        }
+      ];
+
+      for (let i = 0; i < planPoints.length; i++) {
+        const point = planPoints[i];
+        const analysisType = analysisTypes[i % analysisTypes.length]; // Циклически используем разные типы
+
+        console.log(`🔍 Этап ${i + 2}: Обработка пункта "${point}" (${analysisType.name})`);
+
+        // Показываем какой пункт сейчас обрабатывается
+        setStreamingMessage(`🔄 ${analysisType.name} раздела ${i + 1}: ${point}...\n\n`);
+
+        // Ищем судебные дела по теме раздела
+        let courtCases: CourtCase[] = [];
+        try {
+          courtCases = await searchCourtCases(point);
+          console.log('⚖️ Найдено судебных дел для раздела:', point, courtCases.length);
+        } catch (error) {
+          console.warn('⚠️ Ошибка поиска судебных дел:', error);
+          courtCases = [];
+        }
+
+        const courtCasesText = courtCases.length > 0
+          ? `\n\nНайденные судебные дела по теме "${point}":\n${courtCases.map((case_, index) =>
+              `${index + 1}. ${case_.title}\n   Суд: ${case_.court}\n   Дата: ${case_.date}\n   Источник: ${case_.source}${case_.url ? `\n   Ссылка: ${case_.url}` : ''}`
+            ).join('\n\n')}`
+          : '\n\nПо данной теме найдены следующие тенденции судебной практики:';
+
+        const pointPrompt = `Ты - Галина, элитный AI-юрист. Разработай подробный раздел ответа по теме: "${point}"
+
+ТИП АНАЛИЗА: ${analysisType.name}
+ОСНОВНОЙ ФОКУС: ${analysisType.focus}
+
+Оригинальный вопрос пользователя: ${content}
+
+${courtCasesText}
+
+СПЕЦИФИЧЕСКИЕ ТРЕБОВАНИЯ К ЭТОМУ РАЗДЕЛУ:
+${analysisType.requirements}
+
+СТРУКТУРА ОТВЕТА:
+${analysisType.structure}
+
+ОБЩИЕ ТРЕБОВАНИЯ:
+- 500-700 слов (подробно, но без повторений)
+- Используй уникальный подход, отличающийся от других разделов
+- Сделай акцент на практической применимости
+- Избегай повторения информации из других разделов
+- Фокус на конкретном типе анализа
+
+Будь максимально подробен, практичен и профессионален. Используй только точные факты и ссылки на законодательство.`;
+
+        const pointMessages = [
+          {
+            role: 'system' as const,
+            content: systemMessage
+          },
+          ...currentMessages.slice(-5).map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content
+          })),
+          {
+            role: 'user' as const,
+            content: pointPrompt
+          }
+        ];
+
+        // Создаем streaming соединение для каждого пункта
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+        try {
+          const response = await fetch('http://localhost:3001/chat', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: pointMessages,
+              model: 'gpt-4o',
+              max_tokens: 4000, // Для каждого раздела
+              temperature: 0.9,
+              top_p: 0.9,
+              presence_penalty: 0.2,
+              frequency_penalty: 0.2,
+              stream: true
+            }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let pointContent = '';
+
+          if (!reader) {
+            throw new Error('Response body is not readable');
+          }
+
+          let isDone = false;
+          try {
+            while (!isDone) {
+              const { done, value } = await reader.read();
+              if (done) {
+                isDone = true;
+                break;
+              }
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split('\n');
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') {
+                    isDone = true;
+                    break;
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data);
+                    const contentChunk = parsed.choices[0]?.delta?.content;
+                    if (contentChunk) {
+                      pointContent += contentChunk;
+                      // Показываем накопленный контент для этого пункта
+                      setStreamingMessage(`${fullResponse}**${i + 1}. ${point}**\n\n${pointContent}\n\n`);
+                    }
+                  } catch (e) {
+                    // Игнорируем некорректный JSON
+                  }
+                }
+              }
+            }
+      } finally {
+            reader.releaseLock();
+          }
+
+          // Добавляем обработанный пункт к общему ответу
+          fullResponse += `**${i + 1}. ${point}**\n\n${pointContent.trim()}\n\n`;
+
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          console.error(`Ошибка при обработке пункта ${i + 1}:`, fetchError);
+          fullResponse += `**${i + 1}. ${point}**\n\nПроизошла ошибка при обработке этого раздела. Попробуйте переформулировать вопрос.\n\n`;
+        }
+      }
+
+      // Добавляем план в начало финального ответа
+      const finalResponse = `📋 **План ответа:**\n\n${planPoints.map((point, index) => `${index + 1}. ${point}`).join('\n')}\n\n${fullResponse}`;
+
+      setIsStreaming(false);
+      console.log('✅ Модульная генерация завершена');
+
+      return finalResponse.trim();
+
     } catch (outerError) {
       console.error('Outer error in sendStreamingMessageToAI:', outerError);
-      throw outerError;
+      throw new Error(`Ошибка модульной генерации: ${outerError.message}`);
     }
   };
 
-  // Обработка сохраненных запросов из localStorage
-  useEffect(() => {
-    // Проверяем, есть ли сохраненный запрос от шаблона
-    const templateRequest = localStorage.getItem(STORAGE_KEYS.TEMPLATE_REQUEST);
-    if (templateRequest) {
-      localStorage.removeItem(STORAGE_KEYS.TEMPLATE_REQUEST);
-      setMessage(templateRequest);
-    }
+  // Функция для озвучивания ответа с использованием OpenAI TTS
 
-    // Проверяем, есть ли запрос на сканирование
-    const scanRequest = localStorage.getItem(STORAGE_KEYS.SCAN_REQUEST);
-    if (scanRequest) {
-      localStorage.removeItem(STORAGE_KEYS.SCAN_REQUEST);
-      setMessage(scanRequest);
-    }
-
-    // Проверяем, есть ли отсканированный документ
-    const scannedDocument = localStorage.getItem('scannedDocument');
-    if (scannedDocument) {
-      // Добавляем отсканированный документ к файлам для анализа
-      const scannedFile = new File([scannedDocument], 'scanned_document.jpg', { type: 'image/jpeg' });
-      setFiles([scannedFile]);
-      localStorage.removeItem('scannedDocument');
-    }
-  }, []);
-
-
-  // Функция для голосового режима
+  // Функция для обработки голосового взаимодействия
   const handleVoiceInteraction = async () => {
     console.log('handleVoiceInteraction called:', {
       isVoiceMode,
@@ -348,27 +674,6 @@ const Chat = () => {
     }
   };
 
-  // Функция для озвучивания ответа с использованием OpenAI TTS
-  const speakResponseWithTTS = async (text: string) => {
-    try {
-      console.log('Starting TTS for:', text.substring(0, 100) + '...');
-      const audioBlob = await textToSpeech(text);
-      
-      if (audioBlob) {
-        await playAudioBlob(audioBlob);
-        console.log('TTS playback completed');
-      } else {
-        console.warn('Failed to get audio blob, falling back to browser speech');
-        voice.speak(text);
-      }
-    } catch (error) {
-      console.error('TTS error:', error);
-      // Fallback to browser speech synthesis
-      voice.speak(text);
-    }
-  };
-
-
   const sendMessageToAI = async (userMessage: string, files: File[] = []) => {
     try {
       const currentMessages = [...messages];
@@ -383,14 +688,14 @@ const Chat = () => {
             if (file.size > 1024 * 1024) { // 1MB
               content += `\nИзображение "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите изображение меньшего размера)`;
             } else {
-              const base64 = await fileToBase64(file);
-              content += `\nИзображение: ${file.name} (содержимое закодировано в base64: ${base64.substring(0, 100)}...)`;
+            const base64 = await fileToBase64(file);
+            content += `\nИзображение: ${file.name} (содержимое закодировано в base64: ${base64.substring(0, 100)}...)`;
             }
           } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             // Проверяем размер файла - для больших PDF отправляем только описание
             if (file.size > 2 * 1024 * 1024) { // 2MB
               content += `\nPDF документ "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите файл меньшего размера)`;
-            } else {
+          } else {
               try {
                 const processedFile = await processFile(file);
                 content += `\nPDF документ "${file.name}":\n${processedFile.content}`;
@@ -452,11 +757,8 @@ const Chat = () => {
 
       const response = await sendChatMessage(chatMessages, {
         model: 'gpt-4o', // Улучшенная модель для юридических консультаций
-        max_tokens: 16000, // Максимально длинные ответы для модульной генерации
-        temperature: 0.95, // Максимальная креативность
-        top_p: 0.9, // Более разнообразный выбор слов
-        presence_penalty: 0.2, // Активно поощряем новые темы
-        frequency_penalty: 0.2 // Сильно избегаем повторений
+        max_tokens: 8000, // Оптимальный лимит для качественных ответов
+        temperature: 0.8 // Увеличиваем для более разнообразных и длинных ответов
       });
 
       console.log('Ответ от AI API:', response);
@@ -479,61 +781,21 @@ const Chat = () => {
         console.log('Содержимое после trim:', content);
         console.log('Длина после trim:', content.length);
 
-        // Проверяем минимальную длину и наличие букв
-        const hasLetters = /[а-яё]/i.test(content);
-        console.log('Содержит буквы:', hasLetters);
-
-        if (content && content.length > 20 && hasLetters) {
-          console.log('Ответ прошел валидацию, возвращаем');
-          return content;
-        } else {
-          console.warn('Получен невалидный ответ от AI:', {
-            originalLength: response.data.content.length,
-            trimmedLength: content.length,
-            hasLetters,
-            preview: content.substring(0, 100)
-          });
-          return 'Извините, я получил неполный ответ от AI. Попробуйте:\n• Переформулировать вопрос более конкретно\n• Разбить вопрос на части\n• Задать вопрос о конкретной ситуации\n• Попробовать другой популярный вопрос';
+        if (content.length === 0) {
+          console.warn('Ответ от AI пустой после trim');
+          return 'Извините, AI вернул пустой ответ. Попробуйте переформулировать вопрос.';
         }
+
+        return content;
       } else {
-        console.error('Ошибка API ответа:', response.error);
-        throw new Error(response.error || 'Unknown error');
+        console.error('Ошибка в ответе AI:', response);
+        return 'Произошла ошибка при обработке ответа AI. Попробуйте еще раз.';
       }
     } catch (error) {
-      console.error('Ошибка AI API:', error);
-
-      // Пробуем fallback - запрос без системного сообщения
-      try {
-        console.log('Пробуем fallback запрос без системного сообщения...');
-        const fallbackMessages = [
-          ...currentMessages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          {
-            role: 'user' as const,
-            content: userMessage + '\n\nПожалуйста, ответьте как опытный юрист в России.'
-          }
-        ];
-
-        const fallbackResponse = await sendChatMessage(fallbackMessages, {
-          model: 'gpt-4o',
-          max_tokens: 5000,
-          temperature: 0.7
-        });
-
-        if (fallbackResponse.success && fallbackResponse.data?.content?.trim()) {
-          console.log('Fallback запрос успешен');
-          return fallbackResponse.data.content.trim();
-        }
-      } catch (fallbackError) {
-        console.error('Fallback запрос тоже не удался:', fallbackError);
-      }
-
-      return 'Извините, произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте еще раз или обратитесь позже.';
+      console.error('Error in sendMessageToAI:', error);
+      throw error;
     }
   };
-
 
   const handleSendMessage = async () => {
     if ((!message.trim() && fileUpload.files.length === 0) || isLoading || isStreaming) return;
@@ -557,7 +819,7 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
-      console.log('handleSendMessage: Запускаем имитацию размышлений LLM');
+      console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
       await simulateReasoning(message);
 
       console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
@@ -580,11 +842,6 @@ const Chat = () => {
         return newMessages;
       });
 
-      // Если был голосовой ввод, озвучиваем ответ
-      if (isVoiceMode) {
-        console.log('handleSendMessage: Озвучиваем ответ в голосовом режиме');
-        await speakResponseWithTTS(aiResponse);
-      }
 
       console.log('handleSendMessage: Завершено успешно');
     } catch (error) {
@@ -616,12 +873,6 @@ const Chat = () => {
                 {/* Chat Controls */}
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex-1">
-                    {/* Voice Status */}
-                    <VoiceStatus
-                      isListening={voice.isListening}
-                      isVoiceMode={isVoiceMode}
-                      isSpeaking={voice.isSpeaking}
-                    />
                   </div>
                   <Button
                     onClick={startNewChat}
@@ -689,7 +940,6 @@ const Chat = () => {
                           className="text-left text-sm p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-smooth"
                           onClick={() => {
                             setMessage(question);
-                            // Автоматически отправляем сообщение
                             setTimeout(() => handleSendMessage(), 100);
                           }}
                         >
@@ -707,34 +957,10 @@ const Chat = () => {
                   message={message}
                   onMessageChange={setMessage}
                   onSendMessage={handleSendMessage}
-                  onStopStreaming={() => {
-                    // В будущем можно добавить логику остановки streaming
-                    console.log('Остановка streaming (пока не реализована)');
-                  }}
-                  onVoiceToggle={handleVoiceInteraction}
                   onFileSelect={fileUpload.addFiles}
                   selectedFiles={fileUpload.files}
                   onRemoveFile={fileUpload.removeFile}
                   isLoading={isLoading}
-                  isVoiceMode={isVoiceMode}
-                  isListening={voice.isListening}
-                  isSpeaking={voice.isSpeaking}
-                  isStreaming={isStreaming}
-                  onVoiceRecordingStart={() => {
-                    console.log('Voice recording started');
-                  }}
-                  onVoiceRecordingStop={(audioBlob) => {
-                    if (audioBlob) {
-                      console.log('Voice recording completed, size:', audioBlob.size);
-                      // Используем Web Speech API для распознавания
-                      // Текст уже был получен через speech recognition во время записи
-                      // В handleVoiceInteraction этот текст установлен в state
-                      console.log('Voice message ready to send:', message);
-                      if (message.trim()) {
-                        setTimeout(() => handleSendMessage(), 100);
-                      }
-                    }
-                  }}
                   />
                 </div>
               </CardContent>
