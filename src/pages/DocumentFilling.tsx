@@ -150,24 +150,27 @@ const DocumentFilling = () => {
 
 Ответь на русском языке в дружелюбной форме.`;
 
-      const analysisMessages = [
+      // Преобразуем сообщения в формат, понятный OpenAI API
+      const openaiMessages = [
         {
-          role: 'system' as const,
+          role: 'system',
           content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.'
         },
         {
-          role: 'user' as const,
+          role: 'user',
           content: [
             {
               type: 'text',
               text: analysisPrompt
             },
-            {
-              type: 'image_url',
-              image_url: {
-                url: uploadedFile.data
+              {
+                type: 'image_url',
+                image_url: {
+                  url: uploadedFile.data.startsWith('data:')
+                    ? `data:image/jpeg;base64,${uploadedFile.data.split(',')[1]}`
+                    : uploadedFile.data
+                }
               }
-            }
           ]
         }
       ];
@@ -179,8 +182,8 @@ const DocumentFilling = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: analysisMessages,
-          model: 'gpt-4o',
+          messages: openaiMessages,
+          model: 'gpt-4-vision-preview',
           max_tokens: 1500,
           temperature: 0.3, // Более точный анализ
           stream: false // Для анализа используем не streaming
