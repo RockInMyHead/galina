@@ -546,49 +546,6 @@ const Voice = () => {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Conversation History */}
-            <Card className="border-border/50 mt-8">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold text-foreground mb-4">
-                  История разговора
-                </h3>
-                <div className="min-h-[300px] max-h-[400px] overflow-y-auto space-y-4">
-                  {messages.length === 1 && !isRecording && !transcript ? (
-                    <div className="text-center py-12">
-                      <Mic className="h-12 w-12 text-muted-foreground mx-auto opacity-50 mb-4" />
-                      <p className="text-muted-foreground">
-                        Начните разговор для отображения истории
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      {messages.map((message) => (
-                        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] rounded-lg p-4 ${
-                            message.role === 'user'
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-foreground'
-                          }`}>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-medium">
-                                {message.role === 'user' ? 'Вы' : 'Галина'}
-                              </span>
-                              <span className="text-xs opacity-70">
-                                {message.timestamp.toLocaleTimeString()}
-                              </span>
-                            </div>
-                            <div className="text-sm leading-relaxed">
-                              {message.content}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </main>
