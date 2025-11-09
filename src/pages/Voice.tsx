@@ -155,29 +155,56 @@ const Voice = () => {
     };
   }, [isLoading, isContinuousListening, startBeepInterval, stopBeepInterval]);
 
-  // TTS function for AI responses using OpenAI
+  // TTS function for AI responses using OpenAI with parallel generation
   const speakAIResponse = async (text: string) => {
     try {
-      console.log('🎵 Preparing OpenAI TTS for AI response...');
+      console.log('🎵 Preparing parallel OpenAI TTS for AI response...');
 
-      // Process text for better TTS (convert numbers, dates, etc.)
-      const processedText = processTextForSpeech(text);
-      console.log('📝 Processed text for TTS:', processedText.substring(0, 100) + '...');
+      // Split text into sentences
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      console.log('📝 Split into', sentences.length, 'sentences for parallel TTS');
 
-      // Generate TTS using OpenAI
-      console.log('🚀 Calling OpenAI TTS API...');
-      const audioBlob = await textToSpeech(processedText);
+      // Process and generate TTS for each sentence in parallel
+      const ttsPromises = sentences.map(async (sentence, index) => {
+        const cleanSentence = sentence.trim();
+        if (cleanSentence.length === 0) return null;
 
-      if (audioBlob) {
-        console.log('✅ TTS audio generated, size:', audioBlob.size, 'bytes');
-        console.log('▶️ Playing TTS audio...');
-        await playAudioBlob(audioBlob);
-        console.log('⏹️ TTS playback completed');
-      } else {
-        console.error('❌ Failed to generate TTS audio');
+        console.log(`🎵 Generating TTS for sentence ${index + 1}/${sentences.length}: "${cleanSentence.substring(0, 50)}..."`);
+
+        // Process text for better speech synthesis
+        const processedSentence = processTextForSpeech(cleanSentence);
+
+        try {
+          const audioBlob = await textToSpeech(processedSentence);
+          return { audio: audioBlob, text: processedSentence, index };
+        } catch (error) {
+          console.error(`❌ Failed to generate TTS for sentence ${index + 1}:`, error);
+          return null;
+        }
+      });
+
+      // Wait for all TTS generations to complete
+      console.log('⏳ Waiting for all parallel TTS generations...');
+      const results = await Promise.allSettled(ttsPromises);
+
+      // Play sentences sequentially
+      console.log('▶️ Starting sequential playback...');
+      for (const result of results) {
+        if (result.status === 'fulfilled' && result.value?.audio) {
+          const { audio, index } = result.value;
+          console.log(`🎵 Playing sentence ${index + 1}, size: ${audio.size} bytes`);
+          await playAudioBlob(audio);
+
+          // Small pause between sentences
+          if (index < results.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
       }
+
+      console.log('✅ Parallel TTS completed for all sentences');
     } catch (error) {
-      console.error('❌ Error in OpenAI TTS:', error);
+      console.error('❌ Error in parallel OpenAI TTS:', error);
     }
   };
 
