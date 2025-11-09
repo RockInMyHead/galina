@@ -22,11 +22,36 @@ interface CourtCase {
   url?: string;
 }
 
-// Заглушка для поиска судебных дел
+// Поиск судебных дел через API
 const searchCourtCases = async (query: string): Promise<CourtCase[]> => {
-  // TODO: Реализовать поиск судебных дел через API
-  // Пока возвращаем пустой массив
-  return [];
+  try {
+    console.log('🔍 Searching court cases for query:', query);
+    
+    const response = await fetch('http://localhost:3001/api/search-court-cases', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️ Court cases search API error:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    
+    if (data.success && data.cases) {
+      console.log(`⚖️ Found ${data.cases.length} court cases for query: "${query}"`);
+      return data.cases;
+    }
+
+    return [];
+  } catch (error) {
+    console.error('❌ Error searching court cases:', error);
+    return [];
+  }
 };
 
 const Chat = () => {

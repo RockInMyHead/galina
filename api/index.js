@@ -744,6 +744,44 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
+// Поиск судебных дел
+app.post('/api/search-court-cases', async (req, res) => {
+  try {
+    const { query } = req.body;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Query string is required' });
+    }
+
+    console.log('🔍 Searching court cases for query:', query);
+
+    // TODO: Реализовать реальный поиск судебных дел через:
+    // 1. Google Custom Search API
+    // 2. Bing Search API
+    // 3. Парсинг сайтов судебных решений (sudrf.ru, sudact.ru)
+    // 4. Специализированные базы данных судебных решений
+
+    // Временная заглушка - возвращаем пустой массив
+    // В будущем здесь будет реальный поиск через API или парсинг
+    const courtCases = [];
+
+    console.log(`⚖️ Found ${courtCases.length} court cases for query: "${query}"`);
+
+    res.json({
+      success: true,
+      query,
+      cases: courtCases,
+      count: courtCases.length
+    });
+  } catch (error) {
+    console.error('Error searching court cases:', error);
+    res.status(500).json({ 
+      error: 'Failed to search court cases',
+      details: error.message 
+    });
+  }
+});
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('Shutting down gracefully...');
