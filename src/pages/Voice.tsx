@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mic, MicOff, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { sendChatMessage } from "@/utils/apiUtils";
+import { sendChatMessage, textToSpeech, playAudioBlob } from "@/utils/apiUtils";
 import { AI_SYSTEM_MESSAGES } from "@/config/constants";
 
 interface Message {
@@ -101,77 +101,70 @@ const Voice = () => {
     };
   }, []);
 
-  // TTS function for AI responses
+  // TTS function for AI responses using OpenAI
   const speakAIResponse = async (text: string) => {
     try {
-      console.log('🎵 Preparing to speak AI response...');
+      console.log('🎵 Preparing OpenAI TTS for AI response...');
 
-      if (!('speechSynthesis' in window)) {
-        console.warn('⚠️ Speech synthesis not supported in this browser');
-        return;
+      // Process text for better TTS (convert numbers, dates, etc.)
+      const processedText = processTextForSpeech(text);
+      console.log('📝 Processed text for TTS:', processedText.substring(0, 100) + '...');
+
+      // Generate TTS using OpenAI
+      console.log('🚀 Calling OpenAI TTS API...');
+      const audioBlob = await textToSpeech(processedText);
+
+      if (audioBlob) {
+        console.log('✅ TTS audio generated, size:', audioBlob.size, 'bytes');
+        console.log('▶️ Playing TTS audio...');
+        await playAudioBlob(audioBlob);
+        console.log('⏹️ TTS playback completed');
+      } else {
+        console.error('❌ Failed to generate TTS audio');
       }
-
-      // Split text into sentences for natural speech
-      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      console.log('📝 Split into', sentences.length, 'sentences for TTS');
-
-      // Speak each sentence sequentially
-      for (let i = 0; i < sentences.length; i++) {
-        const sentence = sentences[i].trim();
-        if (sentence.length === 0) continue;
-
-        console.log(`🔊 Speaking sentence ${i + 1}/${sentences.length}: "${sentence.substring(0, 50)}..."`);
-        await speakSentence(sentence);
-
-        // Small pause between sentences
-        if (i < sentences.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      }
-
-      console.log('✅ TTS completed for AI response');
     } catch (error) {
-      console.error('❌ Error in TTS:', error);
+      console.error('❌ Error in OpenAI TTS:', error);
     }
   };
 
-  // Speak a single sentence using browser's SpeechSynthesis
-  const speakSentence = (text: string): Promise<void> => {
-    return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      // Configure voice settings
-      utterance.lang = 'ru-RU'; // Russian language
-      utterance.rate = 0.9; // Slightly slower for clarity
-      utterance.pitch = 1.0; // Normal pitch
-      utterance.volume = 0.8; // Good volume
-
-      // Try to find a Russian voice
-      const voices = speechSynthesis.getVoices();
-      const russianVoice = voices.find(voice =>
-        voice.lang.startsWith('ru') || voice.name.toLowerCase().includes('russian')
-      );
-      if (russianVoice) {
-        utterance.voice = russianVoice;
-        console.log('🎤 Using Russian voice:', russianVoice.name);
-      }
-
-      utterance.onstart = () => {
-        console.log('▶️ TTS started for sentence');
-      };
-
-      utterance.onend = () => {
-        console.log('⏹️ TTS ended for sentence');
-        resolve();
-      };
-
-      utterance.onerror = (event) => {
-        console.error('❌ TTS error:', event.error);
-        resolve(); // Continue even if error
-      };
-
-      speechSynthesis.speak(utterance);
+  // Process text for better speech synthesis
+  const processTextForSpeech = (text: string): string => {
+    // Convert numbers to words for better pronunciation
+    text = text.replace(/\b\d+\b/g, (match) => {
+      const num = parseInt(match);
+      return numberToWords(num);
     });
+
+    // Convert dates to natural speech
+    text = text.replace(/(\d{1,2})\.(\d{1,2})\.(\d{4})/g, (match, day, month, year) => {
+      const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+      return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year} года`;
+    });
+
+    // Convert mathematical expressions
+    text = text.replace(/(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)/g, '$1 плюс $2 равно $3');
+    text = text.replace(/(\d+)\s*\*\s*(\d+)\s*=\s*(\d+)/g, '$1 умножить на $2 равно $3');
+    text = text.replace(/(\d+)\s*\/\s*(\d+)\s*=\s*(\d+)/g, '$1 разделить на $2 равно $3');
+
+    return text;
+  };
+
+  // Convert number to words (simplified Russian)
+  const numberToWords = (num: number): string => {
+    const units = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
+    const teens = ['десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать',
+                   'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+    const tens = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+    const hundreds = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+
+    if (num === 0) return 'ноль';
+    if (num < 10) return units[num];
+    if (num < 20) return teens[num - 10];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + units[num % 10] : '');
+    if (num < 1000) return hundreds[Math.floor(num / 100)] + (num % 100 ? ' ' + numberToWords(num % 100) : '');
+
+    return num.toString(); // Fallback for larger numbers
   };
 
   // Voice control functions
@@ -362,8 +355,8 @@ const Voice = () => {
       console.log('✅ Adding AI message to chat...');
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Speak the AI response using browser TTS
-      console.log('🔊 Starting TTS for AI response...');
+      // Speak the AI response using OpenAI TTS
+      console.log('🔊 Starting OpenAI TTS for AI response...');
       await speakAIResponse(aiResponse);
 
     } catch (error) {
