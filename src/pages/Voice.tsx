@@ -180,7 +180,7 @@ const Voice = () => {
         try {
           const audioBlob = await textToSpeech(processedSentence);
           return { audio: audioBlob, text: processedSentence, index };
-        } catch (error) {
+    } catch (error) {
           console.error(`❌ Failed to generate TTS for sentence ${index + 1}:`, error);
           return null;
         }
@@ -470,7 +470,7 @@ const Voice = () => {
   return (
     <div className="min-h-screen flex flex-col bg-muted/20">
       <Header />
-
+      
       <main className="flex-1">
         <div className="container mx-auto px-4 py-12">
           {/* Header Section */}
@@ -491,18 +491,18 @@ const Voice = () => {
           {/* Main Interface */}
           <div className="max-w-4xl mx-auto">
             <Card className="border-border/50">
-              <CardContent className="p-12">
+                <CardContent className="p-12">
                 <div className="text-center space-y-8">
-                  {/* Voice Visualizer */}
-                  <div className="relative">
-                    <div
-                      onClick={toggleVoiceMode}
+                    {/* Voice Visualizer */}
+                    <div className="relative">
+                      <div
+                        onClick={toggleVoiceMode}
                       className={`relative flex h-32 w-32 items-center justify-center rounded-full transition-smooth cursor-pointer mx-auto ${
-                        isRecording
-                          ? "bg-red-500 shadow-glow animate-pulse"
-                          : "bg-primary/10 hover:bg-primary/20"
-                      }`}
-                    >
+                          isRecording
+                            ? "bg-red-500 shadow-glow animate-pulse"
+                            : "bg-primary/10 hover:bg-primary/20"
+                        }`}
+                      >
                       {isLoading ? (
                         <Sparkles className="h-8 w-8 text-primary animate-spin" />
                       ) : isRecording ? (
@@ -511,41 +511,41 @@ const Voice = () => {
                         <Mic className="h-8 w-8 text-primary" />
                       )}
                     </div>
-                  </div>
+                    </div>
 
-                  <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-foreground">
-                      {isLoading ? "Обработка..." : ""}
-                    </h2>
-                    <p className="text-muted-foreground">
-                      {isLoading ? "Получаю ответ..." : ""}
+                    <div className="text-center space-y-2">
+                      <h2 className="text-2xl font-bold text-foreground">
+                      {isLoading ? "" : ""}
+                      </h2>
+                      <p className="text-muted-foreground">
+                      {isLoading ? "" : ""}
                     </p>
-                  </div>
+                    </div>
 
 
                   {/* Action buttons */}
                   <div className="flex gap-4 justify-center">
-                    <Button
-                      size="lg"
-                      variant={isLoading ? "secondary" : isRecording ? "destructive" : "default"}
-                      onClick={toggleVoiceMode}
-                      disabled={isLoading}
-                      className="shadow-elegant"
-                    >
-                      {isLoading ? (
-                        <Sparkles className="h-5 w-5 mr-2 animate-spin" />
-                      ) : isRecording ? (
-                        <MicOff className="h-5 w-5 mr-2" />
-                      ) : (
-                        <Mic className="h-5 w-5 mr-2" />
-                      )}
-                      {isLoading ? "Обработка..." :
+                      <Button
+                        size="lg"
+                        variant={isLoading ? "secondary" : isRecording ? "destructive" : "default"}
+                        onClick={toggleVoiceMode}
+                        disabled={isLoading}
+                        className="shadow-elegant"
+                      >
+                        {isLoading ? (
+                          <Sparkles className="h-5 w-5 mr-2 animate-spin" />
+                        ) : isRecording ? (
+                          <MicOff className="h-5 w-5 mr-2" />
+                        ) : (
+                          <Mic className="h-5 w-5 mr-2" />
+                        )}
+                        {isLoading ? "Обработка..." :
                        isContinuousListening ? "Остановить прослушивание" : "Начать прослушивание"}
-                    </Button>
+                      </Button>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                </CardContent>
+              </Card>
           </div>
         </div>
       </main>
