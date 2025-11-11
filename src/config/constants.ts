@@ -1,6 +1,21 @@
 // API Configuration
+const getAPIBaseURL = (): string => {
+  // Use environment variable if available
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+
+  // Production fallback (deployed on lawyer.windexs.ru:1041)
+  if (import.meta.env.PROD) {
+    return 'https://lawyer.windexs.ru:1041';
+  }
+
+  // Development fallback
+  return 'http://localhost:1041';
+};
+
 export const API_CONFIG = {
-  BASE_URL: 'http://localhost:1041',
+  BASE_URL: getAPIBaseURL(),
   OPENAI_API_VERSION: 'v1',
   TIMEOUT: 30000,
 } as const;
