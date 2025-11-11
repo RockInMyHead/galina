@@ -5,10 +5,17 @@ const getAPIBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Production: Use relative path to avoid CORS and Mixed Content issues
-  // Assumes nginx is configured to proxy API requests
+  // Production: Detect protocol and use same for API
+  // If frontend is on HTTPS, try HTTPS API; if HTTP, use HTTP
   if (import.meta.env.PROD) {
-    return ''; // Empty string = same origin, nginx will proxy
+    // Check if running in browser
+    if (typeof window !== 'undefined') {
+      const protocol = window.location.protocol; // 'http:' or 'https:'
+      const host = 'lawyer.windexs.ru:1041';
+      return `${protocol}//${host}`;
+    }
+    // Fallback during build
+    return 'http://lawyer.windexs.ru:1041';
   }
 
   // Development fallback
