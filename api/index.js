@@ -214,9 +214,19 @@ _________________________
 const app = express();
 const PORT = process.env.PORT || 1041;
 
-// Configure CORS for development
+// Configure CORS for development and production
 const corsOptions = {
-  origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:8080', 'http://localhost:3000', 'http://localhost:5173'],
+  origin: [
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://localhost:8080',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://lawyer.windexs.ru',
+    'http://lawyer.windexs.ru',
+    'https://lawyer.windexs.ru:1041',
+    'http://lawyer.windexs.ru:1041'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
