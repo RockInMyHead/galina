@@ -5,9 +5,10 @@ const getAPIBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Production fallback (deployed on lawyer.windexs.ru:1041)
+  // Production: Use relative path to avoid CORS and Mixed Content issues
+  // Assumes nginx is configured to proxy API requests
   if (import.meta.env.PROD) {
-    return 'https://lawyer.windexs.ru:1041';
+    return ''; // Empty string = same origin, nginx will proxy
   }
 
   // Development fallback

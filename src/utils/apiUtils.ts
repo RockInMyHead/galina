@@ -10,6 +10,7 @@ export const apiRequest = async <T = any>(
 ): Promise<ApiResponse<T>> => {
   try {
     const url = `${API_CONFIG.BASE_URL}${endpoint}`
+    console.log('🔗 API Request:', url)
 
     const response = await fetch(url, {
       ...options,
@@ -19,13 +20,15 @@ export const apiRequest = async <T = any>(
       },
     })
 
+    console.log('📡 API Response status:', response.status)
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      throw new Error(
-        `HTTP ${response.status}: ${response.statusText}${
-          errorData.error?.message ? ` - ${errorData.error.message}` : ''
-        }`
-      )
+      const errorMsg = `HTTP ${response.status}: ${response.statusText}${
+        errorData.error?.message ? ` - ${errorData.error.message}` : ''
+      }`
+      console.error('❌ API Error:', errorMsg)
+      throw new Error(errorMsg)
     }
 
     const data = await response.json()
@@ -35,7 +38,10 @@ export const apiRequest = async <T = any>(
       data,
     }
   } catch (error) {
-    console.error('API Request failed:', error)
+    console.error('❌ API Request failed:', error)
+    console.error('🔧 Check if API server is running at:', API_CONFIG.BASE_URL)
+    console.error('🔧 Check CORS settings on the API server')
+    console.error('🔧 Check SSL certificate if using HTTPS')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
