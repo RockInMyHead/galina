@@ -7,12 +7,19 @@ const getAPIBaseURL = (): string => {
 
   // Development: Use Vite proxy with /api prefix
   if (import.meta.env.DEV) {
-    return '/api'; // Vite proxy will route /api/* to localhost:1041/*
+    return '/api'; // Vite proxy will forward /api/* to localhost:1041
   }
 
-  // Production: Use /api prefix, Nginx will proxy to localhost:1041
+  // Production: Use /api path (Nginx will proxy to localhost:1041)
   if (import.meta.env.PROD) {
-    return '/api'; // Nginx will route /api/* to localhost:1041/*
+    // Check if running in browser
+    if (typeof window !== 'undefined') {
+      const protocol = window.location.protocol; // 'http:' or 'https:'
+      const host = window.location.host; // lawyer.windexs.ru
+      return `${protocol}//${host}/api`;
+    }
+    // Fallback during build
+    return '/api';
   }
 
   // Fallback

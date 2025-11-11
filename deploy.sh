@@ -97,7 +97,28 @@ server {
     access_log /var/log/nginx/$DOMAIN.access.log;
     error_log /var/log/nginx/$DOMAIN.error.log;
 
-    # Статические файлы
+    # API прокси на порт $API_PORT (должен быть первым!)
+    location /api/ {
+        # Убираем /api/ из пути при проксировании
+        rewrite ^/api/(.*) /\$1 break;
+        
+        proxy_pass http://localhost:$API_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
+        
+        # Увеличиваем таймауты для длинных запросов
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Статические файлы frontend
     location / {
         root $REMOTE_PATH/frontend;
         index index.html index.htm;
@@ -108,19 +129,6 @@ server {
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
-    }
-
-    # API прокси
-    location /api/ {
-        proxy_pass http://localhost:$API_PORT/;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
     }
 
     # Безопасность
