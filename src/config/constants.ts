@@ -1,13 +1,15 @@
 // API Configuration
+const API_PATH = '/api';
+
 const getAPIBaseURL = (): string => {
   // Use environment variable if available
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Development: Always use local API (Vite proxy will handle routing)
+  // Development: используем относительный путь, Vite proxy обработает redirect
   if (import.meta.env.DEV) {
-    return ''; // Empty string for relative URLs - Vite proxy will handle
+    return API_PATH;
   }
 
   // Production: Detect protocol and use same for API
@@ -16,15 +18,15 @@ const getAPIBaseURL = (): string => {
     // Check if running in browser
     if (typeof window !== 'undefined') {
       const protocol = window.location.protocol; // 'http:' or 'https:'
-      const host = 'lawyer.windexs.ru:1041';
-      return `${protocol}//${host}`;
+      const host = 'lawyer.windexs.ru';
+      return `${protocol}//${host}${API_PATH}`;
     }
     // Fallback during build
-    return 'http://lawyer.windexs.ru:1041';
+    return `https://lawyer.windexs.ru${API_PATH}`;
   }
 
   // Fallback
-  return '';
+  return API_PATH;
 };
 
 export const API_CONFIG = {

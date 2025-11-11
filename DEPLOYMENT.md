@@ -115,7 +115,7 @@ sudo certbot renew --dry-run
 ### Проверка API
 ```bash
 curl http://localhost:1041/health
-curl https://lawyer.windexs.ru/health
+curl https://lawyer.windexs.ru/api/health
 ```
 
 ### Проверка frontend
@@ -212,4 +212,4 @@ sudo certbot renew
 ## ✅ Финальная проверка
 После развертывания приложение будет доступно по адресу:
 - **Frontend**: https://lawyer.windexs.ru
-- **API**: https://lawyer.windexs.ru (проксируется на порт 1041)
+- **API**: https://lawyer.windexs.ru/api (проксируется на порт 1041, запросы пересылаются на http://localhost:1041)

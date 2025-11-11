@@ -20,40 +20,11 @@ export default defineConfig(({ mode }) => ({
     },
     // Прокси для API запросов в режиме разработки
     proxy: {
-      '/chat': {
+      '/api': {
         target: 'http://localhost:1041',
         changeOrigin: true,
         secure: false,
-      },
-      '/tts': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/stt': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/health': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/user': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/files': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/search-court-cases': {
-        target: 'http://localhost:1041',
-        changeOrigin: true,
-        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
