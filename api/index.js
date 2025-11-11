@@ -795,10 +795,20 @@ const sttHandler = async (req, res) => {
 app.post('/stt', upload.single('audio'), handleMulterError, sttHandler); // multipart/form-data
 app.post('/stt/raw', sttHandler); // raw binary - middleware applied above
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    database: process.env.DATABASE_URL ? 'configured' : 'not configured',
+    openai: process.env.OPENAI_API_KEY ? 'configured' : 'not configured'
+  });
+});
+
 // ===== DATABASE API ENDPOINTS =====
 
 // Получить историю чата пользователя
-app.get('/api/chat/history', async (req, res) => {
+app.get('/chat/history', async (req, res) => {
   try {
     // Для демо получаем пользователя по email
     const user = await prisma.user.findFirst({
@@ -831,7 +841,7 @@ app.get('/api/chat/history', async (req, res) => {
 });
 
 // Сохранить сообщение в базу данных
-app.post('/api/chat/message', async (req, res) => {
+app.post('/chat/message', async (req, res) => {
   try {
     const { content, role, files = [] } = req.body;
     // Для демо получаем пользователя по email
@@ -871,7 +881,7 @@ app.post('/api/chat/message', async (req, res) => {
 });
 
 // Получить информацию о пользователе
-app.get('/api/user/profile', async (req, res) => {
+app.get('/user/profile', async (req, res) => {
   try {
     // Для демо получаем пользователя по email
     const user = await prisma.user.findFirst({
@@ -909,7 +919,7 @@ app.get('/api/user/profile', async (req, res) => {
 });
 
 // Получить файлы пользователя
-app.get('/api/files', async (req, res) => {
+app.get('/files', async (req, res) => {
   try {
     // Для демо получаем пользователя по email
     const user = await prisma.user.findFirst({
@@ -933,7 +943,7 @@ app.get('/api/files', async (req, res) => {
 });
 
 // Загрузить файл
-app.post('/api/files/upload', async (req, res) => {
+app.post('/files/upload', async (req, res) => {
   try {
     const { name, type, size, content } = req.body;
     // Для демо получаем пользователя по email
@@ -963,7 +973,7 @@ app.post('/api/files/upload', async (req, res) => {
 });
 
 // Удалить файл
-app.delete('/api/files/:fileId', async (req, res) => {
+app.delete('/files/:fileId', async (req, res) => {
   try {
     const { fileId } = req.params;
 
@@ -979,7 +989,7 @@ app.delete('/api/files/:fileId', async (req, res) => {
 });
 
 // Очистить всю историю чата
-app.delete('/api/chat/history', async (req, res) => {
+app.delete('/chat/history', async (req, res) => {
   try {
     // Для демо получаем пользователя по email
     const user = await prisma.user.findFirst({
@@ -1015,7 +1025,7 @@ app.delete('/api/chat/history', async (req, res) => {
 });
 
 // Получить статистику пользователя
-app.get('/api/stats', async (req, res) => {
+app.get('/stats', async (req, res) => {
   try {
     // Для демо получаем пользователя по email
     const user = await prisma.user.findFirst({
@@ -1162,7 +1172,7 @@ const searchDuckDuckGo = async (query) => {
 };
 
 // Поиск судебных дел
-app.post('/api/search-court-cases', async (req, res) => {
+app.post('/search-court-cases', async (req, res) => {
   try {
     const { query } = req.body;
 
