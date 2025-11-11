@@ -7,10 +7,10 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 3001,
     hmr: {
       // Настройки для WebSocket HMR
-      port: 8080,
+      port: 3001,
       host: 'localhost',
       protocol: 'ws',
     },

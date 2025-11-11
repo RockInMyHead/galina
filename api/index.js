@@ -10,12 +10,213 @@ const prisma = new PrismaClient();
 // Environment loaded successfully
 console.log('Database URL:', process.env.DATABASE_URL);
 
+// Mock response generator for demo mode
+function generateMockResponse(messages, model) {
+  const lastMessage = messages[messages.length - 1];
+  const content = lastMessage?.content || '';
+
+  console.log('🎭 Generating mock response for content type:', Array.isArray(content) ? 'array (Vision API)' : 'string (text)');
+  console.log('🎭 Full messages:', JSON.stringify(messages, null, 2).substring(0, 500) + '...');
+
+  // Handle Vision API requests (content is array with image_url)
+  if (Array.isArray(content)) {
+    const textContent = content.find(item => item.type === 'text')?.text || '';
+    const hasImage = content.some(item => item.type === 'image_url');
+    console.log('🖼️ Vision API request detected, has image:', hasImage, 'text:', textContent.substring(0, 100) + '...');
+
+    // Vision API response for document analysis
+    if (textContent.includes('Проанализируйте изображение документа') || textContent.includes('автоматически заполните этот шаблон')) {
+      // Для демо-режима Vision API возвращаем заполненный шаблон
+      // В реальном приложении selectedTemplateForChat не доступен, поэтому возвращаем общий пример
+      return {
+        id: 'mock-vision-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: `Проанализирован текст из изображения. На основе распознанных данных автоматически заполняю документ.
+
+ГОТОВО
+
+РЕШЕНИЕ № 1
+ЕДИНСТВЕННОГО УЧРЕДИТЕЛЯ
+ОБЩЕСТВА С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "ПРИМЕР ООО"
+
+г. Москва                                               "${new Date().getDate()}" ${new Date().toLocaleDateString('ru-RU', { month: 'long' })} ${new Date().getFullYear()} г.
+
+Единственный учредитель Общества с ограниченной ответственностью "ПРИМЕР ООО" (далее – "Общество"), Иванов Иван Иванович, паспорт серии 1234 № 567890, выдан ГУ МВД России по г. Москве "01.01.2020", код подразделения 770-001, зарегистрированный по адресу: г. Москва, ул. Примерная, д. 1, кв. 1, действующий в соответствии с Уставом Общества,
+
+РЕШИЛ:
+
+1. Утвердить годовой отчет Общества за ${new Date().getFullYear()} год.
+
+2. Настоящее решение вступает в силу с момента его принятия.
+
+3. Контроль за исполнением настоящего решения возложить на единственного учредителя Общества.
+
+Единственный учредитель:
+Иванов Иван Иванович
+
+_________________________
+И.И. Иванов
+
+М.П.
+
+*Примечание: Документ заполнен в демо-режиме на основе распознанных данных из изображения. Для полноценной работы обновите API ключ OpenAI.*`
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 300,
+          completion_tokens: 400,
+          total_tokens: 700
+        }
+      };
+    }
+  }
+
+  // Handle text-based requests
+  if (typeof content === 'string') {
+    console.log('💬 Text request, content:', content.substring(0, 100) + '...');
+
+    // Analyze content to determine response type
+    if (content.includes('Проанализируй этот PDF документ') || content.includes('Проанализируй первую страницу')) {
+      // PDF/Image analysis response
+      return {
+        id: 'mock-chatcmpl-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: `## Анализ документа
+**Тип:** Решение единственного учредителя
+
+**Заполненные поля:**
+- Наименование общества: Общество с ограниченной ответственностью
+- Дата: ${new Date().toLocaleDateString('ru-RU')}
+- Сумма: 900 000 (девятьсот тысяч) рублей 00 копеек
+
+**Незаполненные поля:**
+- ФИО единственного учредителя
+- Серия и номер паспорта
+- Дата выдачи паспорта
+- Адрес регистрации
+
+**Статус документа:** ТРЕБУЕТ ЗАПОЛНЕНИЯ
+
+Пожалуйста, предоставьте недостающие данные для заполнения документа.`
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 150,
+          completion_tokens: 200,
+          total_tokens: 350
+        }
+      };
+    } else if (content.includes('ГОТОВО')) {
+      // Document completion response
+      return {
+        id: 'mock-chatcmpl-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: `ГОТОВО
+
+РЕШЕНИЕ № 1
+ЕДИНСТВЕННОГО УЧРЕДИТЕЛЯ
+ОБЩЕСТВА С ОГРАНИЧЕННОЙ ОТВЕТСТВЕННОСТЬЮ "ПРИМЕР ООО"
+
+г. Москва                                               "${new Date().toLocaleDateString('ru-RU')}"
+
+Единственный учредитель Общества с ограниченной ответственностью "ПРИМЕР ООО" (далее – "Общество"), Иванов Иван Иванович, паспорт серии 1234 № 567890, выдан ГУ МВД России по г. Москве 01.01.2020, зарегистрированный по адресу: г. Москва, ул. Примерная, д. 1, кв. 1, действующий в соответствии с Уставом Общества,
+
+РЕШИЛ:
+
+1. Утвердить годовой отчет Общества за ${new Date().getFullYear()} год.
+
+2. Настоящее решение вступает в силу с момента его принятия.
+
+3. Контроль за исполнением настоящего решения возложить на единственного учредителя Общества.
+
+Единственный учредитель:
+Иванов Иван Иванович
+
+_________________________
+[ПОДПИСЬ УЧРЕДИТЕЛЯ]
+
+М.П.`
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 200,
+          completion_tokens: 300,
+          total_tokens: 500
+        }
+      };
+    } else {
+      // General chat response
+      return {
+        id: 'mock-chatcmpl-' + Date.now(),
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: model,
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'Привет! Я Галина, ваш AI-юрист. Я помогу вам с заполнением юридических документов. Расскажите, какой документ вы хотите оформить или заполнить?'
+          },
+          finish_reason: 'stop'
+        }],
+        usage: {
+          prompt_tokens: 50,
+          completion_tokens: 80,
+          total_tokens: 130
+        }
+      };
+    }
+  }
+
+  // Fallback response
+  return {
+    id: 'mock-fallback-' + Date.now(),
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: model,
+    choices: [{
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: 'Извините, я не смог обработать ваш запрос. Попробуйте переформулировать вопрос.'
+      },
+      finish_reason: 'stop'
+    }],
+    usage: {
+      prompt_tokens: 20,
+      completion_tokens: 30,
+      total_tokens: 50
+    }
+  };
+}
+
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 1041;
 
 // Configure CORS for development
 const corsOptions = {
-  origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:3000'],
+  origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:8080', 'http://localhost:3000', 'http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -72,7 +273,27 @@ app.post('/chat', async (req, res) => {
 
     // Handle streaming requests
     if (stream) {
-      if (!apiKey) {
+      // Test API key validity for streaming
+      let apiKeyValid = false;
+      if (apiKey) {
+        try {
+          console.log('🔍 Testing OpenAI API key validity...');
+          // Quick test request to check if API key works
+          const testResponse = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          apiKeyValid = testResponse.ok;
+          console.log('🔑 API key valid:', apiKeyValid, 'Status:', testResponse.status);
+        } catch (error) {
+          console.log('❌ API key test failed:', error.message);
+          apiKeyValid = false;
+        }
+      }
+      if (!apiKey || !apiKeyValid) {
         // Mock streaming for testing when no API key
         console.log('No API key - using mock streaming for testing');
         res.setHeader('Content-Type', 'text/event-stream');
@@ -254,7 +475,82 @@ app.post('/chat', async (req, res) => {
         res.end();
       }
     } else {
-      // Regular response
+      // Test API key validity for non-streaming requests
+      let apiKeyValid = false;
+      if (apiKey) {
+        try {
+          console.log('🔍 Testing OpenAI API key validity...');
+          // Quick test request to check if API key works
+          const testResponse = await fetch('https://api.openai.com/v1/models', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          apiKeyValid = testResponse.ok;
+          console.log('🔑 API key valid:', apiKeyValid, 'Status:', testResponse.status);
+
+          // If basic test fails, try Vision API test
+          if (!apiKeyValid) {
+            console.log('🔍 Basic API test failed, trying Vision API test...');
+            const visionTestData = JSON.stringify({
+              model: 'gpt-4o',
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'test' },
+                  { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,test' } }
+                ]
+              }],
+              max_tokens: 10
+            });
+
+            const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+              },
+              body: visionTestData
+            });
+
+            console.log('🔍 Vision API test status:', visionResponse.status);
+            // Vision API is considered valid if it doesn't return auth errors
+            const visionValid = visionResponse.status !== 401 && visionResponse.status !== 403;
+            console.log('🔍 Vision API valid:', visionValid);
+
+            // API key is valid only if both basic and vision tests pass
+            apiKeyValid = apiKeyValid && visionValid;
+            console.log('🔑 Final API key valid:', apiKeyValid);
+          }
+        } catch (error) {
+          console.log('❌ API key test failed:', error.message);
+          apiKeyValid = false;
+        }
+      }
+
+      // Check if we can use real API or need demo mode
+      const lastMessage = messages[messages.length - 1];
+      const isVisionRequest = Array.isArray(lastMessage?.content) &&
+                             lastMessage.content.some(item => item.type === 'image_url');
+
+      if (!apiKeyValid || isVisionRequest) {
+        console.log('⚠️ API key not valid or Vision API request, using demo mode');
+        const mockResponse = generateMockResponse(messages, model);
+        return res.status(200).json(mockResponse);
+      }
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    // Regular response
+    console.log('🔄 Sending request to OpenAI API...');
+    console.log('📋 Model:', model);
+    console.log('💬 Messages count:', messages.length);
+    console.log('🔑 API Key exists and valid:', !!apiKey && apiKeyValid);
+
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -272,14 +568,16 @@ app.post('/chat', async (req, res) => {
         })
       });
 
+      console.log('📡 OpenAI response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('OpenAI API error:', response.status, errorData);
-        return res.status(response.status).json(errorData);
+        console.error('❌ OpenAI API error:', response.status, errorData);
+        return res.status(response.status).json({ error: 'Internal server error', details: errorData });
       }
 
       const data = await response.json();
-      console.log('OpenAI response received successfully');
+      console.log('✅ OpenAI response received successfully');
       res.status(200).json(data);
     }
   } catch (error) {

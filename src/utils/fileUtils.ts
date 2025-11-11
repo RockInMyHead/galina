@@ -186,11 +186,35 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
             const page = await Promise.race([pagePromise, pageTimeout])
           const textContent = await page.getTextContent()
 
-          const pageText = textContent.items
-              .filter((item: any) => item.str && item.str.trim())
-              .map((item: any) => item.str.trim())
-            .join(' ')
-              .replace(/\s+/g, ' ') // Normalize whitespace
+          // Сохраняем оригинальное форматирование текста
+          let pageText = '';
+          let lastY = null;
+          let lastX = null;
+
+          for (const item of textContent.items) {
+            if (!item.str || !item.str.trim()) continue;
+
+            const currentY = Math.round(item.transform[5]); // Y координата
+            const currentX = Math.round(item.transform[4]); // X координата
+
+            // Если новая строка (значительное изменение Y)
+            if (lastY !== null && Math.abs(currentY - lastY) > 10) {
+              pageText += '\n';
+            }
+            // Если табуляция или большой отступ (значительное изменение X)
+            else if (lastX !== null && currentX - lastX > 20) {
+              const spaces = Math.round((currentX - lastX) / 8); // Примерно 8px на символ
+              pageText += ' '.repeat(Math.min(spaces, 8)); // Максимум 8 пробелов
+            }
+
+            pageText += item.str;
+            lastY = currentY;
+            lastX = currentX + (item.width || 0);
+          }
+
+          // Нормализуем только множественные пробелы в конце строк
+          pageText = pageText.replace(/[ ]+$/gm, ''); // Убираем пробелы в конце строк
+          pageText = pageText.replace(/\n{3,}/g, '\n\n'); // Максимум 2 переноса строк
 
             if (pageText.trim()) {
           fullText += `${pageText}\n`

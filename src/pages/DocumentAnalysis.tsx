@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Upload, FileSearch, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
+import { API_CONFIG } from "@/config/constants";
 
 // Типы для PDF.js
 declare global {
@@ -157,7 +158,7 @@ const DocumentAnalysis = () => {
   // Функция для анализа документа через OpenAI
   const analyzeDocumentWithAI = async (fileName: string, fileContent: string): Promise<string> => {
     try {
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

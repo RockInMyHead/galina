@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Mic, MicOff, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { sendChatMessage, textToSpeech, playAudioBlob } from "@/utils/apiUtils";
-import { AI_SYSTEM_MESSAGES } from "@/config/constants";
+import { AI_SYSTEM_MESSAGES, API_CONFIG } from "@/config/constants";
 
 interface Message {
   id: string;
@@ -382,7 +382,7 @@ const Voice = () => {
     try {
       console.log('🚀 Calling AI API...');
       // Call AI API
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

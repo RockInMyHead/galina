@@ -6,7 +6,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { useVoice } from "@/hooks/useVoice";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { sendChatMessage } from "@/utils/apiUtils";
-import { EXAMPLE_QUESTIONS, STORAGE_KEYS, AI_SYSTEM_MESSAGES } from "@/config/constants";
+import { EXAMPLE_QUESTIONS, STORAGE_KEYS, AI_SYSTEM_MESSAGES, API_CONFIG } from "@/config/constants";
 import { ChatMessage as ChatMessageType } from "@/types";
 import { useState, useEffect } from "react";
 import { Sparkles, Download, Plus } from "lucide-react";
@@ -311,7 +311,7 @@ const Chat = () => {
         const timeoutId = setTimeout(() => controller.abort(), 120000);
 
         try {
-          const response = await fetch('http://localhost:3001/chat', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -752,7 +752,7 @@ ${courtCasesText}
             }
           }
 
-          const response = await fetch('http://localhost:3001/chat', {
+          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

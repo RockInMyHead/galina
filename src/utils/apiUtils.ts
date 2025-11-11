@@ -133,7 +133,7 @@ export const createErrorMessage = (code: string, details?: any): string => {
  */
 export const textToSpeech = async (text: string): Promise<Blob | null> => {
   try {
-    const response = await fetch('http://localhost:3001/tts', {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/tts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

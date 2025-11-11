@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "node index.js",
-    "start": "node index.js",
+    "start": "node start-server.js",
+    "direct": "node index.js",
+    "diagnose": "node diagnose.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",

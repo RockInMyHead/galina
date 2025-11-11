@@ -96,7 +96,7 @@ echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
 npm start
 ```
 
-The API server will run on `http://localhost:3001`.
+The API server will run on `http://localhost:1041`.
 
 **⚠️ IMPORTANT:** Without a valid OpenAI API key, the chat will return demo/mock responses only. To get real AI responses, you must:
 
