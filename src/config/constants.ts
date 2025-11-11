@@ -5,6 +5,11 @@ const getAPIBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
+  // Development: Always use local API (Vite proxy will handle routing)
+  if (import.meta.env.DEV) {
+    return ''; // Empty string for relative URLs - Vite proxy will handle
+  }
+
   // Production: Detect protocol and use same for API
   // If frontend is on HTTPS, try HTTPS API; if HTTP, use HTTP
   if (import.meta.env.PROD) {
@@ -18,8 +23,8 @@ const getAPIBaseURL = (): string => {
     return 'http://lawyer.windexs.ru:1041';
   }
 
-  // Development fallback
-  return 'http://localhost:1041';
+  // Fallback
+  return '';
 };
 
 export const API_CONFIG = {

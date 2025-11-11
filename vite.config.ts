@@ -18,6 +18,44 @@ export default defineConfig(({ mode }) => ({
     watch: {
       usePolling: false,
     },
+    // Прокси для API запросов в режиме разработки
+    proxy: {
+      '/chat': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/tts': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/stt': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/health': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/user': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/files': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/search-court-cases': {
+        target: 'http://localhost:1041',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
