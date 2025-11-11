@@ -1,32 +1,22 @@
 // API Configuration
-const API_PATH = '/api';
-
 const getAPIBaseURL = (): string => {
   // Use environment variable if available
   if (import.meta.env.VITE_API_BASE_URL) {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Development: используем относительный путь, Vite proxy обработает redirect
+  // Development: Use Vite proxy with /api prefix
   if (import.meta.env.DEV) {
-    return API_PATH;
+    return '/api'; // Vite proxy will route /api/* to localhost:1041/*
   }
 
-  // Production: Detect protocol and use same for API
-  // If frontend is on HTTPS, try HTTPS API; if HTTP, use HTTP
+  // Production: Use /api prefix, Nginx will proxy to localhost:1041
   if (import.meta.env.PROD) {
-    // Check if running in browser
-    if (typeof window !== 'undefined') {
-      const protocol = window.location.protocol; // 'http:' or 'https:'
-      const host = 'lawyer.windexs.ru';
-      return `${protocol}//${host}${API_PATH}`;
-    }
-    // Fallback during build
-    return `https://lawyer.windexs.ru${API_PATH}`;
+    return '/api'; // Nginx will route /api/* to localhost:1041/*
   }
 
   // Fallback
-  return API_PATH;
+  return '/api';
 };
 
 export const API_CONFIG = {

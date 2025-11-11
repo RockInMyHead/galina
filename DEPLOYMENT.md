@@ -115,7 +115,7 @@ sudo certbot renew --dry-run
 ### Проверка API
 ```bash
 curl http://localhost:1041/health
-curl https://lawyer.windexs.ru/api/health
+curl https://lawyer.windexs.ru/health
 ```
 
 ### Проверка frontend
@@ -209,7 +209,23 @@ sudo certbot renew
 ## 📞 Контакты
 При возникновении проблем проверьте логи и обратитесь к администратору сервера.
 
+## 🔗 URL структура
+
+### Production URLs:
+- **Frontend**: `https://lawyer.windexs.ru`
+- **API**: `https://lawyer.windexs.ru/api/*` → проксируется на `localhost:1041/*`
+
+### Примеры API endpoints:
+- `https://lawyer.windexs.ru/api/chat` → `localhost:1041/chat`
+- `https://lawyer.windexs.ru/api/health` → `localhost:1041/health`
+- `https://lawyer.windexs.ru/api/tts` → `localhost:1041/tts`
+- `https://lawyer.windexs.ru/api/stt` → `localhost:1041/stt`
+
+### Development URLs:
+- **Frontend**: `http://localhost:3001`
+- **API**: `http://localhost:3001/api/*` → Vite proxy → `localhost:1041/*`
+
 ## ✅ Финальная проверка
 После развертывания приложение будет доступно по адресу:
 - **Frontend**: https://lawyer.windexs.ru
-- **API**: https://lawyer.windexs.ru/api (проксируется на порт 1041, запросы пересылаются на http://localhost:1041)
+- **API**: https://lawyer.windexs.ru/api/* (проксируется на localhost:1041)

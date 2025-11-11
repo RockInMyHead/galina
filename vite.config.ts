@@ -19,12 +19,13 @@ export default defineConfig(({ mode }) => ({
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
+    // Все запросы к /api/* будут проксироваться на localhost:1041/*
     proxy: {
       '/api': {
         target: 'http://localhost:1041',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api/, ''), // Убираем /api префикс
       },
     },
   },
