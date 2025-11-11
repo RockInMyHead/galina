@@ -425,7 +425,7 @@ const Chat = () => {
       const timeoutId = setTimeout(() => controller.abort(), 60000);
 
       try {
-        const response = await fetch('http://localhost:3001/chat', {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
