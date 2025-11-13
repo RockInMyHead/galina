@@ -10,7 +10,7 @@ import { EXAMPLE_QUESTIONS, STORAGE_KEYS, AI_SYSTEM_MESSAGES, API_CONFIG } from 
 import { ChatMessage as ChatMessageType } from "@/types";
 import { useState, useEffect } from "react";
 import { Sparkles, Download, Plus } from "lucide-react";
-import { fileToBase64, fileToText, formatFileSize, processFile } from "@/utils/fileUtils";
+import { fileToBase64, fileToText, formatFileSize, processFile, extractTextFromDOCX } from "@/utils/fileUtils";
 import { chatStorage } from "@/utils/storageUtils";
 import ReactMarkdown from 'react-markdown';
 
@@ -228,10 +228,18 @@ const Chat = () => {
                 content += `\nPDF документ "${file.name}" (не удалось извлечь текст: ${error.message})`;
               }
             }
+          } else if (file.name.toLowerCase().endsWith('.docx') || file.type.includes('word')) {
+            try {
+              const text = await extractTextFromDOCX(file);
+              content += `\nДокумент Word "${file.name}":\n${text}`;
+            } catch (error: any) {
+              console.error('Error processing DOCX:', error);
+              content += `\nДокумент Word "${file.name}" (не удалось извлечь текст: ${error.message || error})`;
+            }
+          } else if (file.name.toLowerCase().endsWith('.doc')) {
+            content += `\nДокумент "${file.name}" имеет формат .doc, который не поддерживается для автоматического анализа. Сохраните файл в формате DOCX или PDF и повторите попытку.`;
           } else if (file.type.startsWith('text/') ||
                     file.name.toLowerCase().endsWith('.txt') ||
-                    file.name.toLowerCase().endsWith('.doc') ||
-                    file.name.toLowerCase().endsWith('.docx') ||
                     file.name.toLowerCase().endsWith('.rtf') ||
                     file.name.toLowerCase().endsWith('.odt')) {
             const text = await fileToText(file);
@@ -922,10 +930,18 @@ ${courtCasesText}
                 content += `\nPDF документ "${file.name}" (не удалось извлечь текст: ${error.message})`;
               }
             }
+          } else if (file.name.toLowerCase().endsWith('.docx') || file.type.includes('word')) {
+            try {
+              const text = await extractTextFromDOCX(file);
+              content += `\nДокумент Word "${file.name}":\n${text}`;
+            } catch (error: any) {
+              console.error('Error processing DOCX:', error);
+              content += `\nДокумент Word "${file.name}" (не удалось извлечь текст: ${error.message || error})`;
+            }
+          } else if (file.name.toLowerCase().endsWith('.doc')) {
+            content += `\nДокумент "${file.name}" имеет формат .doc, который не поддерживается для автоматического анализа. Сохраните файл в формате DOCX или PDF и повторите попытку.`;
           } else if (file.type.startsWith('text/') ||
                     file.name.toLowerCase().endsWith('.txt') ||
-                    file.name.toLowerCase().endsWith('.doc') ||
-                    file.name.toLowerCase().endsWith('.docx') ||
                     file.name.toLowerCase().endsWith('.rtf') ||
                     file.name.toLowerCase().endsWith('.odt')) {
             const text = await fileToText(file);

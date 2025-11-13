@@ -2,7 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const { PrismaClient } = require('@prisma/client');
-require('dotenv').config({ path: './.env.local' });
+const { HttpsProxyAgent } = require('https-proxy-agent');
+require('dotenv').config({ path: './.env' });
+
+// Configure proxy agent for external requests
+const proxyUrl = 'http://rBD9e6:jZdUnJ@185.68.187.20:8000';
+const proxyAgent = new HttpsProxyAgent(proxyUrl);
+
+// Helper function for fetch with proxy
+const fetchWithProxy = (url, options = {}) => {
+  return fetch(url, {
+    ...options,
+    agent: proxyAgent
+  });
+};
 
 // Initialize Prisma Client
 const prisma = new PrismaClient();
@@ -212,7 +225,7 @@ _________________________
 }
 
 const app = express();
-const PORT = process.env.PORT || 1041;
+const PORT = process.env.PORT || 1042;
 
 // Configure CORS for development and production
 const corsOptions = {
@@ -243,7 +256,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 100 * 1024 * 1024, // 100MB limit
   },
   fileFilter: (req, file, cb) => {
     console.log('🎵 Multer file filter:', {
@@ -269,6 +282,30 @@ const handleMulterError = (error, req, res, next) => {
 };
 
 
+// Test endpoint to verify proxy is working
+app.get('/test-proxy', async (req, res) => {
+  try {
+    console.log('🧪 Testing proxy connection...');
+    const response = await fetchWithProxy('https://httpbin.org/ip');
+    const data = await response.json();
+    console.log('✅ Proxy test successful, IP:', data.origin);
+    res.json({
+      success: true,
+      proxyWorking: true,
+      clientIP: data.origin,
+      message: 'Proxy is working correctly!'
+    });
+  } catch (error) {
+    console.error('❌ Proxy test failed:', error.message);
+    res.status(500).json({
+      success: false,
+      proxyWorking: false,
+      error: error.message,
+      message: 'Proxy test failed'
+    });
+  }
+});
+
 app.post('/chat', async (req, res) => {
   try {
     console.log('=== New Chat Request ===');
@@ -289,7 +326,7 @@ app.post('/chat', async (req, res) => {
         try {
           console.log('🔍 Testing OpenAI API key validity...');
           // Quick test request to check if API key works
-          const testResponse = await fetch('https://api.openai.com/v1/models', {
+          const testResponse = await fetchWithProxy('https://api.openai.com/v1/models', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
@@ -328,7 +365,7 @@ app.post('/chat', async (req, res) => {
       } else {
         // Real streaming with OpenAI
         console.log('Starting real streaming with OpenAI');
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -412,7 +449,7 @@ app.post('/chat', async (req, res) => {
     if (stream) {
       console.log('Starting streaming response...');
       // Streaming response
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -491,7 +528,7 @@ app.post('/chat', async (req, res) => {
         try {
           console.log('🔍 Testing OpenAI API key validity...');
           // Quick test request to check if API key works
-          const testResponse = await fetch('https://api.openai.com/v1/models', {
+          const testResponse = await fetchWithProxy('https://api.openai.com/v1/models', {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
@@ -505,18 +542,18 @@ app.post('/chat', async (req, res) => {
           if (!apiKeyValid) {
             console.log('🔍 Basic API test failed, trying Vision API test...');
             const visionTestData = JSON.stringify({
-              model: 'gpt-4o',
+              model: 'gpt-4-turbo',
               messages: [{
                 role: 'user',
                 content: [
                   { type: 'text', text: 'test' },
-                  { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,test' } }
+                  { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' } }
                 ]
               }],
               max_tokens: 10
             });
 
-            const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            const visionResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -530,9 +567,9 @@ app.post('/chat', async (req, res) => {
             const visionValid = visionResponse.status !== 401 && visionResponse.status !== 403;
             console.log('🔍 Vision API valid:', visionValid);
 
-            // API key is valid only if both basic and vision tests pass
-            apiKeyValid = apiKeyValid && visionValid;
-            console.log('🔑 Final API key valid:', apiKeyValid);
+            // API key is valid if basic test passed (Vision API test is optional)
+            // We don't fail the entire API if Vision API test fails
+            console.log('🔑 API key valid (basic test passed, Vision API test:', visionValid ? 'passed' : 'failed but optional)', apiKeyValid);
           }
         } catch (error) {
           console.log('❌ API key test failed:', error.message);
@@ -545,30 +582,40 @@ app.post('/chat', async (req, res) => {
       const isVisionRequest = Array.isArray(lastMessage?.content) &&
                              lastMessage.content.some(item => item.type === 'image_url');
 
-      if (!apiKeyValid || isVisionRequest) {
-        console.log('⚠️ API key not valid or Vision API request, using demo mode');
+      // Use demo mode only if API key is not valid for non-Vision requests
+      // Vision API requests are allowed to try real API even if validation failed
+      if (!apiKeyValid && !isVisionRequest) {
+        console.log('⚠️ API key not valid and not Vision API request, using demo mode');
         const mockResponse = generateMockResponse(messages, model);
         return res.status(200).json(mockResponse);
+      }
+
+      // For Vision API requests, try real API even if validation failed
+      if (isVisionRequest && !apiKeyValid) {
+        console.log('🖼️ Vision API request with potentially invalid key, trying anyway...');
       }
 
     if (!apiKey) {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
+    // Use appropriate model for Vision API requests
+    const finalModel = isVisionRequest ? 'gpt-4o-mini' : model;
+
     // Regular response
     console.log('🔄 Sending request to OpenAI API...');
-    console.log('📋 Model:', model);
+    console.log('📋 Model:', finalModel, isVisionRequest ? '(Vision API)' : '');
     console.log('💬 Messages count:', messages.length);
     console.log('🔑 API Key exists and valid:', !!apiKey && apiKeyValid);
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model,
+          model: finalModel,
           messages,
           max_tokens,
           temperature,
@@ -583,6 +630,14 @@ app.post('/chat', async (req, res) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('❌ OpenAI API error:', response.status, errorData);
+
+        // For Vision API requests, if we get auth errors, fall back to demo mode
+        if (isVisionRequest && (response.status === 401 || response.status === 403)) {
+          console.log('🖼️ Vision API auth failed, falling back to demo mode');
+          const mockResponse = generateMockResponse(messages, model);
+          return res.status(200).json(mockResponse);
+        }
+
         return res.status(response.status).json({ error: 'Internal server error', details: errorData });
       }
 
@@ -616,7 +671,7 @@ app.post('/tts', async (req, res) => {
 
     console.log('Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model });
 
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -750,7 +805,7 @@ const sttHandler = async (req, res) => {
     console.log('   Audio blob size:', audioBlob.size);
     console.log('   Audio blob type:', audioBlob.type);
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const response = await fetchWithProxy('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -1073,7 +1128,7 @@ const searchDuckDuckGo = async (query) => {
     
     console.log('🔍 DuckDuckGo search URL:', url);
     
-    const response = await fetch(url, {
+    const response = await fetchWithProxy(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
       }
@@ -1194,7 +1249,7 @@ app.post('/search-court-cases', async (req, res) => {
 
     // Вариант 1: DuckDuckGo API (бесплатно, без API ключей)
     let courtCases = await searchDuckDuckGo(query);
-    
+
     // Если результатов мало, можно добавить другие источники:
     // - Парсинг sudrf.ru напрямую
     // - Парсинг sudact.ru напрямую
@@ -1214,6 +1269,175 @@ app.post('/search-court-cases', async (req, res) => {
       error: 'Failed to search court cases',
       details: error.message
     });
+  }
+});
+
+// Сохранение анализа документа
+app.post('/document-analyses', async (req, res) => {
+  try {
+    const { title, fileName, fileSize, analysis } = req.body;
+
+    if (!title || !fileName || !fileSize || !analysis) {
+      return res.status(400).json({ error: 'All fields are required: title, fileName, fileSize, analysis' });
+    }
+
+    // Для демо получаем пользователя по email
+    const user = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Demo user not found' });
+    }
+
+    const documentAnalysis = await prisma.documentAnalysis.create({
+      data: {
+        title,
+        fileName,
+        fileSize: parseInt(fileSize),
+        analysis,
+        userId: user.id
+      }
+    });
+
+    console.log('📄 Document analysis saved:', documentAnalysis.id);
+    res.json({ documentAnalysis });
+  } catch (error) {
+    console.error('Error saving document analysis:', error);
+    res.status(500).json({ error: 'Failed to save document analysis' });
+  }
+});
+
+// Получение списка анализов пользователя
+app.get('/document-analyses', async (req, res) => {
+  try {
+    // Для демо получаем пользователя по email
+    const user = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Demo user not found' });
+    }
+
+    const analyses = await prisma.documentAnalysis.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log(`📄 Retrieved ${analyses.length} document analyses for user`);
+    res.json({ analyses });
+  } catch (error) {
+    console.error('Error retrieving document analyses:', error);
+    res.status(500).json({ error: 'Failed to retrieve document analyses' });
+  }
+});
+
+// Получение конкретного анализа
+app.get('/document-analyses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Для демо получаем пользователя по email
+    const user = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Demo user not found' });
+    }
+
+    const analysis = await prisma.documentAnalysis.findFirst({
+      where: {
+        id,
+        userId: user.id
+      }
+    });
+
+    if (!analysis) {
+      return res.status(404).json({ error: 'Document analysis not found' });
+    }
+
+    console.log('📄 Retrieved document analysis:', analysis.id);
+    res.json({ analysis });
+  } catch (error) {
+    console.error('Error retrieving document analysis:', error);
+    res.status(500).json({ error: 'Failed to retrieve document analysis' });
+  }
+});
+
+// Обновление анализа (изменение названия)
+app.put('/document-analyses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    // Для демо получаем пользователя по email
+    const user = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Demo user not found' });
+    }
+
+    const analysis = await prisma.documentAnalysis.updateMany({
+      where: {
+        id,
+        userId: user.id
+      },
+      data: {
+        title,
+        updatedAt: new Date()
+      }
+    });
+
+    if (analysis.count === 0) {
+      return res.status(404).json({ error: 'Document analysis not found' });
+    }
+
+    console.log('📄 Document analysis updated:', id);
+    res.json({ success: true, updated: analysis.count });
+  } catch (error) {
+    console.error('Error updating document analysis:', error);
+    res.status(500).json({ error: 'Failed to update document analysis' });
+  }
+});
+
+// Удаление анализа
+app.delete('/document-analyses/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Для демо получаем пользователя по email
+    const user = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Demo user not found' });
+    }
+
+    const analysis = await prisma.documentAnalysis.deleteMany({
+      where: {
+        id,
+        userId: user.id
+      }
+    });
+
+    if (analysis.count === 0) {
+      return res.status(404).json({ error: 'Document analysis not found' });
+    }
+
+    console.log('📄 Document analysis deleted:', id);
+    res.json({ success: true, deleted: analysis.count });
+  } catch (error) {
+    console.error('Error deleting document analysis:', error);
+    res.status(500).json({ error: 'Failed to delete document analysis' });
   }
 });
 

@@ -1,10 +1,13 @@
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, FileSearch, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Upload, FileSearch, CheckCircle2, AlertCircle, X, Download } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import { API_CONFIG } from "@/config/constants";
+import * as mammoth from 'mammoth';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Типы для PDF.js
 declare global {
@@ -18,7 +21,9 @@ const DocumentAnalysis = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const analysisResultRef = useRef<HTMLDivElement>(null);
 
   // Загрузка PDF.js через CDN
   useEffect(() => {
@@ -96,7 +101,7 @@ const DocumentAnalysis = () => {
 
   // Функция валидации и установки файла
   const validateAndSetFile = (file: File) => {
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 100 * 1024 * 1024; // 100MB
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -105,7 +110,7 @@ const DocumentAnalysis = () => {
     ];
 
     if (file.size > maxSize) {
-      alert('Файл слишком большой. Максимальный размер: 10MB');
+      alert('Файл слишком большой. Максимальный размер: 100MB');
       return;
     }
 
@@ -127,6 +132,99 @@ const DocumentAnalysis = () => {
     }
   };
 
+  // Функция для обработки DOCX файлов через mammoth.js
+  const extractTextFromDOCX = async (file: File): Promise<string> => {
+    console.log('Processing DOCX file with mammoth.js:', file.name);
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const arrayBuffer = e.target?.result as ArrayBuffer;
+          console.log('DOCX file loaded, processing with mammoth...');
+
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          const text = result.value;
+
+          console.log('DOCX extraction complete, text length:', text.length);
+          console.log('First 200 chars:', text.substring(0, 200));
+
+          resolve(text);
+        } catch (error) {
+          console.error('Error processing DOCX with mammoth:', error);
+          reject(new Error(`Не удалось обработать DOCX файл: ${error.message}`));
+        }
+      };
+      reader.onerror = () => reject(new Error('Ошибка чтения DOCX файла'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Функция для обработки документа через Vision API (для изображений)
+  const processDocumentWithVisionAPI = async (file: File): Promise<string> => {
+    console.log('Processing document with Vision API:', file.name);
+
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          // Конвертируем файл в base64
+          const base64Data = (e.target?.result as string).split(',')[1]; // Убираем data:image/jpeg;base64,
+          const mimeType = file.type || 'application/octet-stream';
+
+          console.log('Sending document to Vision API, size:', base64Data.length, 'chars');
+
+          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Проанализируйте этот документ и извлеките весь текст. Название файла: ${file.name}. Если документ содержит юридическую информацию, предоставьте краткое содержание.`
+                    },
+                    {
+                      type: 'image_url',
+                      image_url: {
+                        url: `data:${mimeType};base64,${base64Data}`
+                      }
+                    }
+                  ]
+                }
+              ],
+              max_tokens: 2000,
+              temperature: 0.1
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Vision API Error:', response.status, errorData);
+            throw new Error(`Ошибка Vision API: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const extractedText = data.choices[0]?.message?.content || 'Не удалось извлечь текст из документа';
+
+          console.log('Vision API extraction complete, text length:', extractedText.length);
+          resolve(extractedText);
+
+        } catch (error) {
+          console.error('Error processing with Vision API:', error);
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
+
+      // Для DOCX файлов конвертируем в base64 через ArrayBuffer
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Функция для чтения содержимого файла
   const readFileContent = (file: File): Promise<string> => {
     console.log('Reading file content:', file.name, 'type:', file.type);
@@ -146,13 +244,144 @@ const DocumentAnalysis = () => {
         console.log('Processing as PDF file');
         extractTextFromPDF(file).then(resolve).catch(reject);
       } else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) {
-        console.log('Processing as DOC file');
-        resolve(`[DOC файл: ${file.name}] - Полная обработка DOC файлов будет реализована в следующих версиях.`);
+        console.log('Processing as DOC/DOCX file with mammoth.js');
+        // Используем mammoth.js для обработки DOC/DOCX файлов
+        extractTextFromDOCX(file).then(resolve).catch((error) => {
+          console.error('Mammoth failed for DOC file, trying Vision API as fallback');
+          // Fallback to Vision API if mammoth fails
+          processDocumentWithVisionAPI(file).then(resolve).catch((visionError) => {
+            console.error('Both mammoth and Vision API failed for DOC file');
+            resolve(`[DOC файл: ${file.name}] - Не удалось обработать файл. Mammoth: ${error.message}. Vision API: ${visionError.message}. Рекомендуется конвертировать документ в PDF или текстовый формат.`);
+          });
+        });
       } else {
-        console.log('Unsupported file type');
-        resolve(`[Файл: ${file.name}] - Неподдерживаемый формат для анализа.`);
+        console.log('Unsupported file type, trying Vision API');
+        // Для неподдерживаемых типов тоже пробуем Vision API
+        processDocumentWithVisionAPI(file).then(resolve).catch((error) => {
+          console.error('Vision API failed for unsupported file type');
+          resolve(`[Файл: ${file.name}] - Неподдерживаемый формат для анализа. Попробуйте конвертировать в PDF, DOCX или TXT.`);
+        });
       }
     });
+  };
+
+  // Функция для генерации PDF с результатами анализа
+  const generateAnalysisPDF = async () => {
+    if (!analysisResult || !selectedFile) return;
+
+    setIsGeneratingPDF(true);
+    try {
+      console.log('Generating PDF for analysis results...');
+
+      // Создаем новый PDF документ
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = margin;
+
+      // Функция для добавления текста с автоматическим переносом и разбивкой страниц
+      const addTextWithPageBreaks = (text: string, fontSize: number = 11, isBold: boolean = false) => {
+        if (isBold) {
+          pdf.setFont('helvetica', 'bold');
+        } else {
+          pdf.setFont('helvetica', 'normal');
+        }
+
+        pdf.setFontSize(fontSize);
+
+        // Разбиваем текст на строки
+        const lines = pdf.splitTextToSize(text, pageWidth - 2 * margin);
+
+        lines.forEach((line: string) => {
+          // Проверяем, поместится ли следующая строка на текущей странице
+          const lineHeight = fontSize * 0.4; // Примерная высота строки
+          if (yPosition + lineHeight > pageHeight - margin) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+
+          pdf.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+
+        // Возвращаемся к обычному шрифту
+        pdf.setFont('helvetica', 'normal');
+        return yPosition;
+      };
+
+      // Заголовок
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Анализ документа', margin, yPosition);
+      yPosition += 15;
+
+      // Информация о файле
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      yPosition = addTextWithPageBreaks(`Файл: ${selectedFile.name}`, 12);
+      yPosition = addTextWithPageBreaks(`Размер: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`, 12);
+      yPosition = addTextWithPageBreaks(`Дата анализа: ${new Date().toLocaleString('ru-RU')}`, 12);
+      yPosition += 10;
+
+      // Линия разделителя
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 15;
+
+      // Заголовок результатов анализа
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      yPosition = addTextWithPageBreaks('Результаты анализа', 16);
+      yPosition += 10;
+
+      // Обрабатываем содержимое анализа
+      const plainText = analysisResult
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Убираем жирный текст
+        .replace(/### (.*?)/g, '$1') // Убираем заголовки
+        .replace(/## (.*?)/g, '$1')
+        .replace(/# (.*?)/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1') // Убираем курсив
+        .replace(/_(.*?)_/g, '$1')
+        .replace(/^- /gm, '• ') // Заменяем маркеры списков
+        .replace(/\n\n+/g, '\n\n'); // Нормализуем переносы строк
+
+      // Разбиваем на абзацы и обрабатываем каждый
+      const paragraphs = plainText.split('\n\n');
+
+      paragraphs.forEach((paragraph: string) => {
+        if (paragraph.trim()) {
+          // Проверяем, является ли это заголовком (короткий текст без точки в конце)
+          const isHeading = paragraph.length < 100 && !paragraph.includes('.') && !paragraph.includes('?') && !paragraph.includes('!');
+
+          if (isHeading) {
+            yPosition = addTextWithPageBreaks(paragraph.trim(), 14, true);
+          } else {
+            yPosition = addTextWithPageBreaks(paragraph.trim(), 11);
+          }
+          yPosition += 5; // Отступ между абзацами
+        }
+      });
+
+      // Добавляем футер на последней странице
+      const footerY = pageHeight - 20;
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Генерировано системой Галина - AI-юрист', margin, footerY);
+      pdf.text('⚠️ Этот анализ носит рекомендательный характер. Для принятия юридически значимых решений', margin, footerY + 5);
+      pdf.text('рекомендуем консультацию с квалифицированным юристом.', margin, footerY + 10);
+
+      // Сохраняем PDF
+      const fileName = `анализ_${selectedFile.name.replace(/\.[^/.]+$/, '')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+
+      console.log('PDF generated successfully:', fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Ошибка при генерации PDF. Попробуйте еще раз.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   // Функция для анализа документа через OpenAI
@@ -313,7 +542,7 @@ const DocumentAnalysis = () => {
                             Перетащите файл или выберите его
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            Поддерживаются форматы: PDF, DOCX, DOC, TXT (до 10 МБ)
+                            Поддерживаются форматы: PDF, DOCX, DOC, TXT (до 100 МБ)
                           </p>
                           <Button
                             size="lg"
@@ -337,11 +566,23 @@ const DocumentAnalysis = () => {
                   </h2>
                   {analysisResult ? (
                     <div className="space-y-6">
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle2 className="h-5 w-5" />
-                        <span className="font-medium">Анализ завершен</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-green-600">
+                          <CheckCircle2 className="h-5 w-5" />
+                          <span className="font-medium">Анализ завершен</span>
+                        </div>
+                        <Button
+                          onClick={generateAnalysisPDF}
+                          disabled={isGeneratingPDF}
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          {isGeneratingPDF ? 'Генерация PDF...' : 'Скачать PDF'}
+                        </Button>
                       </div>
-                      <div className="prose prose-sm max-w-none">
+                      <div ref={analysisResultRef} className="prose prose-sm max-w-none">
                         <ReactMarkdown className="text-sm text-muted-foreground leading-relaxed">
                           {analysisResult}
                         </ReactMarkdown>

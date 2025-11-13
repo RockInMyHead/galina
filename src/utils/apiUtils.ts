@@ -207,3 +207,93 @@ export const withRetry = async <T>(
   }
   throw new Error('Max retries exceeded')
 }
+
+// Document Analysis API functions
+export interface DocumentAnalysis {
+  id: string
+  title: string
+  fileName: string
+  fileSize: number
+  analysis: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Save document analysis
+ */
+export const saveDocumentAnalysis = async (
+  title: string,
+  fileName: string,
+  fileSize: number,
+  analysis: string
+): Promise<DocumentAnalysis> => {
+  const result = await apiRequest('/document-analyses', {
+    method: 'POST',
+    body: JSON.stringify({
+      title,
+      fileName,
+      fileSize,
+      analysis,
+    }),
+  })
+
+  if (result.success && result.data) {
+    return result.data.documentAnalysis
+  }
+
+  throw new Error(result.error || 'Failed to save document analysis')
+}
+
+/**
+ * Get all document analyses for user
+ */
+export const getDocumentAnalyses = async (): Promise<DocumentAnalysis[]> => {
+  const result = await apiRequest('/document-analyses')
+
+  if (result.success && result.data) {
+    return result.data.analyses
+  }
+
+  throw new Error(result.error || 'Failed to get document analyses')
+}
+
+/**
+ * Get specific document analysis
+ */
+export const getDocumentAnalysis = async (id: string): Promise<DocumentAnalysis> => {
+  const result = await apiRequest(`/document-analyses/${id}`)
+
+  if (result.success && result.data) {
+    return result.data.analysis
+  }
+
+  throw new Error(result.error || 'Failed to get document analysis')
+}
+
+/**
+ * Update document analysis title
+ */
+export const updateDocumentAnalysis = async (id: string, title: string): Promise<void> => {
+  const result = await apiRequest(`/document-analyses/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ title }),
+  })
+
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to update document analysis')
+  }
+}
+
+/**
+ * Delete document analysis
+ */
+export const deleteDocumentAnalysis = async (id: string): Promise<void> => {
+  const result = await apiRequest(`/document-analyses/${id}`, {
+    method: 'DELETE',
+  })
+
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to delete document analysis')
+  }
+}

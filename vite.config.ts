@@ -7,10 +7,10 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 3001,
+    port: 0,
     hmr: {
       // Настройки для WebSocket HMR
-      port: 3001,
+      port: 0,
       host: 'localhost',
       protocol: 'ws',
     },
@@ -19,13 +19,32 @@ export default defineConfig(({ mode }) => ({
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
-    // Все запросы к /api/* будут проксироваться на localhost:1041
+    // Все запросы к /api/* будут проксироваться на lawyer.windexs.ru
     proxy: {
       '/api': {
-        target: 'http://localhost:1041',
+        target: 'https://lawyer.windexs.ru:1041',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
+      '/proxy': {
+        target: 'http://185.68.187.20:8000',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/proxy/, ''),
+        configure: (proxy, options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('Proxy error:', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            proxyReq.setHeader('Proxy-Authorization', 'Basic ' + Buffer.from('rBD9e6:jZdUnJ').toString('base64'));
+            console.log('Proxy request:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            console.log('Proxy response:', proxyRes.statusCode, req.url);
+          });
+        },
       },
     },
   },

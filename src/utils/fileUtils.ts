@@ -53,12 +53,39 @@ export const fileToText = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
-      const content = e.target?.result as string || ''
+      const content = (e.target?.result as string) || ''
       resolve(content)
     }
     reader.onerror = reject
     reader.readAsText(file, 'UTF-8')
   })
+}
+
+/**
+ * Extracts text from DOCX file using mammoth
+ */
+export const extractTextFromDOCX = async (file: File): Promise<string> => {
+  console.log('Starting DOCX extraction for file:', file.name, 'size:', file.size)
+
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const mammothModule = await import('mammoth')
+    const mammoth = (mammothModule as any).default ?? mammothModule
+
+    const result = await mammoth.extractRawText({ arrayBuffer })
+    const text = (result?.value || '').trim()
+
+    console.log('DOCX extraction complete, text length:', text.length)
+
+    if (!text) {
+      return 'Не удалось извлечь текст из DOCX документа. Возможно, документ содержит изображения или защищен.'
+    }
+
+    return text
+  } catch (error: any) {
+    console.error('Error extracting text from DOCX:', error)
+    throw new Error(error?.message || 'Не удалось извлечь текст из DOCX файла')
+  }
 }
 
 /**
@@ -98,6 +125,20 @@ export const processFile = async (file: File): Promise<ProcessedFile> => {
       console.error('Error processing PDF:', error)
       content = `PDF документ: ${file.name} (${formatFileSize(file.size)}) - ${error.message}`
     }
+  } else if (
+    file.type.includes('word') ||
+    file.name.toLowerCase().endsWith('.docx')
+  ) {
+    type = 'document'
+    try {
+      content = await extractTextFromDOCX(file)
+    } catch (error) {
+      console.error('Error processing DOCX:', error)
+      content = `Документ Word: ${file.name} (${formatFileSize(file.size)}) - ${error.message}`
+    }
+  } else if (file.name.toLowerCase().endsWith('.doc')) {
+    type = 'document'
+    content = `Документ "${file.name}" имеет формат .doc, который не поддерживается для автоматического анализа. Сохраните файл в формате DOCX или PDF и повторите попытку.`
   } else {
     type = 'document'
     try {
@@ -132,8 +173,8 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         console.log('Created Uint8Array, loading PDF document...')
 
         // Check file size before processing
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit for PDF processing
-          reject(new Error('PDF файл слишком большой для обработки (максимум 50MB)'))
+        if (file.size > 100 * 1024 * 1024) { // 100MB limit for PDF processing
+          reject(new Error('PDF файл слишком большой для обработки (максимум 100MB)'))
           return
         }
 

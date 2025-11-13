@@ -86,13 +86,13 @@ export const ChatInput = ({
               key={index}
               className="flex items-center gap-2 bg-muted rounded-lg p-2 text-sm"
             >
-              {file.type.startsWith('image/') ? (
+              {file.file.type.startsWith('image/') ? (
                 <Image className="h-4 w-4" />
                 ) : (
                 <FileText className="h-4 w-4" />
                 )}
-              <span className="truncate max-w-32">{file.name}</span>
-              <span className="text-muted-foreground">({formatFileSize(file.size)})</span>
+              <span className="truncate max-w-32">{file.file.name}</span>
+              <span className="text-muted-foreground">({formatFileSize(file.file.size)})</span>
               <Button
                 variant="ghost"
                 size="sm"
