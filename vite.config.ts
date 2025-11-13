@@ -19,12 +19,12 @@ export default defineConfig(({ mode }) => ({
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
-    // Все запросы к /api/* будут проксироваться на lawyer.windexs.ru
+    // Все запросы к /api/* будут проксироваться на localhost:1042
     proxy: {
       '/api': {
-        target: 'https://lawyer.windexs.ru:1041',
+        target: 'http://localhost:1042',
         changeOrigin: true,
-        secure: true,
+        secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
