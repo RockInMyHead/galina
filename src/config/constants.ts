@@ -12,8 +12,8 @@ const getAPIBaseURL = (): string => {
 
   // Production: Use full URL to lawyer.windexs.ru on port 1041
   if (import.meta.env.PROD) {
-    // Use port 1041 for both frontend and API
-    return 'https://lawyer.windexs.ru:1041/api';
+    // Use port 1041 for both frontend and API (HTTP, no SSL)
+    return 'http://lawyer.windexs.ru:1041/api';
   }
 
   // Fallback
