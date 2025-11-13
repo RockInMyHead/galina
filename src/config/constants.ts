@@ -7,7 +7,7 @@ const getAPIBaseURL = (): string => {
 
   // Development: Use Vite proxy with /api prefix
   if (import.meta.env.DEV) {
-    return '/api'; // Vite proxy will forward /api/* to localhost:1041
+    return '/api'; // Vite proxy will handle API routing
   }
 
   // Production: Use full URL to lawyer.windexs.ru on port 1041

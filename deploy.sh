@@ -102,7 +102,7 @@ server {
         # Убираем /api/ из пути при проксировании
         rewrite ^/api/(.*) /\$1 break;
         
-        proxy_pass http://localhost:$API_PORT;
+        proxy_pass https://lawyer.windexs.ru:$API_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection 'upgrade';

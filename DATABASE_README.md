@@ -189,7 +189,7 @@ npm run db:migrate-data
 
 ```bash
 npm run db:studio
-# Откроется браузер на http://localhost:5555
+# Откроется браузер на https://lawyer.windexs.ru:5555
 ```
 
 ## 🔧 Конфигурация
@@ -254,7 +254,7 @@ api/
 
 2. **Обновить переменные окружения:**
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/galina_db"
+   DATABASE_URL="postgresql://user:password@lawyer.windexs.ru:5432/galina_db"
    ```
 
 3. **Запустить миграцию:**

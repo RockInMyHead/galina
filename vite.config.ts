@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       // Настройки для WebSocket HMR
       port: 0,
-      host: 'localhost',
+      host: 'lawyer.windexs.ru',
       protocol: 'ws',
     },
     // Дополнительные настройки для стабильности WebSocket

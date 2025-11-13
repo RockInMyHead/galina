@@ -3,76 +3,60 @@
 ## Архитектура
 
 ```
-Frontend (lawyer.windexs.ru)
+Frontend (https://lawyer.windexs.ru:1041)
     ↓
     /api/* запросы
     ↓
-Nginx (lawyer.windexs.ru:80)
+Nginx (lawyer.windexs.ru:1041)
     ↓
-    Проксирует на localhost:1041
+    Проксирует на https://lawyer.windexs.ru:1042
     ↓
-API Server (localhost:1041)
+API Server (https://lawyer.windexs.ru:1042)
 ```
 
 ## Маршрутизация
 
 ### Production (lawyer.windexs.ru)
-- **Frontend**: `https://lawyer.windexs.ru/` → Статические файлы из `/home/sve/galina/frontend/`
-- **API**: `https://lawyer.windexs.ru/api/*` → Проксируется на `http://localhost:1041/*`
-
-### Development (localhost:3001)
-- **Frontend**: `http://localhost:3001/` → Vite dev server
-- **API**: `http://localhost:3001/api/*` → Vite proxy → `http://localhost:1041/*`
+- **Frontend**: `https://lawyer.windexs.ru:1041/` → Статические файлы из `/home/sve/galina/frontend/`
+- **API**: `https://lawyer.windexs.ru:1041/api/*` → Проксируется на `https://lawyer.windexs.ru:1042/*`
 
 ## API Endpoints
 
 Все запросы к API должны начинаться с `/api/`:
 
 ### Chat
-- `POST /api/chat` → `localhost:1041/chat`
+- `POST /api/chat` → `https://lawyer.windexs.ru:1042/chat`
 
 ### Text-to-Speech
-- `POST /api/tts` → `localhost:1041/tts`
+- `POST /api/tts` → `https://lawyer.windexs.ru:1042/tts`
 
 ### Speech-to-Text
-- `POST /api/stt` → `localhost:1041/stt`
-- `POST /api/stt/raw` → `localhost:1041/stt/raw`
+- `POST /api/stt` → `https://lawyer.windexs.ru:1042/stt`
+- `POST /api/stt/raw` → `https://lawyer.windexs.ru:1042/stt/raw`
 
 ### Health Check
-- `GET /api/health` → `localhost:1041/health`
+- `GET /api/health` → `https://lawyer.windexs.ru:1042/health`
 
 ### User
-- `GET /api/user/profile` → `localhost:1041/user/profile`
+- `GET /api/user/profile` → `https://lawyer.windexs.ru:1042/user/profile`
 
 ### Files
-- `GET /api/files` → `localhost:1041/files`
-- `POST /api/files/upload` → `localhost:1041/files/upload`
-- `DELETE /api/files/:fileId` → `localhost:1041/files/:fileId`
+- `GET /api/files` → `https://lawyer.windexs.ru:1042/files`
+- `POST /api/files/upload` → `https://lawyer.windexs.ru:1042/files/upload`
+- `DELETE /api/files/:fileId` → `https://lawyer.windexs.ru:1042/files/:fileId`
 
 ### Chat History
-- `GET /api/chat/history` → `localhost:1041/chat/history`
-- `POST /api/chat/message` → `localhost:1041/chat/message`
-- `DELETE /api/chat/history` → `localhost:1041/chat/history`
+- `GET /api/chat/history` → `https://lawyer.windexs.ru:1042/chat/history`
+- `POST /api/chat/message` → `https://lawyer.windexs.ru:1042/chat/message`
+- `DELETE /api/chat/history` → `https://lawyer.windexs.ru:1042/chat/history`
 
 ### Statistics
-- `GET /api/stats` → `localhost:1041/stats`
+- `GET /api/stats` → `https://lawyer.windexs.ru:1042/stats`
 
 ### Court Cases Search
-- `POST /api/search-court-cases` → `localhost:1041/search-court-cases`
+- `POST /api/search-court-cases` → `https://lawyer.windexs.ru:1042/search-court-cases`
 
 ## Примеры запросов
-
-### Development
-```javascript
-// Frontend код автоматически добавит /api префикс
-fetch('/api/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ messages: [...] })
-})
-// Реальный запрос: http://localhost:3001/api/chat
-// Vite proxy: http://localhost:1041/chat
-```
 
 ### Production
 ```javascript
@@ -82,8 +66,8 @@ fetch('/api/chat', {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ messages: [...] })
 })
-// Реальный запрос: https://lawyer.windexs.ru/api/chat
-// Nginx proxy: http://localhost:1041/chat
+// Реальный запрос: https://lawyer.windexs.ru:1041/api/chat
+// Nginx proxy: https://lawyer.windexs.ru:1042/chat
 ```
 
 ## Конфигурация
@@ -92,9 +76,9 @@ fetch('/api/chat', {
 ```typescript
 proxy: {
   '/api': {
-    target: 'http://localhost:1041',
+    target: 'https://lawyer.windexs.ru:1041',
     changeOrigin: true,
-    secure: false,
+    secure: true,
     rewrite: (path) => path.replace(/^\/api/, ''),
   },
 }
@@ -104,7 +88,7 @@ proxy: {
 ```nginx
 location /api/ {
     rewrite ^/api/(.*) /$1 break;
-    proxy_pass http://localhost:1041;
+    proxy_pass https://lawyer.windexs.ru:1042;
     # ... другие настройки proxy
 }
 ```
@@ -126,20 +110,11 @@ const getAPIBaseURL = (): string => {
 
 ### Development
 ```bash
-# Проверка API напрямую
-curl http://localhost:1041/health
-
-# Проверка через Vite proxy
-curl http://localhost:3001/api/health
-```
-
-### Production
-```bash
 # Проверка API напрямую (на сервере)
-curl http://localhost:1041/health
+curl https://lawyer.windexs.ru:1042/health
 
 # Проверка через Nginx
-curl https://lawyer.windexs.ru/api/health
+curl https://lawyer.windexs.ru:1041/api/health
 ```
 
 ## Troubleshooting

@@ -96,7 +96,7 @@ echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
 npm start
 ```
 
-The API server will run on `http://localhost:1041`.
+The API server is available at `https://lawyer.windexs.ru:1041/api`.
 
 **⚠️ IMPORTANT:** Without a valid OpenAI API key, the chat will return demo/mock responses only. To get real AI responses, you must:
 
@@ -122,7 +122,7 @@ This application supports real-time streaming responses from OpenAI:
 - Supports both GPT-3.5-turbo and GPT-4o models with streaming
 - Automatic fallback to mock streaming when API key is not configured
 
-The frontend development server typically runs on `http://localhost:8080` (or another available port).
+The frontend is served from `https://lawyer.windexs.ru:1041`.
 
 **Note**: The chat uses GPT-3.5-turbo model and is configured to provide legal advice in Russian based on Russian legislation.
 

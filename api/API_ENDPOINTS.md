@@ -1,8 +1,8 @@
 # API Endpoints Documentation
 
 ## Base URL
-- Development: `http://localhost:1041`
-- Production: TBD
+- Public Gateway: `https://lawyer.windexs.ru:1041/api`
+- Internal API: `https://lawyer.windexs.ru:1042`
 
 ## Important Note
 **All endpoints are without `/api/` prefix.** This ensures consistent routing without duplication (e.g., `/api/api/*`).
@@ -354,11 +354,10 @@ Authentication will be implemented in future versions.
 ## CORS Configuration
 
 Allowed origins:
-- `http://localhost:3001`
-- `http://127.0.0.1:3001`
-- `http://localhost:8080`
-- `http://localhost:3000`
-- `http://localhost:5173`
+- `https://lawyer.windexs.ru`
+- `http://lawyer.windexs.ru`
+- `https://lawyer.windexs.ru:1041`
+- `http://lawyer.windexs.ru:1041`
 
 ---
 

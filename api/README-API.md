@@ -40,7 +40,7 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 
 ### 1. "Не удалось подключиться к серверу"
 - Сервер не запущен
-- Проверьте порт 5001: `curl http://localhost:5001/health`
+- Проверьте порт 1042: `curl https://lawyer.windexs.ru:1042/health`
 
 ### 2. Ошибки зависимостей
 ```bash
@@ -62,7 +62,7 @@ kill -9 <PID>  # Освободить порт
 ## ✅ Проверка работы
 
 ```bash
-curl http://localhost:5001/health
+curl https://lawyer.windexs.ru:1042/health
 # Должен вернуть: {"status":"ok","message":"Galina API is running"}
 ```
 

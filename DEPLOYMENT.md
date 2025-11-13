@@ -114,8 +114,8 @@ sudo certbot renew --dry-run
 
 ### Проверка API
 ```bash
-curl http://localhost:1041/health
-curl https://lawyer.windexs.ru/health
+curl https://lawyer.windexs.ru:1042/health
+curl https://lawyer.windexs.ru:1041/api/health
 ```
 
 ### Проверка frontend
