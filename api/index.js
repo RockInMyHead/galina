@@ -528,45 +528,8 @@ app.post('/chat', async (req, res) => {
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          console.error('❌ OpenAI streaming API error:', response.status, errorData);
-          console.log('🔄 Streaming API failed, falling back to mock streaming');
-
-          // Fall back to mock streaming
-          res.setHeader('Content-Type', 'text/event-stream');
-          res.setHeader('Cache-Control', 'no-cache');
-          res.setHeader('Connection', 'keep-alive');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-
-          // Get smart mock content based on the last message
-          const lastMessage = messages[messages.length - 1];
-          const userContent = lastMessage?.content || '';
-          const lowerContent = userContent.toLowerCase();
-
-          let mockContent = '';
-
-          if (lowerContent.includes('регистрац') && lowerContent.includes('ооо') ||
-              lowerContent.includes('документ') && lowerContent.includes('ооо') ||
-              lowerContent.includes('нужн') && lowerContent.includes('ооо')) {
-            mockContent = 'Для регистрации ООО в России требуются следующие документы: Устав общества, Решение о создании ООО, Заявление по форме Р11001, Договор об учреждении ООО (если несколько учредителей), Квитанция об оплате госпошлины (4000 рублей), Паспорта и ИНН учредителей и директора, а также документы на юридический адрес.';
-          } else if (lowerContent.includes('ип') || lowerContent.includes('индивидуальн') && lowerContent.includes('предпринимател')) {
-            mockContent = 'Для регистрации ИП в России требуются: Заявление по форме Р21001, Паспорт, ИНН и Квитанция об оплате госпошлины (800 рублей).';
-          } else {
-            mockContent = 'Привет! Я Галина, ваш AI-юрист. Я помогу вам с юридическими вопросами. Задайте мне любой вопрос о законодательстве Российской Федерации.';
-          }
-
-          const words = mockContent.split(' ');
-
-          let currentContent = '';
-          (async () => {
-            for (let i = 0; i < words.length; i++) {
-              currentContent += (i > 0 ? ' ' : '') + words[i];
-              res.write(`data: ${JSON.stringify({ content: currentContent })}\n\n`);
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            res.write('data: [DONE]\n\n');
-            res.end();
-          })();
-          return;
+          console.error('OpenAI API error:', response.status, errorData);
+          return res.status(response.status).json(errorData);
         }
 
         res.setHeader('Content-Type', 'text/event-stream');
@@ -814,13 +777,6 @@ app.post('/chat', async (req, res) => {
         // For Vision API requests, if we get auth errors, fall back to demo mode
         if (isVisionRequest && (response.status === 401 || response.status === 403)) {
           console.log('🖼️ Vision API auth failed, falling back to demo mode');
-          const mockResponse = generateMockResponse(messages, model);
-          return res.status(200).json(mockResponse);
-        }
-
-        // For regular chat requests, fall back to demo mode on any API error
-        if (!isVisionRequest) {
-          console.log('🔄 Chat API failed, falling back to demo mode');
           const mockResponse = generateMockResponse(messages, model);
           return res.status(200).json(mockResponse);
         }
