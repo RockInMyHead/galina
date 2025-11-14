@@ -798,21 +798,49 @@ app.post('/chat', async (req, res) => {
 app.post('/tts', async (req, res) => {
   try {
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
-    
+
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      console.log('No API key - using mock TTS response');
-      // Mock response for testing
-      const mockAudio = Buffer.from([0x49, 0x44, 0x33]); // Simple MP3 header mock
+
+    // Check if API key exists and is valid
+    let apiKeyValid = false;
+    if (apiKey) {
+      try {
+        console.log('🔍 Testing OpenAI API key validity for TTS...');
+        // Quick test request to check if API key works
+        const testResponse = await fetchWithProxy('https://api.openai.com/v1/models', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        apiKeyValid = testResponse.ok;
+        console.log('🔑 TTS API key valid:', apiKeyValid, 'Status:', testResponse.status);
+      } catch (error) {
+        console.log('❌ TTS API key test failed:', error.message);
+        apiKeyValid = false;
+      }
+    }
+
+    // Use demo mode if API key is not valid
+    if (!apiKey || !apiKeyValid) {
+      console.log('⚠️ TTS API key not valid, using demo mode');
+      // Mock response for testing - return a simple audio placeholder
+      const mockAudio = Buffer.from([
+        0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+      ]); // Minimal MP3 frame
       res.setHeader('Content-Type', 'audio/mpeg');
+      res.setHeader('Content-Length', mockAudio.length);
       return res.send(mockAudio);
     }
 
-    console.log('Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model });
+    console.log('🎵 Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model });
 
     const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -829,7 +857,21 @@ app.post('/tts', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.text().catch(() => '');
-      console.error('OpenAI TTS API error:', response.status, errorData);
+      console.error('❌ OpenAI TTS API error:', response.status, errorData);
+
+      // If we get auth errors, fall back to demo mode
+      if (response.status === 401 || response.status === 403) {
+        console.log('🔄 TTS auth failed, falling back to demo mode');
+        const mockAudio = Buffer.from([
+          0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        ]);
+        res.setHeader('Content-Type', 'audio/mpeg');
+        res.setHeader('Content-Length', mockAudio.length);
+        return res.send(mockAudio);
+      }
+
       return res.status(response.status).json({ error: 'Failed to generate speech' });
     }
 
