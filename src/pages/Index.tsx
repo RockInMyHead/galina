@@ -3,7 +3,8 @@ import Header from "@/components/Header";
 import FeatureCard from "@/components/FeatureCard";
 import { FileSearch, FileEdit, MessageSquare, Mic, Shield, Zap, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import heroImage from "@/assets/hero-galina.jpg";
+import heroImage from "@/assets/hero-galina.png";
+import heroOverlay from "@/assets/hero-overlay.png";
 
 const Index = () => {
   const features = [
@@ -88,7 +89,11 @@ const Index = () => {
                   alt="AI-Юрист Галина"
                   className="w-full h-auto object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent"></div>
+                <img
+                  src={heroOverlay}
+                  alt="Галина с документами"
+                  className="absolute inset-0 h-full w-full object-cover opacity-50"
+                />
               </div>
             </div>
           </div>

@@ -78,25 +78,53 @@ VITE_OPENAI_API_KEY=your_openai_api_key_here
 
 Restart the development server after creating the file.
 
-## Running the API Server
+## Running the Project
 
-The chat functionality requires a backend API server to communicate with OpenAI. To run the API server:
+The application consists of a React frontend and a Node.js backend API. Here's how to run both:
+
+### Quick Start (Recommended)
+
+```bash
+# Run the entire project with a single command
+./start-project.sh
+```
+
+This script will:
+- Check port availability (5173 for frontend, 1042 for API)
+- Start the API server on port 1042
+- Start the frontend dev server on port 5173
+- Verify that both servers are working
+
+### Manual Setup
+
+#### 1. Start the API Server
 
 ```bash
 # Navigate to the api directory
 cd api
 
-# Install dependencies
+# Install dependencies (if not already done)
 npm install
 
 # Create .env file with your OpenAI API key
 echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
 
 # Start the API server
-npm start
+./start-server.sh
 ```
 
-The API server is available at `https://lawyer.windexs.ru:1041/api`.
+The API server runs on port 1042 and is available at `http://localhost:1042`.
+
+#### 2. Start the Frontend
+
+```bash
+# In the project root directory
+npm run dev
+```
+
+The frontend runs on port 5173 and is available at `http://localhost:5173`.
+
+The frontend automatically proxies API requests to the backend server.
 
 **⚠️ IMPORTANT:** Without a valid OpenAI API key, the chat will return demo/mock responses only. To get real AI responses, you must:
 

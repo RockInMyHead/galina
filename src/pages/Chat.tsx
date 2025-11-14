@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { Sparkles, Download, Plus } from "lucide-react";
 import { fileToBase64, fileToText, formatFileSize, processFile, extractTextFromDOCX } from "@/utils/fileUtils";
 import { chatStorage } from "@/utils/storageUtils";
+import { quickProcess } from "@/utils/responseProcessor";
 import ReactMarkdown from 'react-markdown';
 
 const Chat = () => {
@@ -187,45 +188,42 @@ const Chat = () => {
   const sendStreamingMessageToAI = async (userMessage: string, files: File[] = []): Promise<string> => {
     try {
       const currentMessages = [...messages];
-
-      // Проверяем, есть ли в последних сообщениях uploadedFile
       const lastMessage = currentMessages[currentMessages.length - 1];
+
       let hasUploadedFile = false;
-      let uploadedFileData = null;
+      let uploadedFileData: ChatMessageType['uploadedFile'] | null = null;
       let isDocumentAnalysis = false;
 
       if (lastMessage && lastMessage.uploadedFile) {
         hasUploadedFile = true;
         uploadedFileData = lastMessage.uploadedFile;
-        // Проверяем, является ли это запросом на анализ документа
-        isDocumentAnalysis = userMessage.includes('Проанализируй его содержимое') ||
+        isDocumentAnalysis =
+          userMessage.includes('Проанализируй его содержимое') ||
                            userMessage.includes('заполнением или создай соответствующий шаблон');
       }
 
-      // Если есть файлы, добавляем их в сообщение
+      // Если добавлены новые файлы, инлайн-расширяем пользовательское сообщение
       let content = userMessage;
       if (files.length > 0) {
         content += '\n\nПрикрепленные файлы:';
         for (const file of files) {
           if (file.type.startsWith('image/')) {
-            // Проверяем размер файла - для больших изображений отправляем только описание
-            if (file.size > 1024 * 1024) { // 1MB
+            if (file.size > 1024 * 1024) {
               content += `\nИзображение "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите изображение меньшего размера)`;
             } else {
             const base64 = await fileToBase64(file);
             content += `\nИзображение: ${file.name} (содержимое закодировано в base64: ${base64.substring(0, 100)}...)`;
             }
           } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-            // Проверяем размер файла - для больших PDF отправляем только описание
-            if (file.size > 2 * 1024 * 1024) { // 2MB
+            if (file.size > 2 * 1024 * 1024) {
               content += `\nPDF документ "${file.name}" (файл слишком большой для анализа: ${formatFileSize(file.size)}, загрузите файл меньшего размера)`;
           } else {
               try {
                 const processedFile = await processFile(file);
                 content += `\nPDF документ "${file.name}":\n${processedFile.content}`;
-              } catch (error) {
+              } catch (error: any) {
                 console.error('Error processing PDF:', error);
-                content += `\nPDF документ "${file.name}" (не удалось извлечь текст: ${error.message})`;
+                content += `\nPDF документ "${file.name}" (не удалось извлечь текст: ${error?.message || error})`;
               }
             }
           } else if (file.name.toLowerCase().endsWith('.docx') || file.type.includes('word')) {
@@ -234,25 +232,31 @@ const Chat = () => {
               content += `\nДокумент Word "${file.name}":\n${text}`;
             } catch (error: any) {
               console.error('Error processing DOCX:', error);
-              content += `\nДокумент Word "${file.name}" (не удалось извлечь текст: ${error.message || error})`;
+              content += `\nДокумент Word "${file.name}" (не удалось извлечь текст: ${error?.message || error})`;
             }
           } else if (file.name.toLowerCase().endsWith('.doc')) {
             content += `\nДокумент "${file.name}" имеет формат .doc, который не поддерживается для автоматического анализа. Сохраните файл в формате DOCX или PDF и повторите попытку.`;
-          } else if (file.type.startsWith('text/') ||
+          } else if (
+            file.type.startsWith('text/') ||
                     file.name.toLowerCase().endsWith('.txt') ||
                     file.name.toLowerCase().endsWith('.rtf') ||
-                    file.name.toLowerCase().endsWith('.odt')) {
+            file.name.toLowerCase().endsWith('.odt')
+          ) {
             const text = await fileToText(file);
             content += `\nТекстовый документ "${file.name}":\n${text}`;
-          } else if (file.name.toLowerCase().endsWith('.xls') ||
+          } else if (
+            file.name.toLowerCase().endsWith('.xls') ||
                     file.name.toLowerCase().endsWith('.xlsx') ||
                     file.type.includes('spreadsheet') ||
-                    file.type.includes('excel')) {
+            file.type.includes('excel')
+          ) {
             content += `\nТаблица Excel "${file.name}" (размер: ${formatFileSize(file.size)}, тип: ${file.type || 'неизвестный'})`;
-          } else if (file.name.toLowerCase().endsWith('.ppt') ||
+          } else if (
+            file.name.toLowerCase().endsWith('.ppt') ||
                     file.name.toLowerCase().endsWith('.pptx') ||
                     file.type.includes('presentation') ||
-                    file.type.includes('powerpoint')) {
+            file.type.includes('powerpoint')
+          ) {
             content += `\nПрезентация PowerPoint "${file.name}" (размер: ${formatFileSize(file.size)}, тип: ${file.type || 'неизвестный'})`;
           } else {
             content += `\nФайл "${file.name}" (${file.type || 'неизвестный тип'}, размер: ${formatFileSize(file.size)})`;
@@ -260,11 +264,10 @@ const Chat = () => {
         }
       }
 
-      // Если это анализ документа, используем специальный режим
+      // Обработка анализа документов
       if (isDocumentAnalysis && hasUploadedFile && uploadedFileData) {
         console.log('📄 Начинаем анализ документа');
 
-        // Создаем сообщение для анализа документа
         const analysisPrompt = `Ты - Галина, опытный AI-юрист. Пользователь загрузил документ для анализа.
 
 ТВОЯ ЗАДАЧА:
@@ -295,26 +298,25 @@ const Chat = () => {
         const analysisMessages = [
           {
             role: 'system' as const,
-            content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.'
+            content: 'Ты - Галина, опытный AI-юрист, специализирующийся на анализе документов.',
           },
           {
             role: 'user' as const,
             content: [
               {
                 type: 'text',
-                text: analysisPrompt
+                text: analysisPrompt,
               },
               {
                 type: 'image_url',
                 image_url: {
-                  url: uploadedFileData.data
-                }
-              }
-            ]
-          }
+                  url: uploadedFileData.data,
+                },
+              },
+            ],
+          },
         ];
 
-        // Отправляем запрос на анализ
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000);
 
@@ -328,32 +330,43 @@ const Chat = () => {
               messages: analysisMessages,
               model: 'gpt-4o',
               max_tokens: 1500,
-              temperature: 0.3, // Более точный анализ
-              stream: true
+              temperature: 0.3,
+              stream: true,
             }),
-            signal: controller.signal
+            signal: controller.signal,
           });
 
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
-          return new Promise((resolve, reject) => {
-            const reader = response.body.getReader();
+          return await new Promise<string>((resolve, reject) => {
+            const reader = response.body?.getReader();
             const decoder = new TextDecoder();
             let fullContent = '';
+
+            if (!reader) {
+              reject(new Error('Response body is not readable'));
+              return;
+            }
 
             const readStream = async () => {
               try {
                 while (true) {
                   const { done, value } = await reader.read();
-                  if (done) break;
+                  if (done) {
+                    resolve(fullContent);
+                    break;
+                  }
 
                   const chunk = decoder.decode(value);
                   const lines = chunk.split('\n');
 
                   for (const line of lines) {
-                    if (line.startsWith('data: ')) {
+                    if (!line.startsWith('data: ')) {
+                      continue;
+                    }
+
                       const data = line.slice(6);
                       if (data === '[DONE]') {
                         resolve(fullContent);
@@ -362,14 +375,13 @@ const Chat = () => {
 
                       try {
                         const parsed = JSON.parse(data);
-                        const content = parsed.choices[0]?.delta?.content;
-                        if (content) {
-                          fullContent += content;
+                      const piece = parsed.choices?.[0]?.delta?.content;
+                      if (piece) {
+                        fullContent += piece;
                           setStreamingMessage(fullContent);
                         }
-                      } catch (e) {
-                        console.warn('⚠️ Failed to parse streaming JSON:', data, e);
-                      }
+                    } catch (streamError) {
+                      console.warn('⚠️ Failed to parse streaming JSON:', data, streamError);
                     }
                   }
                 }
@@ -380,7 +392,6 @@ const Chat = () => {
 
             readStream();
           });
-
         } catch (error) {
           console.error('Ошибка анализа документа:', error);
           throw error;
@@ -389,7 +400,7 @@ const Chat = () => {
         }
       }
 
-      console.log('🚀 Начинаем модульную генерацию ответа');
+      console.log('🚀 Начинаем генерацию структурированного ответа');
 
       // Переменные для хранения плана
       let planPoints: string[] = [];
@@ -398,20 +409,20 @@ const Chat = () => {
       // ЭТАП 1: Создаем план ответа из 3 пунктов через streaming (серым цветом)
       console.log('📋 Этап 1: Создание плана ответа');
 
-      const planPrompt = `Создай краткий план ответа на вопрос пользователя. План должен содержать ровно 3 основных пункта, которые полностью охватывают тему вопроса.
+      const planPrompt = `Составь план ответа на вопрос: "${content}".
 
-Вопрос пользователя: ${content}
+Формат: нумерованный список из 3 пунктов.
 
-План должен быть в формате:
-1. [Краткий заголовок первого пункта]
-2. [Краткий заголовок второго пункта]
-3. [Краткий заголовок третьего пункта]
+План — это только набросок структуры единого ответа, не полноценные мини-статьи.
 
-Требования к плану:
-- Каждый пункт должен быть развернутым заголовком (5-10 слов)
-- План должен полностью охватывать юридический аспект вопроса
-- Избегай общих фраз типа "Анализ ситуации" - будь конкретен
-- Фокус на практических аспектах и юридических последствиях`;
+Каждый пункт должен быть кратким заголовком раздела (3-7 слов), описывающим содержание раздела.
+
+Пример хорошего плана:
+1. Правовые основы регистрации ООО
+2. Необходимые документы для подачи
+3. Порядок регистрации и практические советы
+
+Просто верни нумерованный список, без дополнительного текста.`;
 
       const systemMessage = AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT;
       const planMessages = [
@@ -429,8 +440,8 @@ const Chat = () => {
       setIsStreaming(true);
       setStreamingMessage('');
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const planController = new AbortController();
+      const planTimeoutId = setTimeout(() => planController.abort(), 60000);
 
       try {
         const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
@@ -445,10 +456,8 @@ const Chat = () => {
             temperature: 0.7,
             stream: true
           }),
-          signal: controller.signal
+          signal: planController.signal
         });
-
-        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -484,36 +493,24 @@ const Chat = () => {
 
                 try {
                   const parsed = JSON.parse(data);
-                  console.log('📋 Streaming chunk:', parsed);
-                  
-                  // Проверяем разные форматы ответа
-                  // API возвращает { content: fullContent } - полный накопленный контент
                   let contentChunk = null;
                   
                   if (parsed.content) {
-                    // API возвращает полный накопленный контент
                     planContent = parsed.content;
                     contentChunk = parsed.content;
                   } else if (parsed.choices?.[0]?.delta?.content) {
-                    // OpenAI streaming формат - инкрементальные чанки
                     contentChunk = parsed.choices[0].delta.content;
                     planContent += contentChunk;
                   } else if (parsed.choices?.[0]?.message?.content) {
-                    // Не streaming формат
                     planContent = parsed.choices[0].message.content;
                     contentChunk = parsed.choices[0].message.content;
                   }
                   
                   if (contentChunk) {
-                    console.log('📋 Plan content so far:', planContent);
-                    // Показываем план серым цветом как промежуточный результат
                     setStreamingMessage(`<div style="color: #6b7280; font-style: italic;">📋 План ответа:\n\n${planContent}</div>`);
-                  } else {
-                    console.log('⚠️ No content in chunk:', parsed);
                   }
                 } catch (e) {
                   console.warn('⚠️ Failed to parse JSON chunk:', data, e);
-                  // Игнорируем некорректный JSON
                 }
               }
             }
@@ -526,70 +523,57 @@ const Chat = () => {
         console.log('📋 Длина плана:', planContent.length);
         console.log('📋 Строки плана:', planContent.split('\n'));
 
-        // Парсим план на пункты - пробуем разные варианты
-        // Сначала убираем заголовки и лишний текст
+        // Парсим план на пункты
         let cleanPlan = planContent
           .replace(/📋\s*План\s*ответа[:\s]*/gi, '')
           .replace(/План\s*ответа[:\s]*/gi, '')
-          .replace(/^[^\d]*/i, '') // Убираем текст до первой цифры
+          .replace(/^[^\d]*/i, '')
           .trim();
         
         console.log('📋 Очищенный план:', cleanPlan);
 
-        // Ищем пункты плана с нумерацией
         let planLines = cleanPlan.split('\n')
           .map(line => line.trim())
           .filter(line => line.length > 0)
           .filter(line => {
-            // Ищем строки с нумерацией: 1., 2., 3. или 1), 2), 3)
             const hasNumbering = line.match(/^\d+[\.)]\s+/) || line.match(/^[-*]\s+/);
-            // Или строки, которые начинаются с заглавной русской буквы и достаточно длинные
             const hasRussianStart = line.match(/^[А-ЯЁ]/) && line.length > 10;
             return hasNumbering || hasRussianStart;
           });
         
-        console.log('📋 Отфильтрованные строки плана:', planLines);
-
-        // Если не нашли пункты с нумерацией, пробуем найти по структуре
         if (planLines.length === 0) {
           planLines = cleanPlan.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 5 && line.length < 100)
             .filter((line, index, arr) => {
-              // Берем только строки, которые выглядят как пункты плана
-              return !line.match(/^📋|^План|^ответа|^:/i) &&
-                     line.length > 5;
+              return !line.match(/^📋|^План|^ответа|^:/i) && line.length > 5;
             });
         }
 
         console.log('📋 Найденные строки плана:', planLines);
 
-        // Берем уникальные пункты (убираем дубликаты)
         const seenPoints = new Set();
         planPoints = planLines
           .map(line => {
-            // Убираем маркеры списков и лишние пробелы
             let cleaned = line
               .trim()
-              .replace(/^\d+[\.)]\s*/, '') // 1. или 1)
-              .replace(/^[-*]\s*/, '') // - или *
-              .replace(/^📋\s*/, '') // Эмодзи
+              .replace(/^\d+[\.)]\s*/, '')
+              .replace(/^[-*]\s*/, '')
+              .replace(/^📋\s*/, '')
               .trim();
             return cleaned;
           })
           .filter(point => {
-            // Убираем пустые и дубликаты
             if (!point || point.length < 3) return false;
             const normalized = point.toLowerCase().trim();
             if (seenPoints.has(normalized)) return false;
             seenPoints.add(normalized);
             return true;
           })
-          .slice(0, 3); // Берем максимум 3 пункта
+          .slice(0, 3);
 
         console.log('📋 Пункты плана после обработки:', planPoints);
 
-        // Если все еще пустой массив, создаем дефолтные пункты
         if (planPoints.length === 0) {
           console.warn('📋 План не распознан, создаем дефолтные пункты');
           planPoints = [
@@ -603,14 +587,13 @@ const Chat = () => {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Очищаем план и начинаем генерацию основного ответа
-        setStreamingMessage('Разрабатываю подробный ответ...\n\n');
+        setStreamingMessage('Формирую подробный ответ по плану...\n\n');
 
       } catch (error) {
-        clearTimeout(timeoutId);
+        clearTimeout(planTimeoutId);
         console.error('Ошибка при генерации плана:', error);
         setStreamingMessage('⚠️ Ошибка при создании плана. Начинаю стандартный ответ...\n\n');
 
-        // При ошибке создаем дефолтные пункты плана
         planPoints = [
           'Анализ правовой ситуации',
           'Практические рекомендации',
@@ -618,186 +601,103 @@ const Chat = () => {
         ];
       }
 
-      // ЭТАП 2: Последовательно обрабатываем каждый пункт плана
+      // ЭТАП 2: Последовательно обрабатываем каждый пункт плана с учетом предыдущих ответов
       let fullResponse = '';
+      const previousResponses: string[] = [];
 
-      console.log('🚀 Начинаем обработку пунктов плана, количество:', planPoints.length);
-
-      // Разные типы анализа для разнообразия ответов
-      const analysisTypes = [
-        {
-          name: 'Теоретический анализ',
-          focus: 'Дай глубокий теоретический анализ правовой природы проблемы. Объясни фундаментальные принципы и доктринальные подходы права.',
-          requirements: '- Философский анализ права\n- Доктринальные подходы\n- Фундаментальные принципы\n- Правовая природа проблемы',
-          structure: '1. Теоретические основы\n2. Доктринальные подходы\n3. Правовая природа проблемы\n4. Выводы'
-        },
-        {
-          name: 'Практический разбор',
-          focus: 'Сделай детальный практический разбор с пошаговыми инструкциями. Опиши реальные процедуры, документы, сроки.',
-          requirements: '- Пошаговые инструкции\n- Формы документов\n- Процессуальные сроки\n- Практические примеры',
-          structure: '1. Алгоритм действий\n2. Необходимые документы\n3. Сроки и этапы\n4. Практические советы'
-        },
-        {
-          name: 'Судебная практика',
-          focus: 'Проанализируй судебную практику по данной теме. Разбери ключевые дела, позиции судов, тенденции.',
-          requirements: '- Анализ прецедентов\n- Судебная статистика\n- Тенденции правоприменения\n- Прогнозы развития',
-          structure: '1. Ключевые судебные дела\n2. Статистика и тенденции\n3. Анализ позиций судов\n4. Прогнозы'
-        },
-        {
-          name: 'Риск-анализ',
-          focus: 'Проведи детальный анализ рисков. Выяви скрытые угрозы, потенциальные проблемы, способы минимизации.',
-          requirements: '- Идентификация рисков\n- Вероятность наступления\n- Последствия\n- Меры минимизации',
-          structure: '1. Идентификация рисков\n2. Оценка вероятности\n3. Анализ последствий\n4. Меры минимизации'
-        },
-        {
-          name: 'Стратегический подход',
-          focus: 'Разработай стратегический план действий. Определи приоритеты, этапы, ресурсы.',
-          requirements: '- Стратегическое планирование\n- Приоритизация действий\n- Ресурсное обеспечение\n- Контрольные точки',
-          structure: '1. Стратегические цели\n2. Этапы реализации\n3. Необходимые ресурсы\n4. Контроль и корректировка'
-        },
-        {
-          name: 'Экспертная оценка',
-          focus: 'Дай экспертную оценку ситуации как практикующий юрист. Поделись практическими советами.',
-          requirements: '- Экспертные рекомендации\n- Типичные ошибки\n- Лучшие практики\n- Прогноз развития',
-          structure: '1. Экспертная оценка\n2. Практические рекомендации\n3. Предупреждение об ошибках\n4. Прогноз'
-        },
-        {
-          name: 'Комплексный анализ',
-          focus: 'Сделай комплексный анализ с разных точек зрения: экономической, социальной, политической.',
-          requirements: '- Мультидисциплинарный подход\n- Экономические последствия\n- Социальные аспекты\n- Политическое влияние',
-          structure: '1. Экономический анализ\n2. Социальные последствия\n3. Политические аспекты\n4. Комплексные выводы'
-        },
-        {
-          name: 'Альтернативные решения',
-          focus: 'Рассмотри все возможные варианты решения проблемы. Сравни плюсы и минусы каждого подхода.',
-          requirements: '- Варианты решений\n- Сравнительный анализ\n- Оптимизация выбора\n- Альтернативные сценарии',
-          structure: '1. Варианты решения\n2. Сравнение преимуществ\n3. Анализ недостатков\n4. Рекомендации'
-        },
-        {
-          name: 'Профилактика и предотвращение',
-          focus: 'Разработай систему профилактики подобных ситуаций. Создай чек-листы, инструкции.',
-          requirements: '- Профилактические меры\n- Системы контроля\n- Чек-листы безопасности\n- Мониторинг рисков',
-          structure: '1. Профилактические меры\n2. Системы контроля\n3. Чек-листы и инструкции\n4. Мониторинг'
-        },
-        {
-          name: 'Итоговые рекомендации',
-          focus: 'Подведи итоги анализа. Дай окончательные рекомендации, приоритизируй действия.',
-          requirements: '- Итоговые выводы\n- Приоритизация\n- Сроки исполнения\n- Ответственность',
-          structure: '1. Итоговые выводы\n2. Приоритетные действия\n3. Сроки и этапы\n4. Ответственность'
-        }
-      ];
+      console.log('🚀 Начинаем последовательную обработку пунктов плана:', planPoints.length);
 
       for (let i = 0; i < planPoints.length; i++) {
         const point = planPoints[i];
-        const analysisType = analysisTypes[i % analysisTypes.length]; // Циклически используем разные типы
-
-        console.log(`🔍 Этап ${i + 2}: Обработка пункта "${point}" (${analysisType.name})`);
+        console.log(`📝 Этап ${i + 2}: Обработка пункта "${point}" (${i + 1}/${planPoints.length})`);
 
         // Показываем какой пункт сейчас обрабатывается
-        setStreamingMessage(`${analysisType.name} раздела ${i + 1}: ${point}...\n\n`);
+        setStreamingMessage(`${fullResponse}**Обработка раздела ${i + 1}: ${point}...**\n\n`);
 
-        // Текст для судебной практики (без поиска по интернету)
-        const courtCasesText = '\n\nПо данной теме найдены следующие тенденции судебной практики:';
+        // Создаем контекст из предыдущих ответов
+        const previousContext = previousResponses.length > 0
+          ? `\n\nПРЕДЫДУЩИЕ РАЗДЕЛЫ (УЧТИ ИХ ПРИ НАПИСАНИИ ТЕКУЩЕГО РАЗДЕЛА):\n${previousResponses.map((response, idx) =>
+              `РАЗДЕЛ ${idx + 1}: ${response.substring(0, 300)}${response.length > 300 ? '...' : ''}`
+            ).join('\n\n')}`
+          : '';
 
-        const pointPrompt = `Ты - Галина, элитный AI-юрист.
+        const pointPrompt = `Вопрос пользователя: "${content}".
 
-ЗАДАЧА: Напиши подробный раздел юридической консультации по теме "${point}".
+План ответа:
+${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
 
-КОНТЕКСТ: Пользователь спросил: "${content}"
+Сейчас ты пишешь только раздел №${i + 1}: "${point}".
 
-${courtCasesText}
+Требования к разделу:
+- это часть единого ответа, а не самостоятельная статья;
+- не пиши отдельное вступление ко всему ответу и общие выводы;
+- не пересказывай вопрос пользователя;
+- не используй фразы типа «Регистрация ООО — важный шаг…», если это уже звучало в других разделах;
+- пиши так, как будто выше уже был раздел ${i > 0 ? `1${i > 1 ? `-${i}` : ''}` : 'ничего'}, а ниже будет раздел ${i + 2};
+- не дублируй подробно то, что логично относится к другим разделам;
+- будь конкретным и практичным;
+- РАЗДЕЛ ДОЛЖЕН БЫТЬ ПОДРОБНЫМ: минимум 400-600 слов, с примерами, ссылками на законодательство, практическими советами;
+- Рассматривай тему с разных сторон: правовые аспекты, практические нюансы, возможные риски, альтернативные варианты;
+- Используй конкретные статьи законов, судебную практику, реальные примеры;
+- Давай пошаговые инструкции, чек-листы, советы по избежанию ошибок.
 
-СТИЛЬ: Будь практичным и конкретным. Дай полезные советы. Используй примеры из практики.
+Выведи только текст раздела №${i + 1} без заголовка и без общего резюме.`;
 
-НАПИШИ ПОДРОБНЫЙ ТЕКСТ РАЗДЕЛА (минимум 200 слов).`;
-
+        // Создаем сообщения для API для текущего пункта
         const pointMessages = [
           {
             role: 'system' as const,
-            content: systemMessage
+            content: systemMessage,
           },
-          ...currentMessages.slice(-5).map(msg => ({
+          ...currentMessages.slice(-3).map((msg) => ({
             role: msg.role as 'user' | 'assistant',
-            content: msg.content
+            content: msg.content,
           })),
           {
             role: 'user' as const,
-            content: pointPrompt
-          }
+            content: pointPrompt,
+          },
         ];
 
-        // Создаем streaming соединение для каждого пункта
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
+        // Генерируем ответ для текущего пункта
+        const stepController = new AbortController();
+        const stepTimeoutId = setTimeout(() => stepController.abort(), 120000); // 2 минуты на шаг
 
         try {
-          console.log(`🚀 Отправляем запрос на генерацию раздела "${point}"`);
-          console.log('📝 Промпт:', pointPrompt.substring(0, 200) + '...');
-
-          // Подготавливаем сообщения для API
-          let apiMessages = pointMessages;
-
-          // Если есть загруженное изображение, добавляем его в первое пользовательское сообщение
-          if (hasUploadedFile && uploadedFileData && uploadedFileData.type.startsWith('image/')) {
-            // Находим первое пользовательское сообщение и добавляем изображение
-            const userMessageIndex = apiMessages.findIndex(msg => msg.role === 'user');
-            if (userMessageIndex !== -1) {
-              apiMessages[userMessageIndex] = {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: pointPrompt
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: uploadedFileData.data
-                    }
-                  }
-                ]
-              };
-            }
-          }
-
           const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              messages: apiMessages,
+                    messages: pointMessages,
               model: hasUploadedFile && uploadedFileData?.type.startsWith('image/') ? 'gpt-4o' : 'gpt-4o',
-              max_tokens: 1200, // Для каждого раздела (минимум 200 слов)
-              temperature: 0.8,
-              top_p: 0.9,
-              presence_penalty: 0.2,
-              frequency_penalty: 0.2,
-              stream: true
-            }),
-            signal: controller.signal
+                    max_tokens: 2500, // Для каждого раздела (увеличено для подробности)
+                    temperature: 0.7,
+                    stream: true,
+                  }),
+            signal: stepController.signal,
           });
 
-          clearTimeout(timeoutId);
+          clearTimeout(stepTimeoutId);
 
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
 
           const reader = response.body?.getReader();
-          const decoder = new TextDecoder();
-          let pointContent = '';
-
           if (!reader) {
             throw new Error('Response body is not readable');
           }
 
-          let isDone = false;
-          try {
-            while (!isDone) {
-              const { done, value } = await reader.read();
+          const decoder = new TextDecoder();
+          let currentStepResponse = '';
+
+          let isStepDone = false;
+          while (!isStepDone) {
+            const { value, done } = await reader.read();
               if (done) {
-                isDone = true;
+              isStepDone = true;
                 break;
               }
 
@@ -805,71 +705,211 @@ ${courtCasesText}
               const lines = chunk.split('\n');
 
               for (const line of lines) {
-                if (line.startsWith('data: ')) {
+              if (!line.startsWith('data: ')) {
+                continue;
+              }
+
                   const data = line.slice(6);
                   if (data === '[DONE]') {
-                    isDone = true;
+                isStepDone = true;
                     break;
                   }
 
                   try {
                     const parsed = JSON.parse(data);
-                    let contentChunk = null;
+                let contentChunk: string | undefined;
 
-                    // API возвращает { content: fullContent } - полный накопленный контент
                     if (parsed.content) {
-                      pointContent = parsed.content;
+                  currentStepResponse = parsed.content;
                       contentChunk = parsed.content;
                     } else if (parsed.choices?.[0]?.delta?.content) {
-                      // OpenAI streaming формат - инкрементальные чанки
                       contentChunk = parsed.choices[0].delta.content;
-                      pointContent += contentChunk;
+                  currentStepResponse += contentChunk;
                     } else if (parsed.choices?.[0]?.message?.content) {
-                      // Не streaming формат
-                      pointContent = parsed.choices[0].message.content;
+                  currentStepResponse = parsed.choices[0].message.content;
                       contentChunk = parsed.choices[0].message.content;
                     }
 
                     if (contentChunk) {
-                      // Показываем накопленный контент для этого пункта
-                      setStreamingMessage(`${fullResponse}**${i + 1}. ${point}**\n\n${pointContent}\n\n`);
-                    }
-                  } catch (e) {
-                    console.warn('⚠️ Failed to parse JSON chunk for point:', data, e);
-                    // Игнорируем некорректный JSON
-                  }
+                  // Показываем накопленный ответ для текущего шага
+                  setStreamingMessage(`${fullResponse}**${i + 1}. ${point}**\n\n${currentStepResponse}\n\n`);
                 }
+              } catch (parseError) {
+                console.warn('⚠️ Failed to parse JSON chunk for step:', data, parseError);
               }
             }
-      } finally {
-            reader.releaseLock();
           }
 
-          // Добавляем обработанный пункт к общему ответу
-          console.log(`📝 Сгенерирован контент для пункта "${point}":`, pointContent.length, 'символов');
-          console.log(`📝 Контент:`, pointContent.substring(0, 200) + '...');
+          reader.releaseLock();
 
-          fullResponse += `**${i + 1}. ${point}**\n\n${pointContent.trim()}\n\n`;
+          // Сохраняем ответ текущего шага для следующих шагов
+          previousResponses.push(currentStepResponse);
 
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          console.error(`Ошибка при обработке пункта ${i + 1}:`, fetchError);
+          // Добавляем оформленный раздел к общему ответу
+          if (i > 0) {
+            fullResponse += '\n\n---\n\n';
+          }
+          fullResponse += `**${i + 1}. ${point}**\n\n${currentStepResponse.trim()}\n\n`;
+
+          console.log(`✅ Завершен раздел ${i + 1}/${planPoints.length}: ${point}`);
+
+          // Небольшая пауза между разделами
+          if (i < planPoints.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+
+        } catch (stepError) {
+          console.error(`Ошибка при обработке раздела ${i + 1}:`, stepError);
+          previousResponses.push(`Ошибка при генерации раздела ${i + 1}`);
           fullResponse += `**${i + 1}. ${point}**\n\nПроизошла ошибка при обработке этого раздела. Попробуйте переформулировать вопрос.\n\n`;
+      } finally {
+          clearTimeout(stepTimeoutId);
         }
       }
 
-      // План уже был показан в streaming сообщении, не добавляем его в финальный ответ
-      // Просто возвращаем полный ответ без плана
-      const finalResponse = fullResponse;
+      // ЭТАП 3: Объединение и зачистка дублей
+      console.log('🔄 Этап 3: Объединение разделов в единый ответ');
+
+      setStreamingMessage('Объединяю разделы в единый связный ответ...\n\n');
+
+      const finalPrompt = `Ниже три текстовых фрагмента — проект разделов единого ответа на вопрос: "${content}".
+
+Раздел 1: ${planPoints[0]}
+${previousResponses[0] || 'Ошибка генерации'}
+
+Раздел 2: ${planPoints[1]}
+${previousResponses[1] || 'Ошибка генерации'}
+
+Раздел 3: ${planPoints[2]}
+${previousResponses[2] || 'Ошибка генерации'}
+
+Задача:
+Объединить их в единый связный, подробный ответ.
+
+Убрать ТОЛЬКО явные повторы и дубли, но сохранить всю полезную информацию:
+- убрать повторяющиеся объяснения одних и тех же понятий
+- убрать дублирующиеся списки документов или шагов
+- убрать повторяющиеся вступления и мини-выводы
+
+НЕ сокращать контент искусственно! Каждый раздел должен сохранить свою глубину и подробность.
+
+Сделать плавные логические переходы между разделами.
+Сохранить структуру: короткое вступление → подробные разделы по смыслу → общий вывод.
+
+Верни только конечный текст для пользователя, без указания номеров разделов в финальном ответе.`;
+
+      const finalMessages = [
+        {
+          role: 'system' as const,
+          content: AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT,
+        },
+        ...currentMessages.slice(-2).map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+        {
+          role: 'user' as const,
+          content: finalPrompt,
+        },
+      ];
+
+      const finalController = new AbortController();
+      const finalTimeoutId = setTimeout(() => finalController.abort(), 120000);
+
+      try {
+        const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: finalMessages,
+            model: 'gpt-4o',
+            max_tokens: 4000, // Увеличено для вмещения подробных разделов
+            temperature: 0.6,
+            stream: true,
+          }),
+          signal: finalController.signal,
+        });
+
+        clearTimeout(finalTimeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('Response body is not readable');
+        }
+
+        const decoder = new TextDecoder();
+        let finalAnswer = '';
+
+        let isFinalDone = false;
+        while (!isFinalDone) {
+          const { value, done } = await reader.read();
+          if (done) {
+            isFinalDone = true;
+            break;
+          }
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) {
+              continue;
+            }
+
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              isFinalDone = true;
+              break;
+            }
+
+            try {
+              const parsed = JSON.parse(data);
+              let contentChunk: string | undefined;
+
+              if (parsed.content) {
+                finalAnswer = parsed.content;
+                contentChunk = parsed.content;
+              } else if (parsed.choices?.[0]?.delta?.content) {
+                contentChunk = parsed.choices[0].delta.content;
+                finalAnswer += contentChunk;
+              } else if (parsed.choices?.[0]?.message?.content) {
+                finalAnswer = parsed.choices[0].message.content;
+                contentChunk = parsed.choices[0].message.content;
+              }
+
+              if (contentChunk) {
+                setStreamingMessage(finalAnswer);
+              }
+            } catch (parseError) {
+              console.warn('⚠️ Failed to parse JSON chunk for final:', data, parseError);
+            }
+          }
+        }
+
+        reader.releaseLock();
 
       setIsStreaming(false);
-      console.log('✅ Модульная генерация завершена');
+        console.log('✅ Финальная сборка завершена');
 
-      return finalResponse.trim();
+        return finalAnswer.trim();
 
-    } catch (outerError) {
+      } catch (finalError) {
+        console.error('Ошибка финальной сборки:', finalError);
+        // Если финальная сборка не удалась, возвращаем объединенные разделы
+        setIsStreaming(false);
+        return fullResponse.trim();
+      } finally {
+        clearTimeout(finalTimeoutId);
+      }
+    } catch (outerError: any) {
       console.error('Outer error in sendStreamingMessageToAI:', outerError);
-      throw new Error(`Ошибка модульной генерации: ${outerError.message}`);
+      throw new Error(`Ошибка модульной генерации: ${outerError?.message || outerError}`);
     }
   };
 
@@ -1065,12 +1105,20 @@ ${courtCasesText}
       const hasUploadedFile = lastMessage && lastMessage.uploadedFile;
 
       let aiResponse: string;
+      let finalResponse: string;
 
       if (hasUploadedFile) {
         console.log('handleSendMessage: Обнаружен загруженный файл, запускаем анализ документа');
         // Для загруженных файлов используем специальный режим анализа
         aiResponse = await sendStreamingMessageToAI(message, files);
         console.log('handleSendMessage: Получен анализ документа от AI:', aiResponse);
+
+        // Применяем постобработку для анализа документов тоже
+        console.log('handleSendMessage: Применяем постобработку анализа документа');
+        const processedResponse = quickProcess(aiResponse, 'Результаты анализа документа');
+        const finalResponse = processedResponse.markdown;
+
+        console.log('handleSendMessage: Постобработка анализа завершена. Статистика:', processedResponse.statistics);
       } else {
         console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
         await simulateReasoning(message);
@@ -1078,11 +1126,19 @@ ${courtCasesText}
         console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
         aiResponse = await sendStreamingMessageToAI(message, files);
         console.log('handleSendMessage: Получен ответ от AI:', aiResponse);
+
+        // Применяем профессиональную постобработку для удаления дубликатов и оптимизации
+        console.log('handleSendMessage: Применяем постобработку ответа AI');
+        const processedResponse = quickProcess(aiResponse);
+        const finalResponse = processedResponse.markdown;
+
+        console.log('handleSendMessage: Постобработка завершена. Статистика:', processedResponse.statistics);
+        console.log('handleSendMessage: Оптимизированный ответ:', finalResponse);
       }
 
       const assistantMessage: ChatMessageType = {
         id: (Date.now() + 1).toString(),
-        content: aiResponse,
+        content: finalResponse || aiResponse,
         role: 'assistant',
         timestamp: new Date()
       };

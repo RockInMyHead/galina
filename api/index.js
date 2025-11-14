@@ -233,6 +233,9 @@ const corsAllowedOrigins = [
   'http://lawyer.windexs.ru',
   'https://lawyer.windexs.ru:1041',
   'http://lawyer.windexs.ru:1041',
+  'http://localhost:3000',
+  'http://localhost:4000',
+  'http://localhost:5173',
 ];
 
 const corsOptions = {
