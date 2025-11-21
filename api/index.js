@@ -9,8 +9,7 @@ require('dotenv').config({ path: './.env' });
 console.log('🔧 Environment loaded from:', __dirname + '/.env');
 console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
 console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
-console.log('🔑 YANDEX_API_KEY loaded:', process.env.YANDEX_API_KEY ? 'YES (' + process.env.YANDEX_API_KEY.substring(0, 15) + '...)' : 'NO');
-console.log('🔑 YANDEX_FOLDER_ID loaded:', process.env.YANDEX_FOLDER_ID ? 'YES (' + process.env.YANDEX_FOLDER_ID.substring(0, 15) + '...)' : 'NO');
+console.log('🌐 Proxy configured:', proxyUrl);
 
 // Test OpenAI API key on startup
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
@@ -36,7 +35,7 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) 
 }
 
 // Configure proxy agent for external requests
-const proxyUrl = 'http://rBD9e6:jZdUnJ@185.68.187.20:8000';
+const proxyUrl = 'http://pb3jms:85pNLX@45.147.180.58:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
 
 // Helper function for fetch with proxy
@@ -967,49 +966,7 @@ app.post('/tts', async (req, res) => {
       return res.send(mockAudio);
     }
 
-    // Try Yandex SpeechKit first (works in Russia)
-    const yandexApiKey = process.env.YANDEX_API_KEY;
-    const yandexFolderId = process.env.YANDEX_FOLDER_ID;
-
-    if (yandexApiKey && yandexFolderId) {
-      console.log('🎵 Requesting TTS from Yandex SpeechKit:', { text: text.substring(0, 50) });
-
-      try {
-        const yandexResponse = await fetchWithProxy('https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Api-Key ${yandexApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: text,
-            lang: 'ru-RU',
-            voice: 'oksana', // Russian female voice
-            folderId: yandexFolderId,
-            format: 'lpcm',
-            sampleRateHertz: 48000,
-          }),
-        });
-
-        if (yandexResponse.ok) {
-          const audioBuffer = await yandexResponse.arrayBuffer();
-          console.log('✅ Yandex TTS audio generated successfully, size:', audioBuffer.byteLength, 'bytes');
-
-          res.setHeader('Content-Type', 'audio/x-pcm;bit=16;rate=48000;channels=1');
-          res.setHeader('Content-Length', audioBuffer.byteLength);
-          res.send(Buffer.from(audioBuffer));
-          return;
-        } else {
-          const errorData = await yandexResponse.text().catch(() => '');
-          console.error('❌ Yandex TTS API error:', yandexResponse.status, errorData);
-        }
-      } catch (error) {
-        console.error('❌ Yandex TTS request failed:', error.message);
-      }
-    }
-
-    // Fallback to OpenAI TTS (may not work in Russia)
-    console.log('🔄 Yandex not available, trying OpenAI TTS:', { text: text.substring(0, 50), voice, model });
+    console.log('🎵 Requesting TTS from OpenAI with proxy:', { text: text.substring(0, 50), voice, model });
 
     const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
