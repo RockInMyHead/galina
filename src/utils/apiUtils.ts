@@ -166,26 +166,50 @@ export const textToSpeech = async (text: string): Promise<Blob | null> => {
 
 /**
  * Play audio from blob
+ * Returns true if playback was successful, false if there was an error
  */
-export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
+export const playAudioBlob = (audioBlob: Blob): Promise<boolean> => {
   return new Promise((resolve) => {
+    // Check if blob has reasonable size (mock audio is ~48 bytes, real audio is much larger)
+    if (audioBlob.size < 1000) {
+      console.warn('⚠️ Audio blob too small, likely mock audio:', audioBlob.size, 'bytes')
+      resolve(false)
+      return
+    }
+
     const audioUrl = URL.createObjectURL(audioBlob)
     const audio = new Audio(audioUrl)
 
+    let playbackStarted = false
+
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl)
-      resolve()
+      resolve(playbackStarted)
     }
 
     audio.onerror = () => {
+      console.error('Audio playback error: failed to load audio')
       URL.revokeObjectURL(audioUrl)
-      resolve()
+      resolve(false)
     }
 
-    audio.play().catch((error) => {
-      console.error('Audio playback error:', error)
+    audio.play().then(() => {
+      playbackStarted = true
+    }).catch((error) => {
+      console.error('Audio playback error:', error.message)
+      console.error('Audio blob size:', audioBlob.size, 'bytes')
+      console.error('Audio type:', audioBlob.type || 'unknown')
+
+      // Provide more specific error messages
+      if (error.name === 'NotSupportedError') {
+        console.error('❌ Audio format not supported. This may be due to:')
+        console.error('   - Invalid audio data (mock audio instead of real TTS)')
+        console.error('   - Browser compatibility issues')
+        console.error('   - Corrupted audio stream')
+      }
+
       URL.revokeObjectURL(audioUrl)
-      resolve()
+      resolve(false)
     })
   })
 }
