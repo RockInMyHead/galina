@@ -5,7 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-app.post('/api/chat', (req, res) => {
+app.post('/chat', (req, res) => {
   try {
     console.log('=== Chat Request Received ===');
     console.log('Session ID:', req.headers['x-session-id']);
@@ -62,7 +62,7 @@ app.post('/api/chat', (req, res) => {
 });
 
 // TTS endpoint
-app.post('/api/tts', (req, res) => {
+app.post('/tts', (req, res) => {
   try {
     console.log('=== TTS Request Received ===');
     console.log('Text to speak:', req.body?.text?.substring(0, 50) + '...');
@@ -86,7 +86,7 @@ app.post('/api/tts', (req, res) => {
 });
 
 // Health check
-app.get('/api/test-proxy', (req, res) => {
+app.get('/test-proxy', (req, res) => {
   res.json({ message: 'Proxy is working correctly!' });
 });
 
