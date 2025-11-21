@@ -1,191 +1,115 @@
-# Welcome to your Lovable project
+# 🤖 Галина - AI-Юрист
 
-## Project info
+Профессиональный AI-ассистент для юридической помощи с голосовым интерфейсом и анализом документов.
 
-**URL**: https://lovable.dev/projects/d96b37a3-c31f-469e-a274-587974d11065
+## ✨ Возможности
 
-## How can I edit this code?
+### 🎤 Голосовое общение
+- Распознавание речи в реальном времени
+- Автоматическая отправка сообщений (2 секунды молчания)
+- Анимированный видео-интерфейс микрофона
+- Синтез речи (TTS) с параллельной обработкой
 
-There are several ways of editing your application.
+### 📄 Анализ документов
+- Автоматический анализ PDF документов
+- Извлечение текста и юридическая экспертиза
+- Генерация подробных отчетов
+- Скачивание результатов в PDF
 
-**Use Lovable**
+### 🔒 Безопасность
+- Система авторизации и регистрации
+- Защищенные маршруты
+- Persistent sessions в localStorage
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d96b37a3-c31f-469e-a274-587974d11065) and start prompting.
+### 🎨 Современный интерфейс
+- Адаптивный дизайн с Tailwind CSS
+- Темная тема
+- Интуитивно понятная навигация
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🚀 Быстрый старт
 
-**Use your preferred IDE**
+### Предварительные требования
+- Node.js 18+
+- npm или yarn
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Установка
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- OpenAI API (for chat functionality)
-
-## OpenAI API Setup
-
-To use the chat functionality, create a `.env.local` file in the root directory and add your OpenAI API key:
-
+1. Клонируйте репозиторий:
 ```bash
-# Create .env.local file
-echo "VITE_OPENAI_API_KEY=your_openai_api_key_here" > .env.local
+git clone https://github.com/RockInMyHead/galina.git
+cd galina
 ```
 
-Or manually create `.env.local` file with:
-
-```
-VITE_OPENAI_API_KEY=your_openai_api_key_here
-```
-
-Restart the development server after creating the file.
-
-## Running the Project
-
-The application consists of a React frontend and a Node.js backend API. Here's how to run both:
-
-### Quick Start (Recommended)
-
+2. Установите зависимости:
 ```bash
-# Run the entire project with a single command
-./start-project.sh
-```
-
-This script will:
-- Check port availability (5173 for frontend, 1042 for API)
-- Start the API server on port 1042
-- Start the frontend dev server on port 5173
-- Verify that both servers are working
-
-### Manual Setup
-
-#### 1. Start the API Server
-
-```bash
-# Navigate to the api directory
-cd api
-
-# Install dependencies (if not already done)
 npm install
-
-# Create .env file with your OpenAI API key
-echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
-
-# Start the API server
-./start-server.sh
 ```
 
-The API server runs on port 1042 and is available at `http://localhost:1042`.
-
-#### 2. Start the Frontend
-
+3. Запустите проект:
 ```bash
-# In the project root directory
+# Frontend (порт 3004)
 npm run dev
+
+# Backend (порт 3003) - в отдельном терминале
+cd api && node stable-server.js
 ```
 
-The frontend runs on port 5173 and is available at `http://localhost:5173`.
+4. Откройте http://localhost:3004
 
-The frontend automatically proxies API requests to the backend server.
+## 📋 Использование
 
-**⚠️ IMPORTANT:** Without a valid OpenAI API key, the chat will return demo/mock responses only. To get real AI responses, you must:
+1. **Регистрация/Вход**: Создайте аккаунт или войдите
+2. **Голосовое общение**: Перейдите в раздел "Консультация"
+3. **Анализ документов**: Загрузите PDF в раздел "Анализ документов"
+4. **Заполнение форм**: Используйте автоматизированное заполнение
 
-1. Get an OpenAI API key from https://platform.openai.com/api-keys
-2. Create `api/.env` file with: `OPENAI_API_KEY=sk-your-actual-key-here`
-3. Restart the API server
+## 🛠 Технический стек
 
-**Current behavior:** If no API key is set, the system returns a demo message: *"Привет! Я Галина, ваш AI-юрист. Я помогу вам с юридическими вопросами. Задайте мне любой вопрос о законодательстве Российской Федерации."*
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
+- **Backend**: Node.js, Express.js
+- **AI**: OpenAI API (GPT-5.1)
+- **Speech**: Web Speech API, OpenAI TTS
+- **Документы**: PDF-lib, PDF.js
+- **Аутентификация**: React Context API
 
-## Streaming API Features
+## 📁 Структура проекта
 
-This application supports real-time streaming responses from OpenAI:
+```
+galina/
+├── src/
+│   ├── components/          # Переиспользуемые компоненты
+│   ├── contexts/           # React Context (Auth)
+│   ├── pages/             # Страницы приложения
+│   ├── utils/             # Утилиты и API
+│   └── config/            # Конфигурация
+├── api/                   # Backend сервер
+├── public/               # Статические файлы
+└── README.md
+```
 
-- **Live text generation**: AI responses appear word by word as they're generated
-- **Reduced latency**: First tokens appear immediately instead of waiting for complete response
-- **Better UX**: Users can see the AI "thinking" and generating content in real-time
-- **Fallback support**: If no OpenAI API key is provided, mock streaming is used for testing
+## 🤝 Вклад в проект
 
-### Streaming Technical Details
+1. Fork проект
+2. Создайте feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit изменения (`git commit -m 'Add some AmazingFeature'`)
+4. Push в branch (`git push origin feature/AmazingFeature`)
+5. Откройте Pull Request
 
-- Uses OpenAI's `stream: true` parameter with Server-Sent Events (SSE)
-- Frontend processes streaming data chunks and updates UI incrementally
-- Supports both GPT-3.5-turbo and GPT-4o models with streaming
-- Automatic fallback to mock streaming when API key is not configured
+## 📄 Лицензия
 
-The frontend is served from `https://lawyer.windexs.ru:1041`.
+Этот проект лицензирован под MIT License - смотрите файл [LICENSE](LICENSE) для деталей.
 
-**Note**: The chat uses GPT-3.5-turbo model and is configured to provide legal advice in Russian based on Russian legislation.
+## 👨‍💻 Автор
 
-## File Upload Features
+**RockInMyHead** - [GitHub](https://github.com/RockInMyHead)
 
-The chat supports file uploads for enhanced legal document analysis:
+## 🙏 Благодарности
 
-- **Supported file types**: Images (JPEG, PNG, WebP), PDF, TXT, DOC, DOCX
-- **Maximum file size**: 10MB per file
-- **Multiple files**: Upload multiple files at once
-- **AI analysis**: Images are analyzed using GPT-4 Vision API, text documents are processed with GPT-3.5-turbo
+- OpenAI за мощные AI модели
+- React и Vite за отличные инструменты
+- Tailwind CSS за прекрасный дизайн
+- Всех контрибьюторов и пользователей!
 
-Files are processed securely and not stored permanently on the server.
+---
 
-## Voice Input Features
-
-The chat supports voice input for hands-free communication:
-
-- **Voice recording**: Click the microphone button to start recording (3-5 seconds)
-- **Automatic transcription**: Voice is automatically converted to text (currently simulated)
-- **Visual feedback**: Recording indicator with pulsing red dot and red button
-- **Smart button switching**: Microphone button changes to send button when text is entered
-- **Auto-complete recording**: Recording stops automatically after 3-5 seconds
-- **Random responses**: Each recording generates different sample legal questions
-
-The voice input feature enhances accessibility and provides an alternative input method for users.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/d96b37a3-c31f-469e-a274-587974d11065) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+⭐ Если проект вам понравился, поставьте звезду!
