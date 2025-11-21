@@ -466,19 +466,30 @@ const Voice = () => {
       console.log('🎬 VIDEO SHOULD APPEAR NOW - setIsPlayingTTS(true)');
       setIsPlayingTTS(true);
 
+      let ttsFailed = false;
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value?.audio) {
           const { audio, index } = result.value;
           console.log(`🎵 Playing sentence ${index + 1}, size: ${audio.size} bytes`);
           console.log(`🔊 AUDIO SHOULD PLAY NOW for sentence ${index + 1}`);
-          await playAudioBlob(audio);
-          console.log(`✅ Finished playing sentence ${index + 1}`);
+          const playbackSuccess = await playAudioBlob(audio);
+          console.log(`✅ Finished playing sentence ${index + 1}, success: ${playbackSuccess}`);
+
+          if (!playbackSuccess) {
+            ttsFailed = true;
+          }
 
           // Small pause between sentences
           if (index < results.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
+      }
+
+      // Show notification if TTS failed
+      if (ttsFailed) {
+        console.log('⚠️ TTS playback failed, showing notification to user');
+        // You could add a toast notification here if desired
       }
 
       setIsPlayingTTS(false);
