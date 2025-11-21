@@ -822,40 +822,30 @@ const Voice = () => {
       console.log('🔗 Making API request to:', apiUrl);
       console.log('📊 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
 
-      let data;
-      try {
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionId,
-          },
-          body: JSON.stringify({
-            messages: conversationHistory,
-            model: 'gpt-5.1',
-            reasoning: 'medium',
-            temperature: 0.7,
-            max_tokens: 2000
-          }),
-        });
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId,
+        },
+        body: JSON.stringify({
+          messages: conversationHistory,
+          model: 'gpt-5.1',
+          reasoning: 'medium',
+          temperature: 0.7,
+          max_tokens: 2000
+        }),
+      });
 
-        if (!response.ok) {
-          // Если API не доступен, используем mock backend
-          console.log('⚠️ API not available, using mock backend...');
-          const { mockChatAPI } = await import('@/utils/mockBackend');
-          data = mockChatAPI(conversationHistory);
-        } else {
-          console.log('📥 API response received, parsing...');
-          data = await response.json();
-        }
-      } catch (error) {
-        // Если сетевая ошибка, используем mock backend
-        console.log('⚠️ Network error, using mock backend...');
-        const { mockChatAPI } = await import('@/utils/mockBackend');
-        data = mockChatAPI(conversationHistory);
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('❌ API error:', response.status, errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
-      console.log('📄 Response received successfully');
+      console.log('📥 API response received, parsing...');
+      const data = await response.json();
+      console.log('📄 Raw API response received successfully');
       console.log('💬 AI response extracted:', `${data.choices?.[0]?.message?.content?.substring(0, 100)  }...`);
 
       const aiResponse = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка при обработке вашего запроса.';
@@ -947,7 +937,7 @@ const Voice = () => {
                     {/* Voice Visualizer */}
                     <div className="relative">
                       <video
-                        className="h-32 w-32 rounded-full object-cover cursor-pointer mx-auto"
+                        className="h-64 w-64 rounded-full object-cover cursor-pointer mx-auto shadow-2xl"
                         autoPlay
                         loop
                         muted
@@ -959,7 +949,7 @@ const Voice = () => {
                       </video>
                       {/* Overlay for TTS state indication */}
                       {isPlayingTTS && (
-                        <div className="absolute inset-0 rounded-full bg-green-500/20 border-2 border-green-500 animate-pulse" />
+                        <div className="absolute inset-0 rounded-full bg-green-500/20 border-4 border-green-500 animate-pulse" />
                       )}
                     </div>
 
