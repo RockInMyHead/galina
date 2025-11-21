@@ -10,11 +10,10 @@ const getAPIBaseURL = (): string => {
     return '/api'; // Vite proxy will handle API routing
   }
 
-  // Production: Use mock mode for demo (no external API dependency)
+  // Production: Use standard URL to lawyer.windexs.ru (port 80/443)
   if (import.meta.env.PROD) {
-    // For production demo, use a dummy URL that will trigger mock mode in apiUtils
-    // This allows the app to work as a static demo without backend API
-    return 'mock://api';
+    // Use standard ports without explicit port specification
+    return 'https://lawyer.windexs.ru/api';
   }
 
   // Fallback

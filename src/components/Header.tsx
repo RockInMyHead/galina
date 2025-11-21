@@ -54,12 +54,7 @@ const Header = () => {
         </div>
 
         <div className="hidden items-center space-x-4 md:flex">
-          {/* In production/demo mode, hide auth buttons and show direct navigation */}
-          {import.meta.env.PROD ? (
-            <Button asChild className="shadow-elegant hover:shadow-none">
-              <Link to="/consultation">Начать консультацию</Link>
-            </Button>
-          ) : isAuthenticated ? (
+          {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 hover:bg-transparent">
@@ -117,14 +112,7 @@ const Header = () => {
                 </Link>
               ))}
               <div className="flex flex-col space-y-2 pt-4 border-t">
-                {/* In production/demo mode, show direct navigation */}
-                {import.meta.env.PROD ? (
-                  <Button asChild className="hover:shadow-none">
-                    <Link to="/consultation" onClick={() => setOpen(false)}>
-                      Начать консультацию
-                    </Link>
-                  </Button>
-                ) : isAuthenticated ? (
+                {isAuthenticated ? (
                   <>
                     <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
