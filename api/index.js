@@ -9,6 +9,8 @@ require('dotenv').config({ path: './.env' });
 console.log('🔧 Environment loaded from:', __dirname + '/.env');
 console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
 console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
+console.log('🔑 YANDEX_API_KEY loaded:', process.env.YANDEX_API_KEY ? 'YES (' + process.env.YANDEX_API_KEY.substring(0, 15) + '...)' : 'NO');
+console.log('🔑 YANDEX_FOLDER_ID loaded:', process.env.YANDEX_FOLDER_ID ? 'YES (' + process.env.YANDEX_FOLDER_ID.substring(0, 15) + '...)' : 'NO');
 
 // Test OpenAI API key on startup
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
@@ -965,7 +967,49 @@ app.post('/tts', async (req, res) => {
       return res.send(mockAudio);
     }
 
-    console.log('🎵 Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model });
+    // Try Yandex SpeechKit first (works in Russia)
+    const yandexApiKey = process.env.YANDEX_API_KEY;
+    const yandexFolderId = process.env.YANDEX_FOLDER_ID;
+
+    if (yandexApiKey && yandexFolderId) {
+      console.log('🎵 Requesting TTS from Yandex SpeechKit:', { text: text.substring(0, 50) });
+
+      try {
+        const yandexResponse = await fetchWithProxy('https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Api-Key ${yandexApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            lang: 'ru-RU',
+            voice: 'oksana', // Russian female voice
+            folderId: yandexFolderId,
+            format: 'lpcm',
+            sampleRateHertz: 48000,
+          }),
+        });
+
+        if (yandexResponse.ok) {
+          const audioBuffer = await yandexResponse.arrayBuffer();
+          console.log('✅ Yandex TTS audio generated successfully, size:', audioBuffer.byteLength, 'bytes');
+
+          res.setHeader('Content-Type', 'audio/x-pcm;bit=16;rate=48000;channels=1');
+          res.setHeader('Content-Length', audioBuffer.byteLength);
+          res.send(Buffer.from(audioBuffer));
+          return;
+        } else {
+          const errorData = await yandexResponse.text().catch(() => '');
+          console.error('❌ Yandex TTS API error:', yandexResponse.status, errorData);
+        }
+      } catch (error) {
+        console.error('❌ Yandex TTS request failed:', error.message);
+      }
+    }
+
+    // Fallback to OpenAI TTS (may not work in Russia)
+    console.log('🔄 Yandex not available, trying OpenAI TTS:', { text: text.substring(0, 50), voice, model });
 
     const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -984,25 +1028,13 @@ app.post('/tts', async (req, res) => {
       const errorData = await response.text().catch(() => '');
       console.error('❌ OpenAI TTS API error:', response.status, errorData);
 
-      // If we get auth errors or other API errors, fall back to demo mode
+      // If we get geo-blocking or other API errors, fall back to demo mode
       if (response.status === 401 || response.status === 403 || response.status === 429 || response.status >= 500) {
         console.log('🔄 TTS API failed, falling back to demo mode');
-        const mockAudio = Buffer.from([
-          0xFF, 0xFB, 0x10, 0xC0,  // Frame header (MPEG-1 Layer 3, 128kbps, 44100Hz)
-          0x00, 0x00, 0x00, 0x00,  // Side info (simplified)
-          0x00, 0x00, 0x00, 0x00,  // Audio data (silence)
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00,
-          0x00, 0x00, 0x00, 0x00
-        ]);
-        res.setHeader('Content-Type', 'audio/mpeg');
+        const mockAudio = Buffer.alloc(2048, 0); // 2KB of zeros
+        res.setHeader('Content-Type', 'audio/wav');
         res.setHeader('Content-Length', mockAudio.length);
+        console.log('🎵 Sending mock TTS audio response (2KB WAV)');
         return res.send(mockAudio);
       }
 
@@ -1010,6 +1042,7 @@ app.post('/tts', async (req, res) => {
     }
 
     const audioBuffer = await response.arrayBuffer();
+    console.log('✅ OpenAI TTS audio generated successfully, size:', audioBuffer.byteLength, 'bytes');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Length', audioBuffer.byteLength);
     res.send(Buffer.from(audioBuffer));
