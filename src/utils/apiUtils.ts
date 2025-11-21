@@ -159,10 +159,8 @@ export const textToSpeech = async (text: string): Promise<Blob | null> => {
     const audioBlob = await response.blob()
     return audioBlob
   } catch (error) {
-    console.warn('TTS API not available, using mock backend')
-    // Возвращаем пустой audio blob если API недоступен
-    const { mockTTS } = await import('@/utils/mockBackend')
-    return mockTTS()
+    console.error('Text to Speech error:', error)
+    return null
   }
 }
 

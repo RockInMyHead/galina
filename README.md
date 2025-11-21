@@ -54,7 +54,7 @@ npm run dev
 cd api && node stable-server.js
 ```
 
-4. Откройте http://localhost:3004
+4. Откройте https://lawyer.windexs.ru
 
 ## 📋 Использование
 
