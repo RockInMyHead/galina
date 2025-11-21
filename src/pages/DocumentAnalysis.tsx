@@ -173,10 +173,14 @@ const DocumentAnalysis = () => {
 
           console.log('Sending document to Vision API, size:', base64Data.length, 'chars');
 
+          // Generate session ID for Vision analysis
+          const visionSessionId = `vision-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
           const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'X-Session-ID': visionSessionId,
             },
             body: JSON.stringify({
               messages: [
@@ -387,10 +391,14 @@ const DocumentAnalysis = () => {
   // Функция для анализа документа через OpenAI
   const analyzeDocumentWithAI = async (fileName: string, fileContent: string): Promise<string> => {
     try {
+      // Generate session ID for this analysis
+      const sessionId = `analysis-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId,
         },
         body: JSON.stringify({
           messages: [

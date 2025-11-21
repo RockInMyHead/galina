@@ -463,13 +463,16 @@ const Voice = () => {
 
       // Play sentences sequentially
       console.log('▶️ Starting sequential playback...');
+      console.log('🎬 VIDEO SHOULD APPEAR NOW - setIsPlayingTTS(true)');
       setIsPlayingTTS(true);
 
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value?.audio) {
           const { audio, index } = result.value;
           console.log(`🎵 Playing sentence ${index + 1}, size: ${audio.size} bytes`);
+          console.log(`🔊 AUDIO SHOULD PLAY NOW for sentence ${index + 1}`);
           await playAudioBlob(audio);
+          console.log(`✅ Finished playing sentence ${index + 1}`);
 
           // Small pause between sentences
           if (index < results.length - 1) {
@@ -479,6 +482,7 @@ const Voice = () => {
       }
 
       setIsPlayingTTS(false);
+      console.log('🎬 VIDEO SHOULD DISAPPEAR NOW - setIsPlayingTTS(false)');
 
       console.log('✅ Parallel TTS completed for all sentences');
     } catch (error) {
@@ -793,8 +797,8 @@ const Voice = () => {
       // Prepare conversation history with context
       const conversationHistory = [
         {
-          role: 'system',
-          content: AI_SYSTEM_MESSAGES.voice
+              role: 'system',
+              content: AI_SYSTEM_MESSAGES.voice
         },
         // Add all previous messages for context
         ...messages.map(msg => ({
@@ -803,9 +807,9 @@ const Voice = () => {
         })),
         // Add current user message
         {
-          role: 'user',
-          content: messageText
-        }
+              role: 'user',
+              content: messageText
+            }
       ];
       
       console.log('📝 Sending conversation with history:', conversationHistory.length, 'messages');
@@ -814,7 +818,11 @@ const Voice = () => {
       const sessionId = `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // Call AI API with full conversation history
-      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+      const apiUrl = `${API_CONFIG.BASE_URL}/chat`;
+      console.log('🔗 Making API request to:', apiUrl);
+      console.log('📊 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -837,7 +845,8 @@ const Voice = () => {
 
       console.log('📥 API response received, parsing...');
       const data = await response.json();
-      console.log('📄 Raw API response:', data);
+      console.log('📄 Raw API response received successfully');
+      console.log('💬 AI response extracted:', `${data.choices?.[0]?.message?.content?.substring(0, 100)  }...`);
 
       const aiResponse = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка при обработке вашего запроса.';
       console.log('💬 AI response extracted:', `${aiResponse.substring(0, 100)  }...`);
@@ -851,11 +860,18 @@ const Voice = () => {
       };
 
       console.log('✅ Adding AI message to chat...');
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => {
+        console.log('📊 Total messages after adding AI response:', prev.length + 1);
+        return [...prev, assistantMessage];
+      });
 
       // Speak the AI response using OpenAI TTS
       console.log('🔊 Starting OpenAI TTS for AI response...');
+      console.log('🎵 TTS text length:', aiResponse.length, 'characters');
+      console.log('🎬 About to call speakAIResponse, isPlayingTTS should change to true');
+      console.log('▶️ CALLING speakAIResponse NOW...');
       await speakAIResponse(aiResponse);
+      console.log('✅ TTS function completed - AUDIO SHOULD BE PLAYING');
 
     } catch (error) {
       console.error('❌ Error in handleSendMessage:', error);
@@ -920,25 +936,20 @@ const Voice = () => {
                 <div className="text-center space-y-8">
                     {/* Voice Visualizer */}
                     <div className="relative">
-                      {isPlayingTTS ? (
-                        <video
-                          className="h-32 w-32 rounded-full object-cover cursor-pointer mx-auto"
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          onClick={toggleVoiceMode}
-                        >
-                          <source src="/Untitled Video-2.mp4" type="video/mp4" />
-                          Ваш браузер не поддерживает видео.
-                        </video>
-                      ) : (
-                      <div
+                      <video
+                        className="h-32 w-32 rounded-full object-cover cursor-pointer mx-auto"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
                         onClick={toggleVoiceMode}
-                        className="relative flex h-32 w-32 items-center justify-center rounded-full transition-smooth cursor-pointer mx-auto bg-primary/10 hover:bg-primary/20"
                       >
-                        <Mic className="h-8 w-8 text-primary" />
-                      </div>
+                        <source src="/Untitled Video-2.mp4" type="video/mp4" />
+                        Ваш браузер не поддерживает видео.
+                      </video>
+                      {/* Overlay for TTS state indication */}
+                      {isPlayingTTS && (
+                        <div className="absolute inset-0 rounded-full bg-green-500/20 border-2 border-green-500 animate-pulse" />
                       )}
                     </div>
 

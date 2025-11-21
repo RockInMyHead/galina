@@ -35,8 +35,22 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/consultation" element={<Consultation />} />
-            <Route path="/documents" element={<Documents />} />
+            <Route
+              path="/consultation"
+              element={
+                <ProtectedRoute>
+                  <Consultation />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <Documents />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard"
               element={
@@ -45,10 +59,38 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route path="/document-analysis" element={<DocumentAnalysis />} />
-            <Route path="/document-filling" element={<DocumentFilling />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/voice" element={<Voice />} />
+            <Route
+              path="/document-analysis"
+              element={
+                <ProtectedRoute>
+                  <DocumentAnalysis />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/document-filling"
+              element={
+                <ProtectedRoute>
+                  <DocumentFilling />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chat"
+              element={
+                <ProtectedRoute>
+                  <Chat />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/voice"
+              element={
+                <ProtectedRoute>
+                  <Voice />
+                </ProtectedRoute>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
