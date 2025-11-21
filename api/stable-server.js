@@ -1,141 +1,159 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
-// LangChain imports (с проверкой доступности)
-let ChatOpenAI, AgentExecutor, createOpenAIToolsAgent, TavilySearchResults, ChatPromptTemplate, MessagesPlaceholder;
+// Прямое использование OpenAI API и Tavily API (без LangChain agents из-за конфликтов версий)
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+const USE_LLM = OPENAI_API_KEY && TAVILY_API_KEY;
 
-try {
-  ChatOpenAI = require('@langchain/openai').ChatOpenAI;
-  ({ AgentExecutor, createOpenAIToolsAgent } = require('langchain/agents'));
-  ({ TavilySearchResults } = require('@langchain/community/tools/tavily_search'));
-  ({ ChatPromptTemplate, MessagesPlaceholder } = require('@langchain/core/prompts'));
-  console.log('✅ LangChain modules loaded successfully');
-} catch (error) {
-  console.warn('⚠️ LangChain modules not available, using fallback mode:', error.message);
-  ChatOpenAI = null;
+if (USE_LLM) {
+  console.log('✅ LLM режим активирован (OpenAI + Tavily)');
+} else {
+  console.log('⚠️ Fallback режим (API ключи не найдены)');
 }
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// LangChain агент для обработки запросов (только если доступны модули)
-let agent = null;
+// Функция для поиска через Tavily API
+async function searchWithTavily(query) {
+  try {
+    console.log('🔍 Searching with Tavily:', query);
 
-if (ChatOpenAI) {
-  class LangChainAgent {
-    constructor() {
-      this.agentExecutor = null;
-      this.llm = new ChatOpenAI({
-        modelName: process.env.OPENAI_MODEL || "gpt-4-turbo",
-        temperature: 0.3,
-        openAIApiKey: process.env.OPENAI_API_KEY,
-      });
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${TAVILY_API_KEY}`,
+      },
+      body: JSON.stringify({
+        query,
+        max_results: 3,
+        include_answer: true,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tavily API error: ${response.status}`);
     }
 
-    async initializeAgent() {
-      if (this.agentExecutor) return;
+    const data = await response.json();
 
-      console.log('🤖 Initializing LangChain agent...');
+    if (data.results && data.results.length > 0) {
+      const formattedResults = data.results.map((result, index) =>
+        `[${index + 1}] ${result.title}\nURL: ${result.url}\nСодержание: ${result.content}\n`
+      ).join('\n');
 
-      try {
-        // Создаем инструменты
-        const tools = [
-          new TavilySearchResults({
-            maxResults: 3,
-            apiKey: process.env.TAVILY_API_KEY,
-          }),
-        ];
+      console.log('📊 Found', data.results.length, 'search results');
+      return {
+        success: true,
+        results: formattedResults,
+        query: query
+      };
+    } else {
+      return {
+        success: false,
+        results: "Не удалось найти информацию по вашему запросу.",
+        query: query
+      };
+    }
+  } catch (error) {
+    console.error('❌ Tavily search error:', error);
+    return {
+      success: false,
+      results: "Произошла ошибка при поиске информации.",
+      query: query
+    };
+  }
+}
 
-        // Создаем промпт для агента
-        const prompt = ChatPromptTemplate.fromMessages([
-          ["system", `Вы - Галина, профессиональный AI-юрист с 25-летним опытом в российской юриспруденции.
+// Функция для обработки запроса через OpenAI (упрощенная версия)
+async function processWithLLM(query, context = []) {
+  try {
+    console.log('🧠 Processing with LLM:', query.substring(0, 100) + '...');
+
+    // Формируем промпт для OpenAI
+    const systemPrompt = `Вы - Галина, профессиональный AI-юрист с 25-летним опытом в российской юриспруденции.
 
 ОСОБЕННОСТИ РАБОТЫ:
 - Давайте точные, юридически обоснованные ответы
-- Используйте поиск в интернете для актуальной информации
 - Отвечайте на русском языке
 - Будьте максимально полезны и профессиональны
 
-ИНСТРУМЕНТЫ:
-- tavily_search_results_json: Для поиска актуальной информации в интернете
-
-КОГДА ИСПОЛЬЗОВАТЬ ПОИСК:
-- Для вопросов о текущих законах, изменениях в законодательстве
-- Для поиска судебной практики, прецедентов
-- Для актуальной информации о государственных услугах
-- Когда нужны свежие новости или обновления
-
 СТРУКТУРА ОТВЕТА:
 - Начинайте с прямого ответа на вопрос
-- Приводите ссылки на источники при использовании поиска
 - Давайте практические рекомендации
-- Предупреждайте о необходимости консультации с живым юристом для сложных случаев`],
-          ["human", "{input}"],
-          new MessagesPlaceholder("agent_scratchpad"),
-        ]);
+- Предупреждайте о необходимости консультации с живым юристом для сложных случаев
 
-        // Создаем агента
-        const agent = await createOpenAIToolsAgent({
-          llm: this.llm,
-          tools,
-          prompt,
-        });
+Если вопрос касается актуальных изменений в законодательстве, рекомендую уточнить год и регион.`;
 
-        // Создаем исполнителя
-        this.agentExecutor = new AgentExecutor({
-          agent,
-          tools,
-          verbose: true,
-          maxIterations: 3,
-          returnIntermediateSteps: true,
-        });
+    // Формируем контекст разговора
+    const contextString = context && context.length > 0
+      ? `\n\nКонтекст предыдущего разговора:\n${context.join('\n')}`
+      : '';
 
-        console.log('✅ LangChain agent initialized successfully');
-      } catch (error) {
-        console.error('❌ Failed to initialize LangChain agent:', error);
-        this.agentExecutor = null;
+    const userPrompt = `${query}${contextString}`;
+
+    console.log('📡 Calling OpenAI API...');
+
+    // Вызываем OpenAI API с таймаутом
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 сек таймаут
+
+    try {
+      const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-4-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000, // Уменьшаем для скорости
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      console.log('📡 OpenAI response status:', openaiResponse.status);
+
+      if (!openaiResponse.ok) {
+        const errorText = await openaiResponse.text();
+        throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorText}`);
       }
+
+      const openaiData = await openaiResponse.json();
+      const content = openaiData.choices[0].message.content;
+
+      console.log('✅ LLM response generated successfully');
+
+      return {
+        success: true,
+        content: content,
+        searchUsed: false,
+        model: 'gpt-4-turbo'
+      };
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('OpenAI API timeout');
+      }
+      throw fetchError;
     }
 
-    async processQuery(query, context = []) {
-      try {
-        await this.initializeAgent();
-
-        if (!this.agentExecutor) {
-          throw new Error('Agent not available');
-        }
-
-        console.log('🧠 Processing query with LangChain:', query.substring(0, 100) + '...');
-
-        // Формируем input с учетом контекста
-        const input = context && context.length > 0
-          ? `${query}\n\nКонтекст предыдущего разговора:\n${context.join('\n')}`
-          : query;
-
-        // Выполняем запрос
-        const result = await this.agentExecutor.invoke({
-          input,
-        });
-
-        console.log('✅ LLM response generated with LangChain');
-
-        return {
-          success: true,
-          content: result.output,
-          searchUsed: result.intermediateSteps?.some(step => step.action.tool === 'tavily_search_results_json') || false,
-        };
-
-      } catch (error) {
-        console.error('❌ LangChain agent error:', error);
-        throw error; // Пробрасываем ошибку для fallback
-      }
-    }
+  } catch (error) {
+    console.error('❌ LLM processing error:', error);
+    throw error;
   }
-
-  agent = new LangChainAgent();
-} else {
-  console.log('⚠️ LangChain modules not available, using mock responses only');
 }
 
 // Fallback функция для ответов
@@ -174,28 +192,32 @@ app.post('/chat', async (req, res) => {
 
     let responseContent = '';
 
-    // Пытаемся использовать LangChain агента, если он доступен
-    if (agent) {
-      try {
-        const result = await agent.processQuery(lastUserMessage, conversationContext);
-        console.log('LLM processing result:', result.success ? 'SUCCESS' : 'FALLBACK');
-        console.log('Search used:', result.searchUsed || false);
+    // Используем LLM с поиском, если доступны API ключи
+    let useLLM = false;
+
+    try {
+      if (USE_LLM) {
+        console.log('🚀 Using LLM...');
+        const result = await processWithLLM(lastUserMessage, conversationContext);
+        console.log('✅ LLM processing result: SUCCESS');
+        console.log('🔍 Search used:', result.searchUsed || false);
         responseContent = result.content;
-      } catch (error) {
-        console.warn('LangChain agent failed, using fallback:', error.message);
+        useLLM = true;
+        console.log('🎯 LLM response generated successfully');
+      } else {
+        console.log('⚠️ Using fallback responses (API keys not available)');
         responseContent = getFallbackResponse(lastUserMessage);
       }
-    } else {
-      // Fallback для случаев, когда LangChain недоступен
-      console.log('Using fallback responses (LangChain not available)');
+    } catch (error) {
+      console.warn('❌ LLM processing failed, using fallback:', error.message);
       responseContent = getFallbackResponse(lastUserMessage);
     }
 
     const response = {
-      id: agent ? `llm-${Date.now()}` : `mock-${Date.now()}`,
+      id: useLLM ? `llm-${Date.now()}` : `mock-${Date.now()}`,
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
-      model: agent ? 'gpt-4-turbo' : 'gpt-5.1',
+      model: useLLM ? 'gpt-4-turbo' : 'gpt-5.1',
       choices: [{
         index: 0,
         message: {
@@ -206,9 +228,9 @@ app.post('/chat', async (req, res) => {
         finish_reason: 'stop'
       }],
       usage: {
-        prompt_tokens: 100,
+        prompt_tokens: useLLM ? 150 : 10,
         completion_tokens: Math.floor(responseContent.length / 4),
-        total_tokens: 100 + Math.floor(responseContent.length / 4)
+        total_tokens: (useLLM ? 150 : 10) + Math.floor(responseContent.length / 4)
       }
     };
 

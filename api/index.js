@@ -449,7 +449,7 @@ const handleMulterError = (error, req, res, next) => {
 
 
 // Test endpoint to verify proxy is working
-app.get('/api/test-proxy', async (req, res) => {
+app.get('/test-proxy', async (req, res) => {
   try {
     console.log('🧪 Testing proxy connection...');
     const response = await fetchWithProxy('https://httpbin.org/ip');
@@ -472,7 +472,7 @@ app.get('/api/test-proxy', async (req, res) => {
   }
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post('/chat', async (req, res) => {
   try {
     console.log('=== New Chat Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -907,7 +907,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Text to Speech endpoint
-app.post('/api/tts', async (req, res) => {
+app.post('/tts', async (req, res) => {
   try {
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
 
