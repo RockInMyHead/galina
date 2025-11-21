@@ -5,6 +5,34 @@ const { PrismaClient } = require('@prisma/client');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 require('dotenv').config({ path: './.env' });
 
+// Environment loaded successfully
+console.log('🔧 Environment loaded from:', __dirname + '/.env');
+console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
+console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
+
+// Test OpenAI API key on startup
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
+  console.log('🧪 Testing OpenAI API key...');
+  fetch('https://api.openai.com/v1/models', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+  })
+  .then(response => {
+    if (response.ok) {
+      console.log('✅ OpenAI API key is valid');
+    } else {
+      console.log('❌ OpenAI API key is invalid:', response.status, response.statusText);
+    }
+  })
+  .catch(error => {
+    console.log('❌ Error testing OpenAI API key:', error.message);
+  });
+} else {
+  console.log('⚠️ OpenAI API key not configured or invalid format');
+}
+
 // Configure proxy agent for external requests
 const proxyUrl = 'http://rBD9e6:jZdUnJ@185.68.187.20:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
@@ -915,7 +943,15 @@ app.post('/tts', async (req, res) => {
       return res.status(400).json({ error: 'Text is required' });
     }
 
+    console.log('🎤 TTS Request received:', { text: text.substring(0, 50), voice, model });
+
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log('🔑 API Key status:', {
+      exists: !!apiKey,
+      startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
+      length: apiKey ? apiKey.length : 0,
+      firstChars: apiKey ? apiKey.substring(0, 10) + '...' : 'none'
+    });
 
     // Use demo mode if API key doesn't exist or is invalid format
     if (!apiKey || !apiKey.startsWith('sk-')) {
