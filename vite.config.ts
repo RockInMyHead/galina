@@ -19,13 +19,13 @@ export default defineConfig(({ mode }) => ({
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
-    // Все запросы к /api/* будут проксироваться на localhost:3001
+    // Все запросы к /api/* будут проксироваться на localhost:3003
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3003',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        // Не переписывать путь - оставлять /api префикс
       },
       // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
       '/proxy': {
@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
             console.log('Proxy error:', err);
           });
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('Proxy-Authorization', 'Basic ' + Buffer.from('rBD9e6:jZdUnJ').toString('base64'));
+            proxyReq.setHeader('Proxy-Authorization', `Basic ${  Buffer.from('rBD9e6:jZdUnJ').toString('base64')}`);
             console.log('Proxy request:', req.method, req.url);
           });
           proxy.on('proxyRes', (proxyRes, req, res) => {

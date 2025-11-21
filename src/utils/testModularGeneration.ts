@@ -38,11 +38,11 @@ const result = quickProcess(testModularResponse, 'Модульный ответ 
 console.log('\n📊 СТАТИСТИКА ОБРАБОТКИ:');
 console.log('Оригинальная длина:', result.statistics.original_length);
 console.log('Оптимизированная длина:', result.statistics.optimized_length);
-console.log('Сжатие:', (result.statistics.compression_ratio * 100).toFixed(1) + '%');
+console.log('Сжатие:', `${(result.statistics.compression_ratio * 100).toFixed(1)  }%`);
 console.log('Блоков контента:', result.statistics.chunks_count);
 console.log('Удалено блоков:', result.statistics.chunks_removed);
 console.log('Обнаружено дубликатов:', result.statistics.duplicates_found);
-console.log('Оценка качества:', (result.statistics.quality_score * 100).toFixed(1) + '%');
+console.log('Оценка качества:', `${(result.statistics.quality_score * 100).toFixed(1)  }%`);
 
 console.log('\n✨ ОПТИМИЗИРОВАННЫЙ ОТВЕТ:');
 console.log(result.markdown);

@@ -1,0 +1,124 @@
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                   🎙️  VOICE DEBUG CHEATSHEET 🔍                    ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🚨 ОШИБКА: "Failed to access assets"                               │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Значение: Браузер не может загрузить Google речевые модели
+  
+  ⚡ БЫСТРОЕ РЕШЕНИЕ:
+     → Test Mode (включается автоматически)
+     → Текстовый ввод вместо голоса
+     → AI работает, TTS работает ✅
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🔍 ДИАГНОСТИКА                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+  1. КОНСОЛЬ БРАУЗЕРА (F12):
+     → Смотрите логи с эмодзи: 🔧 📊 🎙️ 🌐 ✅ ❌
+     → Ищите "Network test passed/failed"
+     → Проверьте "Microphone permission status"
+
+  2. ДИАГНОСТИЧЕСКИЙ ИНСТРУМЕНТ:
+     → Откройте: test_speech_network.html
+     → Нажмите: "Run All Tests"
+     → Скопируйте: "Copy Report"
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🔧 ТИПИЧНЫЕ ПРИЧИНЫ И РЕШЕНИЯ                                       │
+└──────────────────────────────────────────────────────────────────────┘
+
+  ❌ Network tests FAILED:
+     → Отключите VPN/Proxy
+     → Попробуйте мобильный хотспот
+     → Проверьте: curl -I https://www.gstatic.com
+  
+  ❌ Microphone permission DENIED:
+     → Chrome: 🔒 → Microphone → Allow
+     → macOS: System Settings → Privacy → Microphone
+     → Windows: Settings → Privacy → Microphone
+  
+  ❌ Speech Recognition FAILED:
+     → Если Safari: Перейдите на Chrome (Safari имеет ограничения!)
+     → Попробуйте Chrome Incognito (без расширений)
+     → Отключите блокировщики рекламы
+     → Попробуйте другой браузер
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  📊 ЧТО ПОКАЗЫВАЮТ ЛОГИ                                              │
+└──────────────────────────────────────────────────────────────────────┘
+
+  ✅ УСПЕХ:
+     🔧 Initializing Web Speech API...
+     ✅ Web Speech API supported
+     ✅ Microphone permission granted
+     ✅ Audio context test successful
+     🎤 Speech recognition started successfully
+     ✅ Final transcript: "текст"
+
+  ❌ ОШИБКА С ДИАГНОСТИКОЙ:
+     ❌ Speech recognition error: "aborted"
+     ❌ Error message: "Failed to access assets"
+     🌐 Testing network connectivity...
+     ✅ Network test passed for google.com (125ms)
+     ❌ Network test failed for gstatic.com: Failed to fetch
+     💡 "Failed to access assets" usually means:
+        1. Browser cannot download Google Speech models
+        2. Network blocking www.gstatic.com
+     🔧 Recommended fixes:
+        1. Try disabling VPN/proxy
+        2. Check firewall settings
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🎯 БЫСТРЫЕ КОМАНДЫ                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Проверить сеть:
+    curl -I https://www.gstatic.com
+    curl -I https://www.google.com
+    ping google.com
+
+  Проверить DNS:
+    nslookup www.gstatic.com
+    
+  Проверить маршрут:
+    traceroute www.gstatic.com
+
+  Проверить микрофон (Linux):
+    arecord -l
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  📚 ДОКУМЕНТАЦИЯ                                                     │
+└──────────────────────────────────────────────────────────────────────┘
+
+  VOICE_QUICK_FIX.md           → Быстрое решение (начните здесь!)
+  VOICE_ERROR_SOLUTION.md      → Полное руководство
+  SPEECH_DIAGNOSTIC_GUIDE.md   → Детальная диагностика
+  CHANGES_SUMMARY.md           → Что было изменено
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🔗 ССЫЛКИ                                                           │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Frontend:   http://localhost:3002
+  Backend:    http://localhost:3003
+  Diagnostic: test_speech_network.html (откройте в браузере)
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  🆘 ЕСЛИ НИЧЕГО НЕ ПОМОГЛО                                           │
+└──────────────────────────────────────────────────────────────────────┘
+
+  1. Используйте Test Mode (работает везде!)
+  2. Скопируйте логи из консоли (F12)
+  3. Запустите test_speech_network.html → Copy Report
+  4. Укажите: страну, тип сети, браузер
+  5. Прочитайте VOICE_ERROR_SOLUTION.md
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  💡 ПОМНИТЕ: Test Mode - это нормально! Он работает без ограничений ║
+╚══════════════════════════════════════════════════════════════════════╝
+

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Recognition Network Diagnostics</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            color: #333;
+        }
+        h1 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        pre {
+            background: #2d3748;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .result-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+        .error-detail {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .success-detail {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .warning-detail {
+            color: #ffc107;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Speech Recognition Network Diagnostics</h1>
+        <p>Этот инструмент проверит доступность Google Speech API и поможет найти причину ошибки "Failed to access assets"</p>
+
+        <div class="test-section">
+            <h3>1. Browser Capabilities <span class="status" id="browser-status">Pending</span></h3>
+            <div id="browser-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Network Connectivity <span class="status" id="network-status">Pending</span></h3>
+            <button onclick="testNetwork()">Run Network Tests</button>
+            <div id="network-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Microphone Access <span class="status" id="mic-status">Pending</span></h3>
+            <button onclick="testMicrophone()">Test Microphone</button>
+            <div id="mic-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Speech Recognition Test <span class="status" id="speech-status">Pending</span></h3>
+            <button onclick="testSpeechRecognition()">Test Speech API</button>
+            <div id="speech-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Full Diagnostic Report</h3>
+            <button onclick="runFullDiagnostics()">Run All Tests</button>
+            <button onclick="copyReport()">Copy Report</button>
+            <pre id="full-report"></pre>
+        </div>
+    </div>
+
+    <script>
+        const report = [];
+
+        function addToReport(message) {
+            report.push(`[${new Date().toISOString()}] ${message}`);
+            document.getElementById('full-report').textContent = report.join('\n');
+        }
+
+        function setStatus(id, status) {
+            const elem = document.getElementById(id);
+            elem.className = `status ${status}`;
+            elem.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        // 1. Browser Capabilities
+        function checkBrowserCapabilities() {
+            const results = document.getElementById('browser-results');
+            const capabilities = {
+                'Speech Recognition': !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+                'Media Devices': !!navigator.mediaDevices,
+                'getUserMedia': !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                'Permissions API': !!navigator.permissions,
+                'Secure Context': window.isSecureContext,
+                'Protocol': location.protocol,
+                'Hostname': location.hostname,
+                'User Agent': navigator.userAgent
+            };
+
+            let html = '';
+            for (const [key, value] of Object.entries(capabilities)) {
+                const isGood = typeof value === 'boolean' ? value : true;
+                html += `<div class="result-item ${isGood ? 'success-detail' : 'error-detail'}">${key}: <strong>${value}</strong></div>`;
+                addToReport(`Browser: ${key} = ${value}`);
+            }
+            results.innerHTML = html;
+            setStatus('browser-status', 'success');
+        }
+
+        // 2. Network Connectivity
+        async function testNetwork() {
+            setStatus('network-status', 'pending');
+            const results = document.getElementById('network-results');
+            results.innerHTML = '<p>Testing network connectivity...</p>';
+
+            const testUrls = [
+                { url: 'https://www.google.com/favicon.ico', name: 'Google Main' },
+                { url: 'https://www.gstatic.com/speech-api/models/manifest.json', name: 'Speech Models' },
+                { url: 'https://clients5.google.com/v1/speech:recognize', name: 'Speech API' },
+                { url: 'https://www.googleapis.com/', name: 'Google APIs' },
+                { url: 'https://speech.googleapis.com/', name: 'Speech Service' }
+            ];
+
+            let html = '';
+            let allSuccess = true;
+
+            for (const { url, name } of testUrls) {
+                try {
+                    const startTime = performance.now();
+                    const response = await fetch(url, { 
+                        method: 'HEAD', 
+                        mode: 'no-cors',
+                        cache: 'no-cache'
+                    });
+                    const endTime = performance.now();
+                    const duration = Math.round(endTime - startTime);
+                    
+                    html += `<div class="result-item success-detail">✅ ${name}: ${duration}ms</div>`;
+                    addToReport(`Network: ${name} - OK (${duration}ms)`);
+                } catch (error) {
+                    allSuccess = false;
+                    html += `<div class="result-item error-detail">❌ ${name}: ${error.message}</div>`;
+                    addToReport(`Network: ${name} - FAILED (${error.message})`);
+                }
+            }
+
+            results.innerHTML = html;
+            setStatus('network-status', allSuccess ? 'success' : 'error');
+        }
+
+        // 3. Microphone Access
+        async function testMicrophone() {
+            setStatus('mic-status', 'pending');
+            const results = document.getElementById('mic-results');
+            results.innerHTML = '<p>Testing microphone access...</p>';
+
+            try {
+                // Test microphone permission
+                if (navigator.permissions) {
+                    const micPermission = await navigator.permissions.query({ name: 'microphone' });
+                    addToReport(`Microphone permission: ${micPermission.state}`);
+                }
+
+                // Get audio devices
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                
+                let html = `<div class="result-item success-detail">Found ${audioInputs.length} audio input device(s)</div>`;
+                audioInputs.forEach((device, idx) => {
+                    html += `<div class="result-item">${idx + 1}. ${device.label || `Device ${idx + 1}`}</div>`;
+                    addToReport(`Audio device: ${device.label || `Device ${idx + 1}`} (${device.deviceId.substring(0, 20)}...)`);
+                });
+
+                // Test actual microphone access
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    html += `<div class="result-item success-detail">✅ Microphone access granted</div>`;
+                    
+                    // Test audio levels
+                    const audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    const analyser = audioContext.createAnalyser();
+                    source.connect(analyser);
+                    
+                    html += `<div class="result-item success-detail">✅ Audio context created (${audioContext.sampleRate}Hz)</div>`;
+                    addToReport(`Microphone: Access granted, AudioContext OK`);
+                    
+                    // Stop the stream
+                    stream.getTracks().forEach(track => track.stop());
+                    setStatus('mic-status', 'success');
+                } catch (streamError) {
+                    html += `<div class="result-item error-detail">❌ Cannot access microphone: ${streamError.message}</div>`;
+                    addToReport(`Microphone: Access denied - ${streamError.message}`);
+                    setStatus('mic-status', 'error');
+                }
+
+                results.innerHTML = html;
+            } catch (error) {
+                results.innerHTML = `<div class="result-item error-detail">❌ Error: ${error.message}</div>`;
+                addToReport(`Microphone test error: ${error.message}`);
+                setStatus('mic-status', 'error');
+            }
+        }
+
+        // 4. Speech Recognition Test
+        async function testSpeechRecognition() {
+            setStatus('speech-status', 'pending');
+            const results = document.getElementById('speech-results');
+            results.innerHTML = '<p>Testing speech recognition...</p>';
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                results.innerHTML = '<div class="result-item error-detail">❌ Speech Recognition API not available</div>';
+                addToReport('Speech Recognition: NOT AVAILABLE');
+                setStatus('speech-status', 'error');
+                return;
+            }
+
+            try {
+                const recognition = new SpeechRecognition();
+                recognition.lang = 'ru-RU';
+                recognition.continuous = false;
+                recognition.interimResults = true;
+
+                let html = '<div class="result-item success-detail">✅ Speech Recognition instance created</div>';
+                html += '<div class="result-item">Starting recognition test (say something)...</div>';
+                results.innerHTML = html;
+                addToReport('Speech Recognition: Instance created, attempting to start...');
+
+                let testComplete = false;
+                const timeout = setTimeout(() => {
+                    if (!testComplete) {
+                        recognition.stop();
+                        results.innerHTML += '<div class="result-item warning-detail">⏱️ Test timed out after 5 seconds</div>';
+                        addToReport('Speech Recognition: Timeout after 5s');
+                        setStatus('speech-status', 'error');
+                    }
+                }, 5000);
+
+                recognition.onstart = () => {
+                    results.innerHTML += '<div class="result-item success-detail">✅ Recognition started successfully!</div>';
+                    addToReport('Speech Recognition: Started successfully');
+                };
+
+                recognition.onresult = (event) => {
+                    clearTimeout(timeout);
+                    testComplete = true;
+                    const transcript = event.results[0][0].transcript;
+                    results.innerHTML += `<div class="result-item success-detail">✅ Recognized: "${transcript}"</div>`;
+                    addToReport(`Speech Recognition: Success - "${transcript}"`);
+                    setStatus('speech-status', 'success');
+                    recognition.stop();
+                };
+
+                recognition.onerror = (event) => {
+                    clearTimeout(timeout);
+                    testComplete = true;
+                    results.innerHTML += `<div class="result-item error-detail">❌ Error: ${event.error} - ${event.message}</div>`;
+                    addToReport(`Speech Recognition: ERROR - ${event.error} (${event.message})`);
+                    setStatus('speech-status', 'error');
+
+                    // Provide specific guidance
+                    if (event.error === 'aborted' && event.message === 'Failed to access assets') {
+                        results.innerHTML += `
+                            <div class="result-item error-detail">
+                                <strong>⚠️ "Failed to access assets" detected!</strong><br>
+                                This means the browser cannot download Google Speech models.<br><br>
+                                <strong>Possible causes:</strong><br>
+                                • Firewall blocking www.gstatic.com<br>
+                                • VPN/Proxy interfering<br>
+                                • Regional restrictions<br>
+                                • Corporate network blocking<br><br>
+                                <strong>Solutions:</strong><br>
+                                1. Disable VPN/Proxy temporarily<br>
+                                2. Try different network (mobile hotspot)<br>
+                                3. Check firewall whitelist<br>
+                                4. Try Chrome Incognito mode<br>
+                            </div>
+                        `;
+                    }
+                };
+
+                recognition.onend = () => {
+                    if (!testComplete) {
+                        results.innerHTML += '<div class="result-item">Recognition ended without result</div>';
+                        addToReport('Speech Recognition: Ended without result');
+                    }
+                };
+
+                recognition.start();
+            } catch (error) {
+                results.innerHTML = `<div class="result-item error-detail">❌ Exception: ${error.message}</div>`;
+                addToReport(`Speech Recognition: Exception - ${error.message}`);
+                setStatus('speech-status', 'error');
+            }
+        }
+
+        // Run all tests
+        async function runFullDiagnostics() {
+            report.length = 0;
+            addToReport('=== FULL DIAGNOSTIC REPORT ===');
+            addToReport('Starting diagnostic tests...');
+            
+            checkBrowserCapabilities();
+            await testNetwork();
+            await testMicrophone();
+            
+            addToReport('=== DIAGNOSTIC COMPLETE ===');
+            addToReport('Note: Speech Recognition test must be run separately (requires user interaction)');
+        }
+
+        // Copy report
+        function copyReport() {
+            const reportText = document.getElementById('full-report').textContent;
+            navigator.clipboard.writeText(reportText).then(() => {
+                alert('Report copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+
+        // Auto-run browser check on load
+        window.addEventListener('load', () => {
+            checkBrowserCapabilities();
+        });
+    </script>
+</body>
+</html>
+
+

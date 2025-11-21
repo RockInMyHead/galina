@@ -159,7 +159,8 @@ const DocumentFilling = () => {
               content: `Начни задавать вопросы для заполнения ${template.name}`
             }
           ],
-          model: 'gpt-4o',
+          model: 'gpt-5.1',
+          reasoning: 'medium',
           max_tokens: 500,
           temperature: 0.3,
         })
@@ -172,7 +173,7 @@ const DocumentFilling = () => {
       const data = await response.json();
       const aiMessage = data.choices[0]?.message?.content || 'Извините, произошла ошибка. Попробуйте еще раз.';
 
-      console.log('✅ First question response received:', aiMessage.substring(0, 100) + '...');
+      console.log('✅ First question response received:', `${aiMessage.substring(0, 100)  }...`);
       setChatMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
     } catch (error) {
       console.error('❌ Ошибка при отправке первого вопроса:', error);
@@ -235,10 +236,11 @@ const DocumentFilling = () => {
           .replace(/\[ПОДПИСЬ УЧРЕДИТЕЛЯ\]/g, 'И.И. Иванов');
 
         const mockOCRResponse = {
-          id: 'mock-ocr-' + Date.now(),
+          id: `mock-ocr-${  Date.now()}`,
           object: 'chat.completion',
           created: Math.floor(Date.now() / 1000),
-          model: 'gpt-4o',
+          model: 'gpt-5.1',
+          reasoning: 'medium',
           choices: [{
             index: 0,
             message: {
@@ -312,7 +314,8 @@ ${documentToEdit}`
               content: msg.content
             }))
           ],
-          model: 'gpt-4o',
+          model: 'gpt-5.1',
+          reasoning: 'medium',
           max_tokens: 2000,
           temperature: 0.3,
         })
@@ -330,7 +333,7 @@ ${documentToEdit}`
       setChatMessages(prev => [...prev, { role: 'assistant', content: aiMessage }]);
 
       // Проверяем, содержит ли ответ "ГОТОВО" - значит документ готов
-      console.log('🔍 Проверяем ответ AI на "ГОТОВО":', aiMessage.substring(0, 200) + '...');
+      console.log('🔍 Проверяем ответ AI на "ГОТОВО":', `${aiMessage.substring(0, 200)  }...`);
       if (aiMessage.toUpperCase().includes('ГОТОВО') || aiMessage.includes('документ готов')) {
         console.log('✅ Найдено "ГОТОВО" в ответе AI');
         // Извлекаем заполненный документ из ответа
@@ -342,7 +345,7 @@ ${documentToEdit}`
           // Находим начало документа после "ГОТОВО"
           const documentStart = aiMessage.indexOf('\n', readyIndex) + 1;
           if (documentStart > 0 && documentStart < aiMessage.length) {
-            let documentText = aiMessage.substring(documentStart);
+            const documentText = aiMessage.substring(documentStart);
 
             // Ищем маркеры конца документа
             const endMarkers = [
@@ -412,7 +415,7 @@ ${documentToEdit}`
         }
 
         if (finalDocument) {
-          console.log('📄 Устанавливаем completedDocument:', finalDocument.substring(0, 100) + '...');
+          console.log('📄 Устанавливаем completedDocument:', `${finalDocument.substring(0, 100)  }...`);
           // Добавляем уведомление о демо-режиме для OCR
           if (attachedFile) {
             finalDocument += '\n\n*Примечание: Документ заполнен в демо-режиме на основе типового шаблона. Для полноценной работы обновите API ключ OpenAI.*';
@@ -440,7 +443,7 @@ ${documentToEdit}`
   // Функция для скачивания документа
   const downloadDocument = async () => {
     console.log('🔄 Начинаем скачивание документа');
-    console.log('📄 completedDocument:', completedDocument ? completedDocument.substring(0, 100) + '...' : 'пустой');
+    console.log('📄 completedDocument:', completedDocument ? `${completedDocument.substring(0, 100)  }...` : 'пустой');
     console.log('📋 selectedTemplateForChat:', selectedTemplateForChat);
 
     if (!completedDocument || !selectedTemplateForChat) {
@@ -470,7 +473,7 @@ ${documentToEdit}`
   // Функция для скачивания документа в формате PDF
   const downloadDocumentAsPDF = async () => {
     console.log('🔄 Начинаем скачивание документа как PDF');
-    console.log('📄 completedDocument:', completedDocument ? completedDocument.substring(0, 100) + '...' : 'пустой');
+    console.log('📄 completedDocument:', completedDocument ? `${completedDocument.substring(0, 100)  }...` : 'пустой');
 
     if (!completedDocument || !selectedTemplateForChat) {
       console.error('❌ Невозможно скачать PDF: completedDocument или selectedTemplateForChat отсутствуют');
@@ -630,7 +633,8 @@ ${documentToEdit}`
               content: `Распознай текст из этого изображения юридического документа: [Изображение: ${imageData.substring(0, 100)}...]`
             }
           ],
-          model: 'gpt-4o',
+          model: 'gpt-5.1',
+          reasoning: 'medium',
           max_tokens: 1500,
           temperature: 0.1,
         })
@@ -643,7 +647,7 @@ ${documentToEdit}`
       const ocrResult = await response.json();
       const recognizedText = ocrResult.choices[0]?.message?.content || '';
 
-      console.log('📝 Распознанный текст:', recognizedText.substring(0, 200) + '...');
+      console.log('📝 Распознанный текст:', `${recognizedText.substring(0, 200)  }...`);
 
       // Теперь используем распознанный текст для автоматического заполнения шаблона
       const fillResponse = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
@@ -676,7 +680,8 @@ ${documentToEdit}`
               content: `Распознанный текст из документа:\n${recognizedText}\n\nЗаполни шаблон ${selectedTemplateForScan.name} на основе этих данных.`
             }
           ],
-          model: 'gpt-4o',
+          model: 'gpt-5.1',
+          reasoning: 'medium',
           max_tokens: 2000,
           temperature: 0.3,
         })
@@ -863,7 +868,7 @@ ${documentToEdit}`
         // Рендерим страницу на canvas
         const renderContext = {
           canvasContext: context,
-          viewport: viewport,
+          viewport,
         };
 
         await page.render(renderContext).promise;
@@ -1005,7 +1010,8 @@ ${documentToEdit}`
                   content: `Проанализируй этот документ "${uploadedFile.name}":\n\n${uploadedFile.data}`
                 }
               ],
-              model: 'gpt-4o',
+              model: 'gpt-5.1',
+          reasoning: 'medium',
               max_tokens: 1500,
               temperature: 0.3,
             })
@@ -1096,7 +1102,8 @@ ${documentToEdit}`
                       content: `Проанализируй этот PDF документ "${uploadedFile.name}". Извлеченный текст:\n\n${extractedText}`
                     }
                   ],
-                  model: 'gpt-4o',
+                  model: 'gpt-5.1',
+          reasoning: 'medium',
                   max_tokens: 1500,
                   temperature: 0.3,
                 })
@@ -1180,7 +1187,8 @@ ${documentToEdit}`
                   ]
                 }
               ],
-              model: 'gpt-4o',
+              model: 'gpt-5.1',
+          reasoning: 'medium',
               max_tokens: 1500,
               temperature: 0.3,
             })
@@ -1191,7 +1199,7 @@ ${documentToEdit}`
           if (response.ok) {
             const data = await response.json();
             documentAnalysis = data.choices[0]?.message?.content || '';
-              console.log('✅ PDF документ проанализирован через Vision API, ответ:', documentAnalysis.substring(0, 200) + '...');
+              console.log('✅ PDF документ проанализирован через Vision API, ответ:', `${documentAnalysis.substring(0, 200)  }...`);
           } else {
               console.error('❌ Ошибка Vision API:', response.status, await response.text());
             throw new Error('PDF_ANALYSIS_FAILED');
@@ -1262,7 +1270,8 @@ ${documentToEdit}`
           ]
         }
               ],
-              model: 'gpt-4o',
+              model: 'gpt-5.1',
+          reasoning: 'medium',
               max_tokens: 1500,
               temperature: 0.3,
             })
@@ -1298,7 +1307,7 @@ ${documentToEdit}`
 *Примечание: API OpenAI недоступен. Приложение работает в демо-режиме с ограниченным функционалом.*`;
       }
 
-      console.log('📋 Результат анализа:', documentAnalysis.substring(0, 200) + '...');
+      console.log('📋 Результат анализа:', `${documentAnalysis.substring(0, 200)  }...`);
 
       // Проверяем статус документа
       const statusMatch = documentAnalysis.match(/\*\*Статус документа:\*\*\s*([^\n]+)/i);
@@ -1340,7 +1349,7 @@ ${documentAnalysis}
 
           // Определяем тип документа для выбора подходящего шаблона
           const typeMatch = documentAnalysis.match(/\*\*Тип:\*\*\s*([^\n]+)/);
-          let documentType = typeMatch ? typeMatch[1].trim() : analyzeDocumentType(uploadedFile.name);
+          const documentType = typeMatch ? typeMatch[1].trim() : analyzeDocumentType(uploadedFile.name);
           console.log('🎯 Определен тип документа:', documentType);
 
           // Ищем подходящий шаблон на основе типа документа
@@ -1379,7 +1388,7 @@ ${documentAnalysis}
             let docText = '';
             if (uploadedFile.type === 'text/plain') {
               // Для текстовых файлов ограничиваем размер до 8000 символов
-              docText = uploadedFile.data.length > 8000 ? uploadedFile.data.substring(0, 8000) + '\n\n[Остальной текст документа был сокращен для обработки]' : uploadedFile.data;
+              docText = uploadedFile.data.length > 8000 ? `${uploadedFile.data.substring(0, 8000)  }\n\n[Остальной текст документа был сокращен для обработки]` : uploadedFile.data;
             } else if (uploadedFile.type === 'application/pdf') {
               // Для PDF файлов пытаемся извлечь текст
               try {
@@ -1389,9 +1398,9 @@ ${documentAnalysis}
 
                 // Извлекаем текст асинхронно
                 extractTextFromPDF(pdfFile).then(extractedText => {
-                  console.log('📄 Извлечен текст из PDF:', extractedText.substring(0, 200) + '...');
+                  console.log('📄 Извлечен текст из PDF:', `${extractedText.substring(0, 200)  }...`);
                   // Ограничиваем размер до 8000 символов
-                  const limitedText = extractedText.length > 8000 ? extractedText.substring(0, 8000) + '\n\n[Остальной текст документа был сокращен для обработки]' : extractedText;
+                  const limitedText = extractedText.length > 8000 ? `${extractedText.substring(0, 8000)  }\n\n[Остальной текст документа был сокращен для обработки]` : extractedText;
                   setDocumentText(limitedText);
                   setDocumentToEdit(limitedText);
 
@@ -1906,7 +1915,7 @@ ${documentAnalysis}
                                   <div className="mt-2 p-2 bg-white rounded border max-h-20 overflow-y-auto">
                                     <pre className="text-xs text-gray-600 whitespace-pre-wrap">
                                       {uploadedFile.data.length > 200
-                                        ? uploadedFile.data.substring(0, 200) + '...'
+                                        ? `${uploadedFile.data.substring(0, 200)  }...`
                                         : uploadedFile.data}
                                     </pre>
                                   </div>

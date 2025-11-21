@@ -71,7 +71,8 @@ export const sendChatMessage = async (
     method: 'POST',
     body: JSON.stringify({
       messages,
-      model: options.model || 'gpt-3.5-turbo',
+      model: options.model || 'gpt-5.1',
+      reasoning: options.reasoning || 'medium',
       max_tokens: options.max_tokens || 2000,
       temperature: options.temperature || 0.7,
     }),

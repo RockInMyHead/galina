@@ -262,7 +262,7 @@ export class ResponseOptimizer {
         // Если есть место, добавляем сокращенную версию
         const remaining = this.maxLength - currentLength;
         if (remaining > 100) {
-          const shortened = chunk.content.substring(0, remaining - 20) + "...";
+          const shortened = `${chunk.content.substring(0, remaining - 20)  }...`;
           const chunkCopy: ContentChunk = {
             ...chunk,
             content: shortened
@@ -334,7 +334,7 @@ export class ProfessionalOutputGenerator {
       for (let i = 0; i < Math.min(definitionChunks.length, 5); i++) {
         const chunk = definitionChunks[i];
         // Получаем первое предложение
-        const firstSentence = chunk.content.split('.')[0] + '.';
+        const firstSentence = `${chunk.content.split('.')[0]  }.`;
         lines.push(`${i + 1}. ${firstSentence}`);
       }
     }
@@ -461,7 +461,7 @@ export class ProfessionalLLMProcessor {
 
     // Переносы строк
     html = html.replace(/\n\n/g, '</p><p>');
-    html = '<p>' + html + '</p>';
+    html = `<p>${  html  }</p>`;
 
     return html;
   }

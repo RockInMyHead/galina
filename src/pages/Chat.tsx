@@ -131,7 +131,8 @@ const Chat = () => {
       console.log('📝 Отправляем запрос на генерацию размышлений');
 
       const reasoningResponse = await sendChatMessage(reasoningMessages, {
-        model: 'gpt-4o',
+        model: 'gpt-5.1',
+        reasoning: 'medium',
         max_tokens: 800,
         temperature: 0.7
       });
@@ -328,7 +329,8 @@ const Chat = () => {
             },
             body: JSON.stringify({
               messages: analysisMessages,
-              model: 'gpt-4o',
+              model: 'gpt-5.1',
+        reasoning: 'medium',
               max_tokens: 1500,
               temperature: 0.3,
               stream: true,
@@ -467,7 +469,8 @@ const Chat = () => {
           },
           body: JSON.stringify({
             messages: planMessages,
-            model: 'gpt-4o',
+            model: 'gpt-5.1',
+        reasoning: 'medium',
             max_tokens: 1000,
             temperature: 0.7,
             stream: true
@@ -540,7 +543,7 @@ const Chat = () => {
         console.log('📋 Строки плана:', planContent.split('\n'));
 
         // Парсим план на пункты
-        let cleanPlan = planContent
+        const cleanPlan = planContent
           .replace(/📋\s*План\s*ответа[:\s]*/gi, '')
           .replace(/План\s*ответа[:\s]*/gi, '')
           .replace(/^[^\d]*/i, '')
@@ -571,7 +574,7 @@ const Chat = () => {
         const seenPoints = new Set();
         planPoints = planLines
           .map(line => {
-            let cleaned = line
+            const cleaned = line
               .trim()
               .replace(/^\d+[\.)]\s*/, '')
               .replace(/^[-*]\s*/, '')
@@ -687,7 +690,7 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
             },
             body: JSON.stringify({
                     messages: pointMessages,
-              model: hasUploadedFile && uploadedFileData?.type.startsWith('image/') ? 'gpt-4o' : 'gpt-4o',
+              model: hasUploadedFile && uploadedFileData?.type.startsWith('image/') ? 'gpt-5.1' : 'gpt-5.1',
                     max_tokens: 2500, // Для каждого раздела (увеличено для подробности)
                     temperature: 0.7,
                     stream: true,
@@ -840,7 +843,8 @@ ${previousResponses[2] || 'Ошибка генерации'}
           },
           body: JSON.stringify({
             messages: finalMessages,
-            model: 'gpt-4o',
+            model: 'gpt-5.1',
+        reasoning: 'medium',
             max_tokens: 4000, // Увеличено для вмещения подробных разделов
             temperature: 0.6,
             stream: true,
@@ -1047,13 +1051,14 @@ ${previousResponses[2] || 'Ошибка генерации'}
       console.log('Отправка сообщения в AI:', {
         userMessage,
         filesCount: files.length,
-        systemMessage: systemMessage.substring(0, 100) + '...',
+        systemMessage: `${systemMessage.substring(0, 100)  }...`,
         chatMessagesCount: chatMessages.length,
         isDocumentAnalysis: hasFiles
       });
 
       const response = await sendChatMessage(chatMessages, {
-        model: 'gpt-4o', // Улучшенная модель для юридических консультаций
+        model: 'gpt-5.1',
+        reasoning: 'medium', // Улучшенная модель для юридических консультаций
         max_tokens: 8000, // Оптимальный лимит для качественных ответов
         temperature: 0.8 // Увеличиваем для более разнообразных и длинных ответов
       });

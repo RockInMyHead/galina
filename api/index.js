@@ -17,11 +17,34 @@ const fetchWithProxy = (url, options = {}) => {
   });
 };
 
-// Initialize Prisma Client
-const prisma = new PrismaClient();
+// Initialize Prisma Client (disabled for testing)
+// const prisma = new PrismaClient();
 
 // Environment loaded successfully
 console.log('Database URL:', process.env.DATABASE_URL);
+
+// In-memory conversation storage for GPT-5.1 (since it doesn't support conversation history)
+const conversationMemory = new Map();
+
+// Helper function to get conversation context
+function getConversationContext(sessionId, maxMessages = 10) {
+  const conversation = conversationMemory.get(sessionId) || [];
+  return conversation.slice(-maxMessages); // Keep only last N messages
+}
+
+// Helper function to add message to conversation
+function addToConversation(sessionId, message) {
+  if (!conversationMemory.has(sessionId)) {
+    conversationMemory.set(sessionId, []);
+  }
+  const conversation = conversationMemory.get(sessionId);
+  conversation.push(message);
+
+  // Keep only last 50 messages to prevent memory leaks
+  if (conversation.length > 50) {
+    conversation.splice(0, conversation.length - 50);
+  }
+}
 
 // Mock response generator for demo mode
 function generateMockResponse(messages, model) {
@@ -361,6 +384,7 @@ const corsAllowedOrigins = [
   'https://lawyer.windexs.ru:1041',
   'http://lawyer.windexs.ru:1041',
   'http://localhost:3000',
+  'http://localhost:3002',
   'http://localhost:4000',
   'http://localhost:5173',
 ];
@@ -374,6 +398,20 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' })); // Увеличиваем лимит для JSON
 app.use(express.urlencoded({ limit: '50mb', extended: true })); // Для form data
+
+// API routes with /api prefix
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('❌ Express error:', err);
+  console.error('❌ Error stack:', err.stack);
+  console.error('❌ Request:', req.method, req.url);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 // Middleware для обработки raw binary data для /stt/raw
 app.use('/stt/raw', express.raw({ limit: '50mb', type: 'audio/*' }));
@@ -410,7 +448,7 @@ const handleMulterError = (error, req, res, next) => {
 
 
 // Test endpoint to verify proxy is working
-app.get('/test-proxy', async (req, res) => {
+app.get('/api/test-proxy', async (req, res) => {
   try {
     console.log('🧪 Testing proxy connection...');
     const response = await fetchWithProxy('https://httpbin.org/ip');
@@ -433,11 +471,12 @@ app.get('/test-proxy', async (req, res) => {
   }
 });
 
-app.post('/chat', async (req, res) => {
+app.post('/api/chat', async (req, res) => {
   try {
     console.log('=== New Chat Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
-    const { messages, model = 'gpt-3.5-turbo', max_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false } = req.body;
+
+    const { messages, model = 'gpt-5.1', max_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -452,13 +491,18 @@ app.post('/chat', async (req, res) => {
       if (apiKey) {
         try {
           console.log('🔍 Testing OpenAI API key validity...');
-          // Quick test request to check if API key works
-          const testResponse = await fetchWithProxy('https://api.openai.com/v1/models', {
-            method: 'GET',
+          // Quick test request to check if API key works with GPT-5.1
+          const testResponse = await fetchWithProxy('https://api.openai.com/v1/responses', {
+            method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
-            }
+            },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          input: [{ role: 'user', content: 'test' }],
+          reasoning: { effort: 'low' }
+        })
           });
           apiKeyValid = testResponse.ok;
           console.log('🔑 API key valid:', apiKeyValid, 'Status:', testResponse.status);
@@ -742,14 +786,17 @@ app.post('/chat', async (req, res) => {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
-    // Use appropriate model for Vision API requests
-    const finalModel = isVisionRequest ? 'gpt-4o-mini' : model;
+    // Use GPT-5.1 for all requests
+    const finalModel = 'gpt-5.1';
 
     // Regular response
     console.log('🔄 Sending request to OpenAI API...');
     console.log('📋 Model:', finalModel, isVisionRequest ? '(Vision API)' : '');
     console.log('💬 Messages count:', messages.length);
     console.log('🔑 API Key exists and valid:', !!apiKey && apiKeyValid);
+
+      // TEMPORARY: Use GPT-4o chat/completions for stability
+      console.log('🔄 TEMPORARY: Using GPT-4o chat/completions for stability...');
 
       const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -758,20 +805,27 @@ app.post('/chat', async (req, res) => {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: finalModel,
-          messages,
-          max_tokens,
-          temperature,
-          top_p,
-          presence_penalty,
-          frequency_penalty
+          model: 'gpt-4o',
+          messages: messages,
+          max_tokens: max_tokens,
+          temperature: temperature,
+          top_p: top_p,
+          presence_penalty: presence_penalty,
+          frequency_penalty: frequency_penalty
         })
       });
+
+      const useResponsesAPI = false;
 
       console.log('📡 OpenAI response status:', response.status);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          errorData = { message: 'Failed to parse error response' };
+        }
         console.error('❌ OpenAI API error:', response.status, errorData);
 
         // For Vision API requests, if we get auth errors, fall back to demo mode
@@ -784,9 +838,66 @@ app.post('/chat', async (req, res) => {
         return res.status(response.status).json({ error: 'Internal server error', details: errorData });
       }
 
-      const data = await response.json();
-      console.log('✅ OpenAI response received successfully');
-      res.status(200).json(data);
+      let data;
+      try {
+        data = await response.json();
+        console.log('✅ OpenAI response received successfully');
+      } catch (parseError) {
+        console.error('❌ Failed to parse response JSON:', parseError);
+        return res.status(500).json({
+          error: 'Failed to parse OpenAI response',
+          details: parseError.message
+        });
+      }
+      console.log('📄 Full response data:', JSON.stringify(data, null, 2));
+
+      // Handle GPT-5.1 responses API format (official method from examples)
+      console.log('📄 GPT-5.1 response data:', JSON.stringify(data, null, 2));
+
+      let content = '';
+      try {
+        // Extract text from official GPT-5.1 responses API format:
+        // response.output[0].content[0].text
+        if (data.output && Array.isArray(data.output) && data.output.length > 0) {
+          const firstOutput = data.output[0];
+          if (firstOutput.content && Array.isArray(firstOutput.content) && firstOutput.content.length > 0) {
+            content = firstOutput.content[0].text || '';
+            console.log('✅ Extracted text from output[0].content[0].text');
+          }
+        }
+
+        if (!content) {
+          console.log('⚠️ GPT-5.1 returned response but no text found');
+          console.log('📋 Response structure:', Object.keys(data));
+          content = 'Пустой ответ от модели.';
+        } else {
+          console.log('✅ Successfully extracted content:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
+        }
+      } catch (extractError) {
+        console.error('❌ Error extracting content from GPT-5.1 response:', extractError);
+        content = 'Ошибка при обработке ответа модели.';
+      }
+
+      const legacyResponse = {
+        id: data.id || `resp-${Date.now()}`,
+        object: 'chat.completion',
+        created: Math.floor(Date.now() / 1000),
+        model: 'gpt-5.1',
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: content,
+            refusal: null
+          },
+          finish_reason: 'stop'
+        }],
+        usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+      };
+
+      // Note: Conversation memory disabled for GPT-4o fallback
+
+      res.status(200).json(legacyResponse);
     }
   } catch (error) {
     console.error('Server error:', error);
@@ -795,7 +906,7 @@ app.post('/chat', async (req, res) => {
 });
 
 // Text to Speech endpoint
-app.post('/tts', async (req, res) => {
+app.post('/api/tts', async (req, res) => {
   try {
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
 

@@ -126,7 +126,7 @@ export const ChatMessage = ({ message, isLast }: ChatMessageProps) => {
                       {file?.name || 'Неизвестный файл'}
                   </span>
                   <span className={`text-xs ${isAssistant ? 'opacity-70' : 'text-white/70'}`}>
-                      ({file?.size ? (file.size / 1024 / 1024).toFixed(1) + ' MB' : 'размер неизвестен'})
+                      ({file?.size ? `${(file.size / 1024 / 1024).toFixed(1)  } MB` : 'размер неизвестен'})
                   </span>
                 </div>
                 ))}
