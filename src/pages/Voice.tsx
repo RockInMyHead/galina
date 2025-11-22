@@ -1,10 +1,11 @@
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, MicOff, Sparkles, Send } from "lucide-react";
+import { Mic, MicOff, Sparkles, Send, Download, FileText } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { sendChatMessage, textToSpeech, playAudioBlob, speechToText } from "@/utils/apiUtils";
 import { AI_SYSTEM_MESSAGES, API_CONFIG } from "@/config/constants";
+import jsPDF from 'jspdf';
 
 interface Message {
   id: string;
@@ -49,6 +50,10 @@ const Voice = () => {
 
   // Auto-send status
   const [isAutoSending, setIsAutoSending] = useState(false);
+
+  // Conversation summary
+  const [conversationSummary, setConversationSummary] = useState<string[]>([]);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // Detailed logging of environment detection
   useEffect(() => {
@@ -155,6 +160,134 @@ const Voice = () => {
     };
   }, [isProcessingAudio, isGeneratingTTS, isPlayingTTS, startBeepInterval, stopBeepInterval]);
 
+  // Generate conversation summary
+  const generateConversationSummary = useCallback(async (messages: Message[]) => {
+    if (messages.length < 2) return; // Need at least user question and AI response
+
+    setIsGeneratingSummary(true);
+
+    try {
+      // Extract key points from conversation
+      const userMessages = messages.filter(m => m.role === 'user').map(m => m.content);
+      const aiMessages = messages.filter(m => m.role === 'assistant').slice(1); // Skip greeting
+
+      const summary = [];
+
+      // Add main topics/questions
+      if (userMessages.length > 0) {
+        summary.push(`📋 Основные вопросы клиента:`);
+        userMessages.forEach((msg, index) => {
+          const shortMsg = msg.length > 100 ? msg.substring(0, 100) + '...' : msg;
+          summary.push(`   ${index + 1}. ${shortMsg}`);
+        });
+      }
+
+      // Add key recommendations from AI
+      if (aiMessages.length > 0) {
+        summary.push(``);
+        summary.push(`💡 Рекомендации юриста:`);
+
+        aiMessages.forEach((msg, index) => {
+          // Extract key sentences that contain advice
+          const sentences = msg.content.split(/[.!?]+/).filter(s => s.trim().length > 10);
+
+          sentences.forEach(sentence => {
+            const trimmed = sentence.trim();
+            // Look for sentences with advice keywords
+            if (trimmed.includes('рекомендую') ||
+                trimmed.includes('следует') ||
+                trimmed.includes('необходимо') ||
+                trimmed.includes('важно') ||
+                trimmed.includes('обратитесь') ||
+                trimmed.includes('подготовьте') ||
+                trimmed.includes('составьте')) {
+              summary.push(`   • ${trimmed}`);
+            }
+          });
+
+          // If no specific advice found, add a general summary
+          if (summary.length === 2) { // Only header added
+            const shortResponse = msg.content.length > 150 ? msg.content.substring(0, 150) + '...' : msg.content;
+            summary.push(`   • ${shortResponse}`);
+          }
+        });
+      }
+
+      // Add conversation metadata
+      summary.push(``);
+      summary.push(`📊 Информация о консультации:`);
+      summary.push(`   • Дата и время: ${new Date().toLocaleString('ru-RU')}`);
+      summary.push(`   • Количество сообщений: ${messages.length}`);
+      summary.push(`   • Продолжительность: ~${Math.ceil(messages.length / 2)} мин`);
+
+      setConversationSummary(summary);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      setConversationSummary(['Ошибка генерации сводки разговора']);
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  }, []);
+
+  // Generate PDF from conversation summary
+  const downloadConversationPDF = useCallback(async () => {
+    if (conversationSummary.length === 0) return;
+
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPosition = 30;
+
+      // Title
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Юридическая консультация - основные тезисы', margin, yPosition);
+      yPosition += 20;
+
+      // Date
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Дата: ${new Date().toLocaleDateString('ru-RU')}`, margin, yPosition);
+      yPosition += 15;
+
+      // Content
+      pdf.setFontSize(11);
+      conversationSummary.forEach((line) => {
+        if (yPosition > pageHeight - 30) {
+          pdf.addPage();
+          yPosition = 30;
+        }
+
+        // Handle different line types
+        if (line.includes('📋') || line.includes('💡') || line.includes('📊')) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(line, margin, yPosition);
+            } else {
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(line, margin, yPosition);
+        }
+
+        yPosition += 8;
+      });
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'italic');
+      pdf.text('Сгенерировано AI-юристом Галиной', margin, pageHeight - 20);
+
+      // Download
+      const fileName = `consultation-summary-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+
+      console.log('✅ PDF generated and downloaded:', fileName);
+    } catch (error) {
+      console.error('❌ Error generating PDF:', error);
+      alert('Ошибка при генерации PDF файла');
+    }
+  }, [conversationSummary]);
+
   // Handle sending messages to AI
   const handleSendMessage = useCallback(async (messageText?: string) => {
     const textToSend = messageText || transcript;
@@ -163,8 +296,8 @@ const Voice = () => {
     console.log('🚀 handleSendMessage called with:', textToSend);
 
     // Clear auto-send timer if running
-            if (autoSendTimerRef.current) {
-              clearTimeout(autoSendTimerRef.current);
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current);
       console.log('🕐 Cleared auto-send timer on send');
     }
 
@@ -196,11 +329,17 @@ const Voice = () => {
           timestamp: new Date()
         };
 
-        setMessages(prev => [...prev, aiMessage]);
+        const updatedMessages = [...messages, userMessage, aiMessage];
+        setMessages(updatedMessages);
+
+        // Generate conversation summary after AI response
+        setTimeout(() => {
+          generateConversationSummary(updatedMessages);
+        }, 1000); // Delay to allow UI to update
 
         // Auto-generate TTS for AI response
         speakAIResponse(response.data.content);
-            } else {
+    } else {
         console.error('❌ AI response error:', response.error);
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -600,6 +739,49 @@ const Voice = () => {
                     </div>
             </CardContent>
           </Card>
+
+          {/* Conversation Summary */}
+          {conversationSummary.length > 0 && (
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <FileText className="mr-2 h-5 w-5 text-blue-500" />
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Основные тезисы разговора
+                    </h3>
+                  </div>
+                          <Button
+                    onClick={downloadConversationPDF}
+                            size="sm"
+                            variant="outline"
+                    className="flex items-center"
+                    disabled={isGeneratingSummary}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Скачать PDF
+                          </Button>
+                      </div>
+
+                {isGeneratingSummary ? (
+                  <div className="text-center py-4">
+                    <Sparkles className="mx-auto h-6 w-6 animate-spin text-blue-500 mb-2" />
+                    <p className="text-gray-600">Формирую сводку разговора...</p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                    <div className="text-sm text-gray-700 space-y-1 font-mono">
+                      {conversationSummary.map((line, index) => (
+                        <div key={index} className={line.trim() === '' ? 'h-2' : ''}>
+                          {line.trim() === '' ? '\u00A0' : line}
+                        </div>
+                      ))}
+                      </div>
+                    </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Text Input Fallback */}
           <Card>
