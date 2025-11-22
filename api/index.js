@@ -9,7 +9,6 @@ require('dotenv').config({ path: './.env' });
 console.log('🔧 Environment loaded from:', __dirname + '/.env');
 console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
 console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
-console.log('🌐 Proxy configured:', proxyUrl);
 
 // Test OpenAI API key on startup
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
@@ -37,6 +36,8 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) 
 // Configure proxy agent for external requests
 const proxyUrl = 'http://pb3jms:85pNLX@45.147.180.58:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
+
+console.log('🌐 Proxy configured:', proxyUrl);
 
 // Helper function for fetch with proxy
 const fetchWithProxy = (url, options = {}) => {
