@@ -13,7 +13,11 @@ console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' 
 // Test OpenAI API key on startup
 if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
   console.log('🧪 Testing OpenAI API key...');
-  fetch('https://api.openai.com/v1/models', {
+
+  const testFetch = useProxy ? fetchWithProxy : fetch;
+  const connectionType = useProxy ? 'via proxy' : 'direct';
+
+  testFetch('https://api.openai.com/v1/models', {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -21,13 +25,16 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) 
   })
   .then(response => {
     if (response.ok) {
-      console.log('✅ OpenAI API key is valid');
+      console.log(`✅ OpenAI API key is valid (${connectionType})`);
     } else {
-      console.log('❌ OpenAI API key is invalid:', response.status, response.statusText);
+      console.log(`❌ OpenAI API key is invalid (${connectionType}):`, response.status, response.statusText);
+      if (useProxy) {
+        console.log('💡 Try setting USE_PROXY=false to test direct connection');
+      }
     }
   })
   .catch(error => {
-    console.log('❌ Error testing OpenAI API key:', error.message);
+    console.log(`❌ Error testing OpenAI API key (${connectionType}):`, error.message);
   });
 } else {
   console.log('⚠️ OpenAI API key not configured or invalid format');
@@ -36,11 +43,17 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) 
 // Configure proxy agent for external requests
 const proxyUrl = 'http://pb3jms:85pNLX@45.147.180.58:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
+const useProxy = process.env.USE_PROXY !== 'false'; // Default to true
 
 console.log('🌐 Proxy configured:', proxyUrl);
+console.log('🔧 Proxy enabled:', useProxy ? 'YES' : 'NO');
 
 // Helper function for fetch with proxy
 const fetchWithProxy = (url, options = {}) => {
+  if (!useProxy) {
+    console.log('🔄 Proxy disabled, using direct connection');
+    return fetch(url, options);
+  }
   return fetch(url, {
     ...options,
     agent: proxyAgent
@@ -967,7 +980,7 @@ app.post('/tts', async (req, res) => {
       return res.send(mockAudio);
     }
 
-    console.log('🎵 Requesting TTS from OpenAI with proxy:', { text: text.substring(0, 50), voice, model });
+    console.log('🎵 Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model, useProxy });
 
     const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
