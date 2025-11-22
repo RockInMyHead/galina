@@ -20,7 +20,7 @@ const Voice = () => {
   const [isContinuousListening, setIsContinuousListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [showTestMode, setShowTestMode] = useState(false);
-
+  
   // Auto-send timer
   const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null);
   const SILENCE_TIMEOUT = 2000; // 2 seconds
@@ -47,6 +47,9 @@ const Voice = () => {
   const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
   const [isPlayingTTS, setIsPlayingTTS] = useState(false);
 
+  // Auto-send status
+  const [isAutoSending, setIsAutoSending] = useState(false);
+
   // Detailed logging of environment detection
   useEffect(() => {
     console.log('🔍 Environment detection:', {
@@ -59,8 +62,8 @@ const Voice = () => {
       userAgent: navigator.userAgent.substring(0, 50) + '...'
     });
 
-    console.log('ℹ️ Environment check:', {
-      isSecure,
+      console.log('ℹ️ Environment check:', {
+        isSecure,
       reason: isSecure ? 'secure context' : 'insecure context - may have voice issues'
     });
   }, [isSecure]);
@@ -160,8 +163,8 @@ const Voice = () => {
     console.log('🚀 handleSendMessage called with:', textToSend);
 
     // Clear auto-send timer if running
-    if (autoSendTimerRef.current) {
-      clearTimeout(autoSendTimerRef.current);
+            if (autoSendTimerRef.current) {
+              clearTimeout(autoSendTimerRef.current);
       console.log('🕐 Cleared auto-send timer on send');
     }
 
@@ -197,7 +200,7 @@ const Voice = () => {
 
         // Auto-generate TTS for AI response
         speakAIResponse(response.data.content);
-      } else {
+            } else {
         console.error('❌ AI response error:', response.error);
         const errorMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -223,8 +226,8 @@ const Voice = () => {
   const speakAIResponse = useCallback(async (responseText: string) => {
     if (!responseText || !isSecure) return;
 
-    console.log('🎵 Preparing parallel OpenAI TTS for AI response...');
-    setIsGeneratingTTS(true);
+      console.log('🎵 Preparing parallel OpenAI TTS for AI response...');
+      setIsGeneratingTTS(true);
 
     try {
       // Split response into sentences for parallel processing
@@ -241,7 +244,7 @@ const Voice = () => {
         try {
           const audioBlob = await textToSpeech(cleanSentence);
           return { audio: audioBlob, text: cleanSentence, index };
-        } catch (error) {
+    } catch (error) {
           console.error(`❌ Failed to generate TTS for sentence ${index + 1}:`, error);
           return null;
         }
@@ -301,24 +304,22 @@ const Voice = () => {
     }
   }, [isSecure]);
 
-  // Voice interaction handler
+  // Voice interaction handler - simplified for auto-send workflow
   const handleVoiceInteraction = async () => {
     console.log('handleVoiceInteraction called:', {
-      isVoiceMode: isContinuousListening,
-      message: transcript.trim(),
-      isListening: isRecording,
-      isSupported: true
+      isRecording,
+      hasTranscript: !!transcript.trim(),
+      isProcessing: isProcessingAudio
     });
 
-    if (isContinuousListening && transcript.trim()) {
-      console.log('Sending voice message');
-      await handleSendMessage();
-      setIsContinuousListening(false);
-    } else if (!isRecording) {
-      console.log('Starting voice listening');
+    if (isRecording) {
+      console.log('Stopping current recording');
+      stopListening();
+    } else if (!isProcessingAudio) {
+      console.log('Starting new recording (will auto-send to LLM after transcription)');
       await startListening();
     } else {
-      console.log('Already listening or no action needed');
+      console.log('Processing audio, please wait...');
     }
   };
 
@@ -339,10 +340,10 @@ const Voice = () => {
 
       // Check microphone permissions
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('❌ getUserMedia not supported');
-        alert('Ваш браузер не поддерживает доступ к микрофону');
-        return;
-      }
+          console.error('❌ getUserMedia not supported');
+          alert('Ваш браузер не поддерживает доступ к микрофону');
+          return;
+        }
 
       console.log('🎙️ Requesting microphone permission...');
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -399,13 +400,22 @@ const Voice = () => {
 
           setTranscript(transcription);
 
-          // Auto-send if continuous listening is enabled
-          if (isContinuousListening && transcription.trim()) {
-            console.log('🚀 Auto-sending transcription...');
-            await handleSendMessage(transcription);
+          // Auto-send transcription to LLM immediately after successful transcription
+          if (transcription.trim()) {
+            console.log('🚀 Auto-sending transcription to LLM...');
+            setIsAutoSending(true);
+
+            // Small delay to let user see the transcription before sending
+            setTimeout(async () => {
+              try {
+                await handleSendMessage(transcription);
+              } finally {
+                setIsAutoSending(false);
+              }
+            }, 800); // 800ms delay to show the status
           }
 
-        } catch (error) {
+    } catch (error) {
           console.error('❌ Transcription error:', error);
           setTranscript('Ошибка распознавания речи. Попробуйте еще раз.');
         } finally {
@@ -432,7 +442,7 @@ const Voice = () => {
       setTimeout(() => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
           console.log('⏰ Auto-stopping recording after 30 seconds');
-          stopListening();
+      stopListening();
         }
       }, 30000);
 
@@ -440,7 +450,7 @@ const Voice = () => {
       console.error('❌ Error starting audio recording:', error);
       if (error.name === 'NotAllowedError') {
         alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
-      } else {
+    } else {
         alert('Ошибка доступа к микрофону: ' + error.message);
       }
     }
@@ -460,7 +470,7 @@ const Voice = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <Header />
-
+      
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
@@ -493,9 +503,9 @@ const Voice = () => {
                         {message.timestamp.toLocaleTimeString()}
                       </p>
                     </div>
-                  </div>
+                      </div>
                 ))}
-              </div>
+                      </div>
             </CardContent>
           </Card>
 
@@ -505,15 +515,29 @@ const Voice = () => {
               <div className="text-center">
                 <Button
                   onClick={handleVoiceInteraction}
-                  disabled={isProcessingAudio}
+                  disabled={isProcessingAudio || isAutoSending}
                   size="lg"
                   className={`mb-4 ${
                     isRecording
                       ? 'bg-red-500 hover:bg-red-600 animate-pulse'
+                      : isProcessingAudio
+                      ? 'bg-orange-500 hover:bg-orange-600'
+                      : isAutoSending
+                      ? 'bg-purple-500 hover:bg-purple-600'
                       : 'bg-blue-500 hover:bg-blue-600'
                   }`}
                 >
-                  {isRecording ? (
+                  {isAutoSending ? (
+                    <>
+                      <Sparkles className="mr-2 h-5 w-5 animate-spin" />
+                      Отправка в AI...
+                    </>
+                  ) : isProcessingAudio ? (
+                    <>
+                      <Sparkles className="mr-2 h-5 w-5 animate-spin" />
+                      Распознавание речи...
+                    </>
+                  ) : isRecording ? (
                     <>
                       <MicOff className="mr-2 h-5 w-5" />
                       Остановить запись
@@ -521,7 +545,7 @@ const Voice = () => {
                   ) : (
                     <>
                       <Mic className="mr-2 h-5 w-5" />
-                      Начать запись
+                      Начать голосовую консультацию
                     </>
                   )}
                 </Button>
@@ -533,26 +557,26 @@ const Voice = () => {
                       <span className="text-blue-600 font-medium">
                         Распознавание речи с помощью Whisper...
                       </span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {transcript && (
+                        {transcript && (
                   <div className="bg-blue-50 rounded-lg p-4 mb-4">
                     <p className="text-blue-800 font-medium mb-2">Распознанный текст:</p>
                     <p className="text-blue-700">{transcript}</p>
                   </div>
                 )}
 
-                {interimTranscript && (
+                        {interimTranscript && (
                   <div className="bg-yellow-50 rounded-lg p-4 mb-4">
                     <p className="text-yellow-800 font-medium mb-2">Промежуточный результат:</p>
                     <p className="text-yellow-700 italic">{interimTranscript}</p>
-                  </div>
-                )}
+                          </div>
+                        )}
 
                 {/* Status indicators */}
-                <div className="flex justify-center space-x-4 text-sm text-gray-600">
+                <div className="flex justify-center space-x-4 text-sm text-gray-600 mb-4">
                   <span className={isSecure ? 'text-green-600' : 'text-red-600'}>
                     🔒 {isSecure ? 'Безопасный контекст' : 'Небезопасный контекст'}
                   </span>
@@ -560,10 +584,20 @@ const Voice = () => {
                     🎙️ {isRecording ? 'Запись активна' : 'Готов к записи'}
                   </span>
                   <span className={isProcessingAudio ? 'text-blue-600' : 'text-gray-400'}>
-                    🤖 {isProcessingAudio ? 'Обработка аудио' : 'Ожидание'}
+                    🤖 {isProcessingAudio ? 'Распознавание речи' : 'Ожидание'}
                   </span>
-                </div>
-              </div>
+                  {isAutoSending && (
+                    <span className="text-orange-600 animate-pulse">
+                      📤 Отправка в AI...
+                    </span>
+                        )}
+                      </div>
+
+                {/* Auto-send info */}
+                <div className="text-center text-sm text-gray-500 mb-4">
+                  🎯 После окончания записи текст автоматически отправится в AI для консультации
+                      </div>
+                    </div>
             </CardContent>
           </Card>
 
@@ -587,18 +621,18 @@ const Voice = () => {
                     placeholder="Введите ваш вопрос..."
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <Button
+                      <Button
                     onClick={() => handleSendMessage()}
                     disabled={!transcript.trim()}
                   >
                     <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                      </Button>
+                  </div>
+                  </div>
+                </CardContent>
+              </Card>
+          </div>
         </div>
-      </div>
     </div>
   );
 };
