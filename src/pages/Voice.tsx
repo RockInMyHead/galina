@@ -26,8 +26,7 @@ const Voice = () => {
   const SILENCE_TIMEOUT = 2000; // 2 seconds
   const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'waiting' | 'sending'>('idle');
 
-  // Development helpers
-  const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  // Environment detection
   const isSecure = window.isSecureContext || location.protocol === 'https:';
 
   // Detailed logging of environment detection
@@ -37,23 +36,16 @@ const Voice = () => {
       protocol: location.protocol,
       port: location.port,
       href: location.href,
-      isLocalhost,
       isSecure,
       secureContext: window.isSecureContext,
       userAgent: navigator.userAgent.substring(0, 50) + '...'
     });
 
-    if (isLocalhost && !isSecure) {
-      console.log('🔧 Auto-enabling test mode for localhost development');
-      setShowTestMode(true);
-    } else {
-      console.log('ℹ️ Environment check:', {
-        isLocalhost,
-        isSecure,
-        reason: !isLocalhost ? 'not localhost' : 'already secure or HTTPS'
-      });
-    }
-  }, [isLocalhost, isSecure]);
+    console.log('ℹ️ Environment check:', {
+      isSecure,
+      reason: isSecure ? 'secure context' : 'insecure context - may have voice issues'
+    });
+  }, [isSecure]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -230,7 +222,6 @@ const Voice = () => {
 
         // Detailed debug information
         const debugInfo = {
-          isLocalhost,
           isSecure,
           hostname: location.hostname,
           protocol: location.protocol,
@@ -616,15 +607,13 @@ const Voice = () => {
         }
 
         // Check if we're in a secure context
-        const currentIsLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
         const currentIsSecure = window.isSecureContext || location.protocol === 'https:';
 
         console.log('🔒 Security context check:', {
           hostname: location.hostname,
           protocol: location.protocol,
           isSecure: currentIsSecure,
-          secureContext: window.isSecureContext,
-          isLocalhost: currentIsLocalhost
+          secureContext: window.isSecureContext
         });
 
         if (!currentIsSecure) {
@@ -632,18 +621,8 @@ const Voice = () => {
           console.log(`📍 Current protocol: ${location.protocol}`);
           console.log(`🔒 Secure context: ${window.isSecureContext}`);
 
-          if (isLocalhost) {
-            console.log('💡 For localhost development, you can:');
-            console.log('   1. Use HTTPS: npm run dev -- --https');
-            console.log('   2. Configure Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure + http://localhost:3001');
-            console.log('   3. Use Firefox with media.webspeech.recognition.force_allow_insecure = true');
-
-            // For localhost, we'll try anyway but warn the user
-            console.log('🔄 Trying to use speech recognition despite insecure context...');
-          } else {
-            alert('Web Speech API требует HTTPS соединения для работы с микрофоном.');
-            return;
-          }
+          alert('Web Speech API требует HTTPS соединения для работы с микрофоном.');
+          return;
         }
 
         console.log('⏳ Delaying recognition start by 100ms...');
@@ -975,7 +954,7 @@ const Voice = () => {
 
 
                   {/* Test input for development */}
-                  {(showTestMode || (isLocalhost && !isSecure)) && (
+                  {showTestMode && (
                     <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200 mb-4">
                       <div className="text-sm text-yellow-800 mb-2 font-medium">
                         🧪 Режим разработки {showTestMode ? '(включен из-за ошибки)' : '(без HTTPS)'}
