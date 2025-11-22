@@ -944,6 +944,78 @@ app.post('/chat', async (req, res) => {
   }
 });
 
+// Speech to Text endpoint using OpenAI Whisper
+app.post('/stt', multer().single('audio'), async (req, res) => {
+  try {
+    console.log('🎤 STT Request received');
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Audio file is required' });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    console.log('🔑 API Key status:', {
+      exists: !!apiKey,
+      startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
+      audioSize: req.file.size,
+      audioType: req.file.mimetype
+    });
+
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      console.log('⚠️ OpenAI API key not valid for Whisper');
+      return res.status(500).json({ error: 'Speech recognition service unavailable' });
+    }
+
+    console.log('🎵 Sending audio to OpenAI Whisper API...');
+
+    // Create form data for Whisper API
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: 'audio.wav',
+      contentType: req.file.mimetype
+    });
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'ru'); // Russian language
+    formData.append('response_format', 'json');
+
+    const response = await fetchWithProxy('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text().catch(() => '');
+      console.error('❌ Whisper API error:', response.status, errorData);
+
+      return res.status(response.status).json({
+        error: 'Speech recognition failed',
+        details: `Whisper API error: ${response.status}`
+      });
+    }
+
+    const whisperData = await response.json();
+    const transcription = whisperData.text || '';
+
+    console.log('✅ Whisper transcription successful:', transcription.substring(0, 100) + '...');
+
+    res.json({
+      success: true,
+      transcription: transcription,
+      language: whisperData.language || 'ru'
+    });
+
+  } catch (error) {
+    console.error('❌ STT Server error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
 // Text to Speech endpoint
 app.post('/tts', async (req, res) => {
   try {

@@ -127,13 +127,46 @@ export const createErrorMessage = (code: string, details?: any): string => {
     INVALID_FILE_TYPE: 'Неподдерживаемый тип файла.',
     PDF_EXTRACTION_FAILED: 'Не удалось обработать PDF файл.',
     CHAT_API_ERROR: 'Ошибка при обращении к AI. Попробуйте позже.',
+    SPEECH_RECOGNITION_ERROR: 'Ошибка распознавания речи. Попробуйте еще раз.',
   }
 
   return errorMessages[code] || 'Произошла ошибка. Попробуйте еще раз.'
 }
 
-// Speech to Text is now handled locally by Web Speech API in the browser
-// No backend API calls needed for speech recognition
+/**
+ * Speech to Text using OpenAI Whisper API
+ */
+export const speechToText = async (audioBlob: Blob): Promise<string> => {
+  try {
+    console.log('🎤 Sending audio to Whisper API, size:', audioBlob.size, 'bytes');
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.wav');
+
+    const response = await fetch(`${API_CONFIG.BASE_URL}/stt`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Whisper API error:', response.status, errorData);
+      throw new Error(errorData.error || 'Speech recognition failed');
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.transcription) {
+      console.log('✅ Whisper transcription received:', data.transcription.substring(0, 50) + '...');
+      return data.transcription;
+    } else {
+      throw new Error('Invalid response from speech recognition service');
+    }
+  } catch (error) {
+    console.error('❌ Speech to Text error:', error);
+    throw error;
+  }
+}
 
 /**
  * Text to Speech using OpenAI TTS
