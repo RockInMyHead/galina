@@ -6,14 +6,17 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
-    port: 0,
+    host: "0.0.0.0", // Listen on all interfaces for Safari compatibility
+    port: 3001,
+    strictPort: true, // Fail if port is already in use
     hmr: {
-      // Настройки для WebSocket HMR
-      port: 0,
+      // Настройки для WebSocket HMR (Safari compatible)
+      port: 3001,
       host: 'localhost',
       protocol: 'ws',
+      clientPort: 3001,
     },
+    cors: true, // Enable CORS for Safari compatibility
     // Дополнительные настройки для стабильности WebSocket
     watch: {
       usePolling: false,

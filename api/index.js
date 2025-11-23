@@ -10,36 +10,6 @@ console.log('🔧 Environment loaded from:', __dirname + '/.env');
 console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
 console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
 
-// Test OpenAI API key on startup
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
-  console.log('🧪 Testing OpenAI API key...');
-
-  const testFetch = useProxy ? fetchWithProxy : fetch;
-  const connectionType = useProxy ? 'via proxy' : 'direct';
-
-  testFetch('https://api.openai.com/v1/models', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-  })
-  .then(response => {
-    if (response.ok) {
-      console.log(`✅ OpenAI API key is valid (${connectionType})`);
-    } else {
-      console.log(`❌ OpenAI API key is invalid (${connectionType}):`, response.status, response.statusText);
-      if (useProxy) {
-        console.log('💡 Try setting USE_PROXY=false to test direct connection');
-      }
-    }
-  })
-  .catch(error => {
-    console.log(`❌ Error testing OpenAI API key (${connectionType}):`, error.message);
-  });
-} else {
-  console.log('⚠️ OpenAI API key not configured or invalid format');
-}
-
 // Configure proxy agent for external requests
 const proxyUrl = 'http://pb3jms:85pNLX@45.147.180.58:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
@@ -59,6 +29,40 @@ const fetchWithProxy = (url, options = {}) => {
     agent: proxyAgent
   });
 };
+
+// Test OpenAI API key on startup (async, non-blocking)
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
+  console.log('🧪 Testing OpenAI API key in background...');
+
+  // Run test asynchronously to not block server startup
+  setTimeout(async () => {
+    try {
+      const testFetch = useProxy ? fetchWithProxy : fetch;
+      const connectionType = useProxy ? 'via proxy' : 'direct';
+
+      const response = await testFetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+
+      if (response.ok) {
+        console.log(`✅ OpenAI API key is valid (${connectionType})`);
+      } else {
+        console.log(`❌ OpenAI API key is invalid (${connectionType}):`, response.status, response.statusText);
+        if (useProxy) {
+          console.log('💡 Try setting USE_PROXY=false to test direct connection');
+        }
+      }
+    } catch (error) {
+      console.log(`❌ Error testing OpenAI API key (${useProxy ? 'via proxy' : 'direct'}):`, error.message);
+    }
+  }, 100); // Small delay to let server start
+} else {
+  console.log('⚠️ OpenAI API key not configured or invalid format');
+}
 
 // Initialize Prisma Client (disabled for testing)
 // const prisma = new PrismaClient();
@@ -426,6 +430,8 @@ const corsAllowedOrigins = [
   'http://lawyer.windexs.ru',
   'https://lawyer.windexs.ru:1041',
   'http://lawyer.windexs.ru:1041',
+  'http://localhost:3001', // Frontend dev server
+  'http://127.0.0.1:3001', // Frontend dev server
 ];
 
 const corsOptions = {
@@ -941,78 +947,6 @@ app.post('/chat', async (req, res) => {
   } catch (error) {
     console.error('Server error:', error);
     res.status(500).json({ error: 'Internal server error', details: error.message });
-  }
-});
-
-// Speech to Text endpoint using OpenAI Whisper
-app.post('/stt', multer().single('audio'), async (req, res) => {
-  try {
-    console.log('🎤 STT Request received');
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'Audio file is required' });
-    }
-
-    const apiKey = process.env.OPENAI_API_KEY;
-    console.log('🔑 API Key status:', {
-      exists: !!apiKey,
-      startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
-      audioSize: req.file.size,
-      audioType: req.file.mimetype
-    });
-
-    if (!apiKey || !apiKey.startsWith('sk-')) {
-      console.log('⚠️ OpenAI API key not valid for Whisper');
-      return res.status(500).json({ error: 'Speech recognition service unavailable' });
-    }
-
-    console.log('🎵 Sending audio to OpenAI Whisper API...');
-
-    // Create form data for Whisper API
-    const formData = new FormData();
-    formData.append('file', req.file.buffer, {
-      filename: 'audio.wav',
-      contentType: req.file.mimetype
-    });
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'ru'); // Russian language
-    formData.append('response_format', 'json');
-
-    const response = await fetchWithProxy('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text().catch(() => '');
-      console.error('❌ Whisper API error:', response.status, errorData);
-
-      return res.status(response.status).json({
-        error: 'Speech recognition failed',
-        details: `Whisper API error: ${response.status}`
-      });
-    }
-
-    const whisperData = await response.json();
-    const transcription = whisperData.text || '';
-
-    console.log('✅ Whisper transcription successful:', transcription.substring(0, 100) + '...');
-
-    res.json({
-      success: true,
-      transcription: transcription,
-      language: whisperData.language || 'ru'
-    });
-
-  } catch (error) {
-    console.error('❌ STT Server error:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      details: error.message
-    });
   }
 });
 
@@ -1844,7 +1778,7 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 API server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 API server running on port ${PORT} (listening on all interfaces)`);
   console.log(`📊 Database: ${process.env.DATABASE_URL}`);
 });
