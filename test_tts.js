@@ -8,7 +8,7 @@ async function testTTS() {
 
     const testText = 'Привет! Я Галина, ваш AI-юрист.';
 
-    const response = await fetch('http://localhost:1042/tts', {
+    const response = await fetch('http://localhost:3001/api/tts', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

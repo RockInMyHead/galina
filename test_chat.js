@@ -5,7 +5,7 @@ async function testChat() {
   try {
     console.log('🧪 Testing Chat API with LLC registration question...');
 
-    const response = await fetch('http://localhost:1042/chat', {
+    const response = await fetch('http://localhost:3001/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ async function testStreamingChat() {
   try {
     console.log('🧪 Testing Streaming Chat API...');
 
-    const response = await fetch('http://localhost:1042/chat', {
+    const response = await fetch('http://localhost:3001/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
