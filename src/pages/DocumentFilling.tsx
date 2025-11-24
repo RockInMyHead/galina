@@ -161,7 +161,7 @@ const DocumentFilling = () => {
           ],
           model: 'gpt-5.1',
           reasoning: 'medium',
-          max_tokens: 500,
+          max_completion_tokens: 500,
           temperature: 0.3,
         })
       });
@@ -316,7 +316,7 @@ ${documentToEdit}`
           ],
           model: 'gpt-5.1',
           reasoning: 'medium',
-          max_tokens: 2000,
+          max_completion_tokens: 2000,
           temperature: 0.3,
         })
       });
@@ -635,7 +635,7 @@ ${documentToEdit}`
           ],
           model: 'gpt-5.1',
           reasoning: 'medium',
-          max_tokens: 1500,
+          max_completion_tokens: 1500,
           temperature: 0.1,
         })
       });
@@ -682,7 +682,7 @@ ${documentToEdit}`
           ],
           model: 'gpt-5.1',
           reasoning: 'medium',
-          max_tokens: 2000,
+          max_completion_tokens: 2000,
           temperature: 0.3,
         })
       });
@@ -1012,7 +1012,7 @@ ${documentToEdit}`
               ],
               model: 'gpt-5.1',
           reasoning: 'medium',
-              max_tokens: 1500,
+              max_completion_tokens: 1500,
               temperature: 0.3,
             })
           });
@@ -1104,7 +1104,7 @@ ${documentToEdit}`
                   ],
                   model: 'gpt-5.1',
           reasoning: 'medium',
-                  max_tokens: 1500,
+                  max_completion_tokens: 1500,
                   temperature: 0.3,
                 })
               });
@@ -1189,7 +1189,7 @@ ${documentToEdit}`
               ],
               model: 'gpt-5.1',
           reasoning: 'medium',
-              max_tokens: 1500,
+              max_completion_tokens: 1500,
               temperature: 0.3,
             })
           });
@@ -1272,7 +1272,7 @@ ${documentToEdit}`
               ],
               model: 'gpt-5.1',
           reasoning: 'medium',
-              max_tokens: 1500,
+              max_completion_tokens: 1500,
               temperature: 0.3,
             })
           });
@@ -1848,12 +1848,12 @@ ${documentAnalysis}
 
                   {/* Кнопка загрузки */}
                   <Card className={`border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer ${
-                    uploadedFile ? 'border-green-200 bg-green-50/50' : ''
+                    uploadedFile ? 'border-[#129246]/20 bg-[#129246]/5' : ''
                   }`} onClick={handleUploadDocument}>
                     <CardContent className="p-6">
                       <div className="flex items-center gap-4">
                         <div className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                          uploadedFile ? 'bg-green-500/20 text-green-700' : 'bg-green-500/10 text-green-600'
+                          uploadedFile ? 'bg-[#129246]/20 text-[#129246]' : 'bg-[#129246]/10 text-[#129246]/70'
                         }`}>
                           <Upload className="h-6 w-6" />
                         </div>
@@ -2038,7 +2038,7 @@ ${documentAnalysis}
                           "Получите готовый заполненный документ мгновенно",
                         ].map((step, index) => (
                           <li key={index} className="flex items-start gap-3 text-sm">
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white flex-shrink-0 text-xs font-semibold">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-full text-white flex-shrink-0 text-xs font-semibold" style={{ backgroundColor: '#129246' }}>
                           {index + 1}
                         </div>
                         <span className="text-muted-foreground mt-0.5">{step}</span>
@@ -2332,9 +2332,9 @@ ${documentAnalysis}
               console.log('🎨 Рендерим готовый документ, completedDocument существует:', !!completedDocument);
               return completedDocument;
             })() && (
-              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: '#12924605', border: '1px solid #12924620' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-green-900 flex items-center gap-2">
+                  <h4 className="font-semibold flex items-center gap-2" style={{ color: '#129246' }}>
                     <CheckCircle2 className="h-5 w-5" />
                     Документ готов!
                   </h4>
@@ -2575,9 +2575,9 @@ ${documentAnalysis}
 
               {/* Результат сканирования */}
               {scanResult && (
-                <div className="border rounded-lg p-4 bg-green-50">
+                <div className="border rounded-lg p-4" style={{ backgroundColor: '#12924605', borderColor: '#12924620' }}>
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-green-900 flex items-center gap-2">
+                    <h3 className="font-semibold flex items-center gap-2" style={{ color: '#129246' }}>
                       <CheckCircle2 className="h-5 w-5" />
                       Документ готов!
                     </h3>

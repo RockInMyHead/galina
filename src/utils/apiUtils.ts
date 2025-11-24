@@ -63,7 +63,7 @@ export const sendChatMessage = async (
   }>,
   options: {
     model?: string
-    max_tokens?: number
+    max_completion_tokens?: number
     temperature?: number
   } = {}
 ): Promise<ChatApiResponse> => {
@@ -72,8 +72,7 @@ export const sendChatMessage = async (
     body: JSON.stringify({
       messages,
       model: options.model || 'gpt-5.1',
-      reasoning: options.reasoning || 'medium',
-      max_tokens: options.max_tokens || 2000,
+      max_completion_tokens: options.max_completion_tokens || 2000,
       temperature: options.temperature || 0.7,
     }),
   })
@@ -127,46 +126,13 @@ export const createErrorMessage = (code: string, details?: any): string => {
     INVALID_FILE_TYPE: 'Неподдерживаемый тип файла.',
     PDF_EXTRACTION_FAILED: 'Не удалось обработать PDF файл.',
     CHAT_API_ERROR: 'Ошибка при обращении к AI. Попробуйте позже.',
-    SPEECH_RECOGNITION_ERROR: 'Ошибка распознавания речи. Попробуйте еще раз.',
   }
 
   return errorMessages[code] || 'Произошла ошибка. Попробуйте еще раз.'
 }
 
-/**
- * Speech to Text using OpenAI Whisper API
- */
-export const speechToText = async (audioBlob: Blob): Promise<string> => {
-  try {
-    console.log('🎤 Sending audio to Whisper API, size:', audioBlob.size, 'bytes');
-
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'audio.wav');
-
-    const response = await fetch(`${API_CONFIG.BASE_URL}/stt`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('❌ Whisper API error:', response.status, errorData);
-      throw new Error(errorData.error || 'Speech recognition failed');
-    }
-
-    const data = await response.json();
-
-    if (data.success && data.transcription) {
-      console.log('✅ Whisper transcription received:', data.transcription.substring(0, 50) + '...');
-      return data.transcription;
-    } else {
-      throw new Error('Invalid response from speech recognition service');
-    }
-  } catch (error) {
-    console.error('❌ Speech to Text error:', error);
-    throw error;
-  }
-}
+// Speech to Text is now handled locally by Web Speech API in the browser
+// No backend API calls needed for speech recognition
 
 /**
  * Text to Speech using OpenAI TTS
@@ -199,50 +165,26 @@ export const textToSpeech = async (text: string): Promise<Blob | null> => {
 
 /**
  * Play audio from blob
- * Returns true if playback was successful, false if there was an error
  */
-export const playAudioBlob = (audioBlob: Blob): Promise<boolean> => {
+export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
   return new Promise((resolve) => {
-    // Check if blob has reasonable size (mock audio is ~48 bytes, real audio is much larger)
-    if (audioBlob.size < 1000) {
-      console.warn('⚠️ Audio blob too small, likely mock audio:', audioBlob.size, 'bytes')
-      resolve(false)
-      return
-    }
-
     const audioUrl = URL.createObjectURL(audioBlob)
     const audio = new Audio(audioUrl)
 
-    let playbackStarted = false
-
     audio.onended = () => {
       URL.revokeObjectURL(audioUrl)
-      resolve(playbackStarted)
+      resolve()
     }
 
     audio.onerror = () => {
-      console.error('Audio playback error: failed to load audio')
       URL.revokeObjectURL(audioUrl)
-      resolve(false)
+      resolve()
     }
 
-    audio.play().then(() => {
-      playbackStarted = true
-    }).catch((error) => {
-      console.error('Audio playback error:', error.message)
-      console.error('Audio blob size:', audioBlob.size, 'bytes')
-      console.error('Audio type:', audioBlob.type || 'unknown')
-
-      // Provide more specific error messages
-      if (error.name === 'NotSupportedError') {
-        console.error('❌ Audio format not supported. This may be due to:')
-        console.error('   - Invalid audio data (mock audio instead of real TTS)')
-        console.error('   - Browser compatibility issues')
-        console.error('   - Corrupted audio stream')
-      }
-
+    audio.play().catch((error) => {
+      console.error('Audio playback error:', error)
       URL.revokeObjectURL(audioUrl)
-      resolve(false)
+      resolve()
     })
   })
 }

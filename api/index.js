@@ -5,64 +5,17 @@ const { PrismaClient } = require('@prisma/client');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 require('dotenv').config({ path: './.env' });
 
-// Environment loaded successfully
-console.log('🔧 Environment loaded from:', __dirname + '/.env');
-console.log('🔑 OPENAI_API_KEY loaded:', process.env.OPENAI_API_KEY ? 'YES (' + process.env.OPENAI_API_KEY.substring(0, 15) + '...)' : 'NO');
-console.log('🔑 TAVILY_API_KEY loaded:', process.env.TAVILY_API_KEY ? 'YES (' + process.env.TAVILY_API_KEY.substring(0, 15) + '...)' : 'NO');
-
 // Configure proxy agent for external requests
-const proxyUrl = 'http://pb3jms:85pNLX@45.147.180.58:8000';
+const proxyUrl = 'http://rBD9e6:jZdUnJ@185.68.187.20:8000';
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
-const useProxy = process.env.USE_PROXY !== 'false'; // Default to true
-
-console.log('🌐 Proxy configured:', proxyUrl);
-console.log('🔧 Proxy enabled:', useProxy ? 'YES' : 'NO');
 
 // Helper function for fetch with proxy
 const fetchWithProxy = (url, options = {}) => {
-  if (!useProxy) {
-    console.log('🔄 Proxy disabled, using direct connection');
-    return fetch(url, options);
-  }
   return fetch(url, {
     ...options,
     agent: proxyAgent
   });
 };
-
-// Test OpenAI API key on startup (async, non-blocking)
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
-  console.log('🧪 Testing OpenAI API key in background...');
-
-  // Run test asynchronously to not block server startup
-  setTimeout(async () => {
-    try {
-      const testFetch = useProxy ? fetchWithProxy : fetch;
-      const connectionType = useProxy ? 'via proxy' : 'direct';
-
-      const response = await testFetch('https://api.openai.com/v1/models', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        signal: AbortSignal.timeout(10000), // 10 second timeout
-      });
-
-      if (response.ok) {
-        console.log(`✅ OpenAI API key is valid (${connectionType})`);
-      } else {
-        console.log(`❌ OpenAI API key is invalid (${connectionType}):`, response.status, response.statusText);
-        if (useProxy) {
-          console.log('💡 Try setting USE_PROXY=false to test direct connection');
-        }
-      }
-    } catch (error) {
-      console.log(`❌ Error testing OpenAI API key (${useProxy ? 'via proxy' : 'direct'}):`, error.message);
-    }
-  }, 100); // Small delay to let server start
-} else {
-  console.log('⚠️ OpenAI API key not configured or invalid format');
-}
 
 // Initialize Prisma Client (disabled for testing)
 // const prisma = new PrismaClient();
@@ -430,8 +383,11 @@ const corsAllowedOrigins = [
   'http://lawyer.windexs.ru',
   'https://lawyer.windexs.ru:1041',
   'http://lawyer.windexs.ru:1041',
-  'http://localhost:3001', // Frontend dev server
-  'http://127.0.0.1:3001', // Frontend dev server
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'http://localhost:3004',
+  'http://localhost:4000',
+  'http://localhost:5173',
 ];
 
 const corsOptions = {
@@ -493,7 +449,7 @@ const handleMulterError = (error, req, res, next) => {
 
 
 // Test endpoint to verify proxy is working
-app.get('/test-proxy', async (req, res) => {
+app.get('/api/test-proxy', async (req, res) => {
   try {
     console.log('🧪 Testing proxy connection...');
     const response = await fetchWithProxy('https://httpbin.org/ip');
@@ -516,12 +472,12 @@ app.get('/test-proxy', async (req, res) => {
   }
 });
 
-app.post('/chat', async (req, res) => {
+app.post('/api/chat', async (req, res) => {
   try {
     console.log('=== New Chat Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
-    const { messages, model = 'gpt-5.1', max_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
+    const { messages, model = 'gpt-5.1', max_completion_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -537,16 +493,16 @@ app.post('/chat', async (req, res) => {
         try {
           console.log('🔍 Testing OpenAI API key validity...');
           // Quick test request to check if API key works with GPT-5.1
-          const testResponse = await fetchWithProxy('https://api.openai.com/v1/responses', {
+            const testResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
         body: JSON.stringify({
-          model: 'gpt-4o',
-          input: [{ role: 'user', content: 'test' }],
-          reasoning: { effort: 'low' }
+          model: 'gpt-5.1',
+          messages: [{ role: 'user', content: 'test' }],
+          max_completion_tokens: 10
         })
           });
           apiKeyValid = testResponse.ok;
@@ -577,6 +533,8 @@ app.post('/chat', async (req, res) => {
           mockContent = 'Для регистрации ООО в России требуются следующие документы: Устав общества, Решение о создании ООО, Заявление по форме Р11001, Договор об учреждении ООО (если несколько учредителей), Квитанция об оплате госпошлины (4000 рублей), Паспорта и ИНН учредителей и директора, а также документы на юридический адрес.';
         } else if (lowerContent.includes('ип') || lowerContent.includes('индивидуальн') && lowerContent.includes('предпринимател')) {
           mockContent = 'Для регистрации ИП в России требуются: Заявление по форме Р21001, Паспорт, ИНН и Квитанция об оплате госпошлины (800 рублей).';
+        } else if (lowerContent.includes('план') && lowerContent.includes('ответ')) {
+          mockContent = '1. Правовые основы проблемы\n2. Практические рекомендации\n3. Возможные риски и решения';
         } else {
           mockContent = 'Привет! Я Галина, ваш AI-юрист. Я помогу вам с юридическими вопросами. Задайте мне любой вопрос о законодательстве Российской Федерации.';
         }
@@ -595,8 +553,9 @@ app.post('/chat', async (req, res) => {
         })();
         return;
       } else {
-        // Real streaming with OpenAI
-        console.log('Starting real streaming with OpenAI');
+        // Real streaming with OpenAI GPT-5.1 Chat Completions API
+        console.log('Starting real streaming with OpenAI GPT-5.1 Chat Completions API');
+
         const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -604,13 +563,9 @@ app.post('/chat', async (req, res) => {
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model,
-            messages,
-            max_tokens,
-            temperature,
-            top_p,
-            presence_penalty,
-            frequency_penalty,
+            model: 'gpt-5.1',
+            messages: messages,
+            max_completion_tokens: max_completion_tokens || 2000,
             stream: true
           })
         });
@@ -650,12 +605,32 @@ app.post('/chat', async (req, res) => {
 
                 try {
                   const parsed = JSON.parse(data);
-                  const content = parsed.choices[0]?.delta?.content;
-                  if (content) {
+                  let content = null;
+
+                  // GPT-5.1 streaming uses standard Chat Completions format
+                  if (parsed.choices && Array.isArray(parsed.choices) && parsed.choices.length > 0) {
+                    content = parsed.choices[0]?.delta?.content || '';
+                    console.log('✅ Extracted content from GPT-5.1 streaming Chat Completions format');
+                  }
+
+                  // Fallback to Responses API format (output_text)
+                  else if (parsed.output_text !== undefined) {
+                    content = parsed.output_text;
+                    console.log('✅ Extracted content from GPT-5.1 streaming Responses API (output_text)');
+                  }
+
+                  // Fallback to old Responses API format
+                  else if (parsed.output && Array.isArray(parsed.output) && parsed.output.length > 0) {
+                    const firstOutput = parsed.output[0];
+                    if (firstOutput.content && Array.isArray(firstOutput.content) && firstOutput.content.length > 0) {
+                      content = firstOutput.content[0].text || '';
+                      console.log('✅ Extracted content from old Responses API streaming format');
+                    }
+                  }
+
+                  if (content !== null && content !== '') {
                     fullContent += content;
                     res.write(`data: ${JSON.stringify({ content: fullContent })}\n\n`);
-                  } else {
-                    console.log('⚠️ No content in streaming chunk:', parsed);
                   }
                 } catch (e) {
                   console.warn('⚠️ Failed to parse streaming JSON:', data, e);
@@ -690,7 +665,7 @@ app.post('/chat', async (req, res) => {
         body: JSON.stringify({
           model,
           messages,
-          max_tokens,
+          max_completion_tokens: max_completion_tokens,
           temperature,
           stream: true
         })
@@ -782,7 +757,7 @@ app.post('/chat', async (req, res) => {
                   { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' } }
                 ]
               }],
-              max_tokens: 10
+              max_completion_tokens: 10
             });
 
             const visionResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
@@ -831,18 +806,17 @@ app.post('/chat', async (req, res) => {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
-    // Use GPT-5.1 for all requests
+    // Use GPT-5.1 Responses API for all requests
     const finalModel = 'gpt-5.1';
 
     // Regular response
-    console.log('🔄 Sending request to OpenAI API...');
+    console.log('🔄 Sending request to OpenAI GPT-5.1 Responses API...');
     console.log('📋 Model:', finalModel, isVisionRequest ? '(Vision API)' : '');
     console.log('💬 Messages count:', messages.length);
     console.log('🔑 API Key exists and valid:', !!apiKey && apiKeyValid);
 
-      // TEMPORARY: Use GPT-4o chat/completions for stability
-      console.log('🔄 TEMPORARY: Using GPT-4o chat/completions for stability...');
-
+    // Use GPT-5.1 Chat Completions API (GPT-5.1 works through standard endpoint)
+    console.log('🔄 Using GPT-5.1 Chat Completions API...');
       const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -850,13 +824,9 @@ app.post('/chat', async (req, res) => {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o',
+        model: 'gpt-5.1',
           messages: messages,
-          max_tokens: max_tokens,
-          temperature: temperature,
-          top_p: top_p,
-          presence_penalty: presence_penalty,
-          frequency_penalty: frequency_penalty
+        max_completion_tokens: max_completion_tokens || 2000
         })
       });
 
@@ -886,7 +856,7 @@ app.post('/chat', async (req, res) => {
       let data;
       try {
         data = await response.json();
-        console.log('✅ OpenAI response received successfully');
+      console.log('✅ OpenAI response received successfully');
       } catch (parseError) {
         console.error('❌ Failed to parse response JSON:', parseError);
         return res.status(500).json({
@@ -896,18 +866,32 @@ app.post('/chat', async (req, res) => {
       }
       console.log('📄 Full response data:', JSON.stringify(data, null, 2));
 
-      // Handle GPT-5.1 responses API format (official method from examples)
+      // Handle GPT-5.1 response (either Responses API or Chat Completions)
       console.log('📄 GPT-5.1 response data:', JSON.stringify(data, null, 2));
 
       let content = '';
       try {
-        // Extract text from official GPT-5.1 responses API format:
-        // response.output[0].content[0].text
-        if (data.output && Array.isArray(data.output) && data.output.length > 0) {
+        // GPT-5.1 returns standard Chat Completions format
+        if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+          const firstChoice = data.choices[0];
+          if (firstChoice.message && firstChoice.message.content) {
+            content = firstChoice.message.content;
+            console.log('✅ Extracted text from GPT-5.1 Chat Completions format (choices[0].message.content)');
+          }
+        }
+
+        // Fallback to Responses API format (if needed)
+        else if (data.output_text) {
+          content = data.output_text;
+          console.log('✅ Extracted text from GPT-5.1 Responses API (output_text)');
+        }
+
+        // Fallback to old Responses API format
+        else if (data.output && Array.isArray(data.output) && data.output.length > 0) {
           const firstOutput = data.output[0];
           if (firstOutput.content && Array.isArray(firstOutput.content) && firstOutput.content.length > 0) {
             content = firstOutput.content[0].text || '';
-            console.log('✅ Extracted text from output[0].content[0].text');
+            console.log('✅ Extracted text from old Responses API format (output[0].content[0].text)');
           }
         }
 
@@ -951,7 +935,7 @@ app.post('/chat', async (req, res) => {
 });
 
 // Text to Speech endpoint
-app.post('/tts', async (req, res) => {
+app.post('/api/tts', async (req, res) => {
   try {
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
 
@@ -959,29 +943,44 @@ app.post('/tts', async (req, res) => {
       return res.status(400).json({ error: 'Text is required' });
     }
 
-    console.log('🎤 TTS Request received:', { text: text.substring(0, 50), voice, model });
-
     const apiKey = process.env.OPENAI_API_KEY;
-    console.log('🔑 API Key status:', {
-      exists: !!apiKey,
-      startsWithSk: apiKey ? apiKey.startsWith('sk-') : false,
-      length: apiKey ? apiKey.length : 0,
-      firstChars: apiKey ? apiKey.substring(0, 10) + '...' : 'none'
-    });
 
-    // Use demo mode if API key doesn't exist or is invalid format
-    if (!apiKey || !apiKey.startsWith('sk-')) {
+    // Check if API key exists and is valid
+    let apiKeyValid = false;
+    if (apiKey) {
+      try {
+        console.log('🔍 Testing OpenAI API key validity for TTS...');
+        // Quick test request to check if API key works
+        const testResponse = await fetchWithProxy('https://api.openai.com/v1/models', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        apiKeyValid = testResponse.ok;
+        console.log('🔑 TTS API key valid:', apiKeyValid, 'Status:', testResponse.status);
+      } catch (error) {
+        console.log('❌ TTS API key test failed:', error.message);
+        apiKeyValid = false;
+      }
+    }
+
+    // Use demo mode if API key is not valid
+    if (!apiKey || !apiKeyValid) {
       console.log('⚠️ TTS API key not valid, using demo mode');
-      // Return a larger mock audio buffer that won't cause "NotSupportedError"
-      // Create a 2KB buffer of silence that browsers can handle
-      const mockAudio = Buffer.alloc(2048, 0); // 2KB of zeros
-      res.setHeader('Content-Type', 'audio/wav'); // Use WAV format for better compatibility
+      // Mock response for testing - return a simple audio placeholder
+      const mockAudio = Buffer.from([
+        0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+      ]); // Minimal MP3 frame
+      res.setHeader('Content-Type', 'audio/mpeg');
       res.setHeader('Content-Length', mockAudio.length);
-      console.log('🎵 Sending mock TTS audio response (2KB WAV)');
       return res.send(mockAudio);
     }
 
-    console.log('🎵 Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model, useProxy });
+    console.log('🎵 Requesting TTS from OpenAI:', { text: text.substring(0, 50), voice, model });
 
     const response = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -1000,13 +999,16 @@ app.post('/tts', async (req, res) => {
       const errorData = await response.text().catch(() => '');
       console.error('❌ OpenAI TTS API error:', response.status, errorData);
 
-      // If we get geo-blocking or other API errors, fall back to demo mode
-      if (response.status === 401 || response.status === 403 || response.status === 429 || response.status >= 500) {
-        console.log('🔄 TTS API failed, falling back to demo mode');
-        const mockAudio = Buffer.alloc(2048, 0); // 2KB of zeros
-        res.setHeader('Content-Type', 'audio/wav');
+      // If we get auth errors, fall back to demo mode
+      if (response.status === 401 || response.status === 403) {
+        console.log('🔄 TTS auth failed, falling back to demo mode');
+        const mockAudio = Buffer.from([
+          0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        ]);
+        res.setHeader('Content-Type', 'audio/mpeg');
         res.setHeader('Content-Length', mockAudio.length);
-        console.log('🎵 Sending mock TTS audio response (2KB WAV)');
         return res.send(mockAudio);
       }
 
@@ -1014,7 +1016,6 @@ app.post('/tts', async (req, res) => {
     }
 
     const audioBuffer = await response.arrayBuffer();
-    console.log('✅ OpenAI TTS audio generated successfully, size:', audioBuffer.byteLength, 'bytes');
     res.setHeader('Content-Type', 'audio/mpeg');
     res.setHeader('Content-Length', audioBuffer.byteLength);
     res.send(Buffer.from(audioBuffer));
@@ -1778,7 +1779,7 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 API server running on port ${PORT} (listening on all interfaces)`);
+app.listen(PORT, () => {
+  console.log(`🚀 API server running on port ${PORT}`);
   console.log(`📊 Database: ${process.env.DATABASE_URL}`);
 });

@@ -132,8 +132,7 @@ const Chat = () => {
 
       const reasoningResponse = await sendChatMessage(reasoningMessages, {
         model: 'gpt-5.1',
-        reasoning: 'medium',
-        max_tokens: 800,
+        max_completion_tokens: 800,
         temperature: 0.7
       });
 
@@ -330,8 +329,7 @@ const Chat = () => {
             body: JSON.stringify({
               messages: analysisMessages,
               model: 'gpt-5.1',
-        reasoning: 'medium',
-              max_tokens: 1500,
+              max_completion_tokens: 1500,
               temperature: 0.3,
               stream: true,
             }),
@@ -427,30 +425,31 @@ const Chat = () => {
       // ЭТАП 1: Создаем план ответа из 3 пунктов через streaming (серым цветом)
       console.log('📋 Этап 1: Создание плана ответа');
 
-      const planPrompt = `Составь план ответа на вопрос: "${content}".
+      const planPrompt = `Создай план ответа на юридический вопрос: "${content}"
 
-Формат: нумерованный список из 3 пунктов.
+Требования:
+- 3 пункта в формате: 1. Заголовок раздела
+- Каждый заголовок 3-8 слов
+- Только нумерованный список, без лишнего текста
 
-План — это только набросок структуры единого ответа, не полноценные мини-статьи.
+Пример:
+1. Правовые основы проблемы
+2. Практические рекомендации
+3. Возможные риски и решения`;
 
-Каждый пункт должен быть кратким заголовком раздела (3-7 слов), описывающим содержание раздела.
-
-Пример хорошего плана:
-1. Правовые основы регистрации ООО
-2. Необходимые документы для подачи
-3. Порядок регистрации и практические советы
-
-Просто верни нумерованный список, без дополнительного текста.`;
-
-      const systemMessage = AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT;
       const planMessages = [
         {
-          role: 'system' as const,
-          content: 'Ты - помощник юриста. Создай краткий план из 3 пунктов для ответа на юридический вопрос. Будь максимально конкретен и практичен. ВАЖНО: Ответь ТОЛЬКО планом в формате:\n1. [Пункт 1]\n2. [Пункт 2]\n3. [Пункт 3]\n\nБез дополнительного текста, только нумерованный список.'
-        },
-        {
           role: 'user' as const,
-          content: planPrompt
+          content: `Создай план из 3 пунктов для ответа на юридический вопрос.
+
+Вопрос: "${content}"
+
+Формат ответа: только нумерованный список 1. 2. 3. без дополнительного текста.
+
+Пример:
+1. Правовые основы проблемы
+2. Практические рекомендации
+3. Возможные риски и решения`
         }
       ];
 
@@ -470,8 +469,7 @@ const Chat = () => {
           body: JSON.stringify({
             messages: planMessages,
             model: 'gpt-5.1',
-        reasoning: 'medium',
-            max_tokens: 1000,
+            max_completion_tokens: 1000,
             temperature: 0.7,
             stream: true
           }),
@@ -541,6 +539,8 @@ const Chat = () => {
         console.log('📋 Создан план (raw):', planContent);
         console.log('📋 Длина плана:', planContent.length);
         console.log('📋 Строки плана:', planContent.split('\n'));
+        console.log('📋 План в JSON формате:', JSON.stringify(planContent));
+        console.log('📋 План символы:', [...planContent].map(c => c.charCodeAt(0)));
 
         // Парсим план на пункты
         const cleanPlan = planContent
@@ -550,46 +550,65 @@ const Chat = () => {
           .trim();
         
         console.log('📋 Очищенный план:', cleanPlan);
+        console.log('📋 Очищенный план символы:', [...cleanPlan].map(c => c.charCodeAt(0)));
 
+        // Более простой и надежный парсер
         let planLines = cleanPlan.split('\n')
           .map(line => line.trim())
-          .filter(line => line.length > 0)
-          .filter(line => {
-            const hasNumbering = line.match(/^\d+[\.)]\s+/) || line.match(/^[-*]\s+/);
-            const hasRussianStart = line.match(/^[А-ЯЁ]/) && line.length > 10;
-            return hasNumbering || hasRussianStart;
-          });
-        
-        if (planLines.length === 0) {
-          planLines = cleanPlan.split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 5 && line.length < 100)
-            .filter((line, index, arr) => {
-              return !line.match(/^📋|^План|^ответа|^:/i) && line.length > 5;
-            });
-        }
+          .filter(line => line.length > 0);
+
+        console.log('📋 Все строки после split:', planLines);
+
+        // Ищем строки, которые выглядят как пункты плана
+        planLines = planLines.filter(line => {
+          // Простая проверка: строка содержит цифру в начале ИЛИ начинается с русской буквы и достаточно длинная
+          const startsWithNumber = line.match(/^\d+[\.)]?\s*/);
+          const startsWithBullet = line.match(/^[-*•]\s*/);
+          const isRussianTitle = line.match(/^[А-ЯЁ]/) && line.length > 5 && line.length < 80;
+
+          const isValid = startsWithNumber || startsWithBullet || isRussianTitle;
+          console.log(`📋 Проверяем строку "${line}": startsWithNumber=${!!startsWithNumber}, startsWithBullet=${!!startsWithBullet}, isRussianTitle=${!!isRussianTitle}, isValid=${isValid}`);
+          return isValid;
+        });
+
+        console.log('📋 Отфильтрованные строки плана:', planLines);
 
         console.log('📋 Найденные строки плана:', planLines);
 
+        console.log('📋 Обрабатываем строки в пункты плана...');
+
         const seenPoints = new Set();
         planPoints = planLines
-          .map(line => {
+          .map((line, index) => {
+            console.log(`📋 Обрабатываем строку ${index + 1}: "${line}"`);
             const cleaned = line
               .trim()
-              .replace(/^\d+[\.)]\s*/, '')
-              .replace(/^[-*]\s*/, '')
-              .replace(/^📋\s*/, '')
+              .replace(/^\d+[\.)]\s*/, '') // Убираем нумерацию
+              .replace(/^[-*•]\s*/, '')   // Убираем маркеры
+              .replace(/^📋\s*/, '')      // Убираем иконки
               .trim();
+
+            console.log(`📋 Очищенная строка ${index + 1}: "${cleaned}"`);
             return cleaned;
           })
           .filter(point => {
-            if (!point || point.length < 3) return false;
-            const normalized = point.toLowerCase().trim();
-            if (seenPoints.has(normalized)) return false;
-            seenPoints.add(normalized);
-            return true;
+            const isValid = point && point.length >= 2; // Минимум 2 символа
+            console.log(`📋 Фильтруем пункт "${point}": length=${point?.length}, isValid=${isValid}`);
+            return isValid;
           })
-          .slice(0, 3);
+          .filter((point, index) => {
+            // Проверяем на дубликаты (case-insensitive)
+            const normalized = point.toLowerCase().trim();
+            const isDuplicate = seenPoints.has(normalized);
+            if (!isDuplicate) {
+            seenPoints.add(normalized);
+            }
+            console.log(`📋 Проверяем дубликат "${point}": normalized="${normalized}", isDuplicate=${isDuplicate}`);
+            return !isDuplicate;
+          })
+          .slice(0, 3); // Берем максимум 3 пункта
+
+        console.log('📋 Финальные пункты плана:', planPoints);
 
         console.log('📋 Пункты плана после обработки:', planPoints);
 
@@ -666,7 +685,7 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
         const pointMessages = [
           {
             role: 'system' as const,
-            content: systemMessage,
+            content: AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT,
           },
           ...currentMessages.slice(-3).map((msg) => ({
             role: msg.role as 'user' | 'assistant',
@@ -691,7 +710,7 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
             body: JSON.stringify({
                     messages: pointMessages,
               model: hasUploadedFile && uploadedFileData?.type.startsWith('image/') ? 'gpt-5.1' : 'gpt-5.1',
-                    max_tokens: 2500, // Для каждого раздела (увеличено для подробности)
+                    max_completion_tokens: 2500, // Для каждого раздела (увеличено для подробности)
                     temperature: 0.7,
                     stream: true,
                   }),
@@ -844,8 +863,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
           body: JSON.stringify({
             messages: finalMessages,
             model: 'gpt-5.1',
-        reasoning: 'medium',
-            max_tokens: 4000, // Увеличено для вмещения подробных разделов
+            max_completion_tokens: 4000, // Увеличено для вмещения подробных разделов
             temperature: 0.6,
             stream: true,
           }),
@@ -1058,8 +1076,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
       const response = await sendChatMessage(chatMessages, {
         model: 'gpt-5.1',
-        reasoning: 'medium', // Улучшенная модель для юридических консультаций
-        max_tokens: 8000, // Оптимальный лимит для качественных ответов
+        max_completion_tokens: 8000, // Оптимальный лимит для качественных ответов
         temperature: 0.8 // Увеличиваем для более разнообразных и длинных ответов
       });
 

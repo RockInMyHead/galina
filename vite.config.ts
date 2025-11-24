@@ -6,29 +6,26 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "0.0.0.0", // Listen on all interfaces for Safari compatibility
-    port: 3001,
-    strictPort: true, // Fail if port is already in use
+    host: "0.0.0.0",
+    port: 3000,
     hmr: {
-      // Настройки для WebSocket HMR (Safari compatible)
-      port: 3001,
+      // Настройки для WebSocket HMR
+      port: 0,
       host: 'localhost',
       protocol: 'ws',
-      clientPort: 3001,
     },
-    cors: true, // Enable CORS for Safari compatibility
     // Дополнительные настройки для стабильности WebSocket
     watch: {
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
-    // Все запросы к /api/* будут проксироваться на localhost:3003
+    // Все запросы к /api/* будут проксироваться на localhost:3001 с сохранением /api префикса
     proxy: {
       '/api': {
-        target: 'http://localhost:3003',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
-        // Не переписывать путь - оставлять /api префикс
+        // Убираем rewrite, чтобы сохранить /api префикс
       },
       // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
       '/proxy': {

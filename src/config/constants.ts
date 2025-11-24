@@ -5,9 +5,9 @@ const getAPIBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Development: Use direct API URL (bypass Vite proxy issues)
+  // Development: Use direct backend URL to bypass Vite proxy issues
   if (import.meta.env.DEV) {
-    return 'http://localhost:3003'; // Direct connection to API server
+    return 'http://127.0.0.1:3003'; // Direct connection to backend
   }
 
   // Production: Use standard URL to lawyer.windexs.ru (port 80/443)

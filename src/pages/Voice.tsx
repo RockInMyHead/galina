@@ -1,11 +1,10 @@
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, MicOff, Sparkles, Send, Download, FileText } from "lucide-react";
+import { Mic, MicOff, Sparkles, Send } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { sendChatMessage, textToSpeech, playAudioBlob, speechToText } from "@/utils/apiUtils";
+import { sendChatMessage, textToSpeech, playAudioBlob } from "@/utils/apiUtils";
 import { AI_SYSTEM_MESSAGES, API_CONFIG } from "@/config/constants";
-import jsPDF from 'jspdf';
 
 interface Message {
   id: string;
@@ -27,84 +26,58 @@ const Voice = () => {
   const SILENCE_TIMEOUT = 2000; // 2 seconds
   const [autoSendStatus, setAutoSendStatus] = useState<'idle' | 'waiting' | 'sending'>('idle');
 
-  // Environment detection
-  const isSecure = window.isSecureContext || location.protocol === 'https:';
+  // Development helpers
+  const isLocalhost = typeof window !== 'undefined' && window.location ?
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') : false;
+  const isSecure = typeof window !== 'undefined' ?
+    (window.isSecureContext || (window.location && window.location.protocol === 'https:')) : false;
 
-  // Audio recording refs
+  // Detailed logging of environment detection
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('🔍 Environment detection:', {
+        hostname: window.location.hostname,
+        protocol: window.location.protocol,
+        port: window.location.port,
+        href: window.location.href,
+        isLocalhost,
+        isSecure,
+        secureContext: window.isSecureContext,
+        userAgent: navigator.userAgent.substring(0, 50) + '...'
+      });
+    }
+
+    if (isLocalhost && !isSecure) {
+      console.log('🔧 Auto-enabling test mode for localhost development');
+      setShowTestMode(true);
+    } else {
+      console.log('ℹ️ Environment check:', {
+        isLocalhost,
+        isSecure,
+        reason: !isLocalhost ? 'not localhost' : 'already secure or HTTPS'
+      });
+    }
+  }, [isLocalhost, isSecure]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-
-  // Messages state
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Привет! Я Галина, ваш AI-юрист. Я готова помочь вам с юридическими вопросами. Задайте мне вопрос голосом или текстом.',
+      content: 'Здравствуйте! Я Галина, ваш AI-юрист. Задайте мне юридический вопрос голосом.',
       role: 'assistant',
       timestamp: new Date()
     }
   ]);
-
-  // Loading states for TTS
+  const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
   const [isPlayingTTS, setIsPlayingTTS] = useState(false);
+  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-send status
-  const [isAutoSending, setIsAutoSending] = useState(false);
-
-  // Conversation summary
-  const [conversationSummary, setConversationSummary] = useState<string[]>([]);
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-
-  // Detailed logging of environment detection
-  useEffect(() => {
-    console.log('🔍 Environment detection:', {
-      hostname: location.hostname,
-      protocol: location.protocol,
-      port: location.port,
-      href: location.href,
-      isSecure,
-      secureContext: window.isSecureContext,
-      userAgent: navigator.userAgent.substring(0, 50) + '...'
-    });
-
-      console.log('ℹ️ Environment check:', {
-        isSecure,
-      reason: isSecure ? 'secure context' : 'insecure context - may have voice issues'
-    });
-  }, [isSecure]);
-
-  // Initialize audio recording capabilities
-  useEffect(() => {
-    console.log('🔧 Checking audio recording capabilities...');
-    console.log('📊 Browser capabilities:', {
-      mediaDevices: !!navigator.mediaDevices,
-      getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
-      mediaRecorder: !!window.MediaRecorder
-    });
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error('❌ getUserMedia not supported - cannot record audio');
-      return;
-    }
-
-    if (!window.MediaRecorder) {
-      console.error('❌ MediaRecorder not supported - cannot record audio');
-      return;
-    }
-
-    console.log('✅ Audio recording supported - ready to use Whisper API');
-
-    // Cleanup function
-    return () => {
-      if (autoSendTimerRef.current) {
-        clearTimeout(autoSendTimerRef.current);
-        console.log('🧹 Cleaned up auto-send timer on unmount');
-      }
-    };
-  }, []);
-
-  // Beep functionality for user feedback
+  // Audio feedback functions
   const playBeep = useCallback(() => {
+    if (!('AudioContext' in window) && !('webkitAudioContext' in window)) return;
+
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -113,27 +86,23 @@ const Voice = () => {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+
       gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.1);
-
-      // Close context after beep
-      setTimeout(() => audioContext.close(), 200);
     } catch (error) {
       console.warn('Could not play beep:', error);
     }
   }, []);
 
-  const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
   const startBeepInterval = useCallback(() => {
-    if (beepIntervalRef.current) return; // Already beeping
-
-    console.log('🔊 Starting beep interval for AI processing feedback');
-    playBeep(); // Play first beep immediately
+    if (beepIntervalRef.current) {
+      clearInterval(beepIntervalRef.current);
+        }
     beepIntervalRef.current = setInterval(playBeep, 3000); // Every 3 seconds
   }, [playBeep]);
 
@@ -141,14 +110,381 @@ const Voice = () => {
     if (beepIntervalRef.current) {
       clearInterval(beepIntervalRef.current);
       beepIntervalRef.current = null;
-      console.log('🔇 Stopped beep interval');
     }
   }, []);
 
-  // Manage beep interval based on app state
+  // Initialize Web Speech API
+  useEffect(() => {
+    console.log('🔧 Initializing Web Speech API...');
+    console.log('📊 Browser capabilities:', {
+      speechRecognition: !!window.SpeechRecognition,
+      webkitSpeechRecognition: !!(window as any).webkitSpeechRecognition,
+      mediaDevices: !!navigator.mediaDevices,
+      getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+    });
+
+    const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.error('❌ Web Speech API not supported in this browser');
+      return;
+    }
+
+    console.log('✅ Web Speech API supported, creating recognition instance...');
+
+    try {
+      const recognition = new SpeechRecognition();
+      console.log('🎯 Recognition instance created:', {
+        continuous: recognition.continuous,
+        interimResults: recognition.interimResults,
+        lang: recognition.lang,
+        maxAlternatives: recognition.maxAlternatives,
+        serviceURI: recognition.serviceURI,
+        grammars: recognition.grammars
+      });
+
+      recognition.continuous = false; // Use single-shot mode for better reliability
+      recognition.interimResults = true;
+      recognition.lang = 'ru-RU';
+      recognition.maxAlternatives = 1;
+
+      console.log('⚙️ Recognition configured:', {
+        continuous: recognition.continuous,
+        interimResults: recognition.interimResults,
+        lang: recognition.lang,
+        maxAlternatives: recognition.maxAlternatives
+      });
+
+      recognition.onstart = () => {
+        console.log('🎤 Speech recognition started successfully');
+        setIsRecording(true);
+        // isContinuousListening is already set by toggleVoiceMode
+      };
+
+      recognition.onresult = (event) => {
+        console.log('📝 Speech recognition result received');
+
+        let finalTranscript = '';
+        let interimTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        if (interimTranscript) {
+          setInterimTranscript(interimTranscript);
+        }
+
+        if (finalTranscript && finalTranscript.trim()) {
+          console.log('✅ Final transcript:', finalTranscript.trim());
+          console.log('🔍 Raw transcript data:', {
+            finalTranscript,
+            trimmed: finalTranscript.trim(),
+            length: finalTranscript.length,
+            charCodes: [...finalTranscript.trim()].map(c => c.charCodeAt(0))
+          });
+
+          // Update transcript and immediately schedule auto-send
+          setTranscript(prev => {
+            const newTranscript = prev ? `${prev} ${finalTranscript.trim()}` : finalTranscript.trim();
+          setInterimTranscript('');
+
+            // Clear existing auto-send timer
+            if (autoSendTimerRef.current) {
+              clearTimeout(autoSendTimerRef.current);
+              console.log('🕐 Cleared previous auto-send timer');
+            }
+
+            // Set status to waiting
+            setAutoSendStatus('waiting');
+
+            // Start new auto-send timer for 2 seconds of silence
+            autoSendTimerRef.current = setTimeout(() => {
+              if (newTranscript.trim()) {
+                console.log('⏰ Auto-sending after 2 seconds of silence:', newTranscript.trim());
+                setAutoSendStatus('sending');
+                handleSendMessage(newTranscript.trim(), true);
+              }
+            }, SILENCE_TIMEOUT);
+            console.log('⏱️ Started auto-send timer (2 seconds)');
+
+            return newTranscript;
+          });
+
+        // If continuous listening is enabled, restart recognition after a delay
+        console.log('🔍 Checking continuous listening in onresult:', isContinuousListening);
+        if (isContinuousListening) {
+          console.log('🔄 Continuous mode: restarting recognition in 1 second...');
+          setTimeout(() => {
+            console.log('⏰ Timeout triggered, checking conditions...');
+            console.log('🔍 isContinuousListening:', isContinuousListening, 'recognition exists:', !!recognitionRef.current, 'isRecording:', isRecording);
+            if (isContinuousListening && recognitionRef.current && !isRecording) {
+              try {
+                console.log('▶️ Actually restarting speech recognition...');
+                recognitionRef.current.start();
+              } catch (error) {
+                console.error('❌ Failed to restart recognition:', error);
+                setIsContinuousListening(false);
+              }
+            } else {
+              console.log('⚠️ Conditions not met for restart');
+            }
+          }, 1000); // 1 second delay to prevent conflicts
+        } else {
+          console.log('ℹ️ Continuous listening disabled in onresult');
+        }
+        }
+      };
+
+      recognition.onerror = async (event) => {
+        console.error('❌ Speech recognition error:', event.error, event);
+        console.error('❌ Error type:', event.type);
+        console.error('❌ Error message:', event.message || 'No message');
+
+        // Detailed debug information
+        const debugInfo = {
+          isLocalhost,
+          isSecure,
+          hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+          protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
+          port: typeof window !== 'undefined' ? window.location.port : 'unknown',
+          href: typeof window !== 'undefined' ? window.location.href : 'unknown',
+          secureContext: typeof window !== 'undefined' ? window.isSecureContext : false,
+          webkitSpeechRecognition: typeof (window as any).webkitSpeechRecognition,
+          speechRecognition: typeof window.SpeechRecognition,
+          userAgent: navigator.userAgent,
+          timestamp: new Date().toISOString(),
+          errorDetails: {
+            error: event.error,
+            message: event.message,
+            type: event.type
+          }
+        };
+
+        console.log('🔍 Full error event object:', JSON.stringify(debugInfo, null, 2));
+
+        // Network connectivity test
+        console.log('🌐 Testing network connectivity...');
+        try {
+          const testUrls = [
+            'https://www.google.com/favicon.ico',
+            'https://www.gstatic.com/speech-api/models/manifest.json',
+            'https://clients5.google.com/v1/speech:recognize'
+          ];
+          
+          for (const url of testUrls) {
+            try {
+              const startTime = performance.now();
+              await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+              const endTime = performance.now();
+              console.log(`✅ Network test passed for ${url} (${Math.round(endTime - startTime)}ms)`);
+            } catch (fetchError) {
+              console.error(`❌ Network test failed for ${url}:`, fetchError);
+            }
+          }
+        } catch (networkError) {
+          console.error('❌ Network connectivity test error:', networkError);
+        }
+
+        // Check browser permissions
+        console.log('🔐 Checking browser permissions...');
+        if (navigator.permissions) {
+          try {
+            const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+            console.log('🎤 Microphone permission status:', micPermission.state);
+            
+            // Try to get more detailed permission info
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+              const devices = await navigator.mediaDevices.enumerateDevices();
+              const audioInputs = devices.filter(device => device.kind === 'audioinput');
+              console.log('🎙️ Available audio input devices:', audioInputs.length);
+              audioInputs.forEach((device, idx) => {
+                console.log(`  ${idx + 1}. ${device.label || `Device ${idx + 1}`} (${device.deviceId.substring(0, 20)}...)`);
+              });
+            }
+          } catch (permError) {
+            console.error('❌ Permission check error:', permError);
+          }
+        }
+
+        // Detect Safari for error handling
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
+                        /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
+
+        // Provide more specific error handling
+        switch (event.error) {
+          case 'network':
+            console.error('🔗 Network error - check internet connection');
+            console.log('💡 Possible causes:');
+            console.log('   - No internet connection');
+            console.log('   - Firewall blocking Google Speech API');
+            console.log('   - VPN interfering with speech services');
+            console.log('   - Regional restrictions');
+            break;
+          case 'not-allowed':
+            console.error('🚫 Microphone access denied - check permissions');
+            console.log('💡 To fix:');
+            console.log('   - Click the 🔒 icon in address bar');
+            console.log('   - Allow microphone access');
+            console.log('   - Refresh the page');
+            break;
+          case 'no-speech':
+            console.error('🤫 No speech detected');
+            // This is recoverable - will be handled by the centralized error recovery logic
+            break;
+          case 'aborted':
+            console.error('🛑 Recognition was aborted');
+            console.log('🔍 Detailed debug info:', debugInfo);
+
+            // Safari detection already done above
+
+            if (isSafari) {
+              console.log('🧭 Browser detected: Safari');
+              console.log('⚠️ Safari often aborts speech recognition due to system conflicts');
+              console.log('💡 This is usually NOT a critical error in Safari');
+              console.log('🔍 DEBUG: isContinuousListening in Safari error handler:', isContinuousListening);
+
+              // For Safari, ALWAYS try to restart recognition since "aborted" is recoverable
+              console.log('🔄 Attempting to restart speech recognition for Safari (forced)...');
+              setTimeout(() => {
+                console.log('⏰ Safari restart timeout triggered');
+                console.log('🔍 DEBUG: isRecording at restart time:', isRecording);
+                if (!isRecording) {
+                  console.log('▶️ Restarting speech recognition after Safari abort...');
+                  try {
+                    startListening();
+                    console.log('✅ Successfully restarted speech recognition');
+                  } catch (restartError) {
+                    console.error('❌ Failed to restart after Safari abort:', restartError);
+                    // Only then fall back to manual mode
+                    console.log('💻 Falling back to manual input mode...');
+                    setShowTestMode(true);
+                  }
+                } else {
+                  console.log('⚠️ Cannot restart - still recording');
+                }
+              }, 2000); // Longer delay for Safari
+              return; // Don't set isContinuousListening to false
+            } else {
+              console.log('💡 "Failed to access assets" usually means:');
+              console.log('   1. Browser cannot download Google Speech models');
+              console.log('   2. Network/Firewall is blocking https://www.gstatic.com');
+              console.log('   3. VPN or proxy interfering');
+              console.log('   4. Regional restrictions (some countries)');
+              console.log('   5. Browser settings blocking third-party requests');
+              console.log('');
+              console.log('🔧 Recommended fixes:');
+              console.log('   1. Try disabling VPN/proxy');
+              console.log('   2. Check firewall settings');
+              console.log('   3. Try Chrome in Incognito mode (no extensions)');
+              console.log('   4. Check if you can access https://www.google.com');
+              console.log('   5. Try different network (mobile hotspot)');
+            }
+
+            console.log('');
+            console.log('💻 Enabling test mode for manual text input...');
+            console.log('💡 Test mode works in all browsers and doesn\'t require speech recognition!');
+
+            setShowTestMode(true);
+            break;
+          case 'audio-capture':
+            console.error('🎙️ Audio capture failed - check microphone');
+            console.log('💡 Possible causes:');
+            console.log('   - Microphone is being used by another app');
+            console.log('   - Microphone hardware issue');
+            console.log('   - Microphone drivers need update');
+            break;
+          case 'service-not-allowed':
+            console.error('🚫 Speech recognition service not allowed');
+            console.log('💡 This might be due to:');
+            console.log('   - Browser policy restrictions');
+            console.log('   - Corporate/school network blocking');
+            break;
+          default:
+            console.error('❓ Unknown error:', event.error);
+        }
+
+        setIsRecording(false);
+
+        // Don't disable continuous listening for recoverable errors
+        // 'aborted' in Safari and 'no-speech' are usually recoverable
+        console.log('🔍 DEBUG: Checking recoverable error logic');
+        console.log('🔍 DEBUG: event.error =', event.error);
+        console.log('🔍 DEBUG: isSafari =', isSafari);
+        console.log('🔍 DEBUG: navigator.userAgent =', navigator.userAgent);
+
+        const isRecoverableError = (event.error === 'aborted' && isSafari) ||
+                                  (event.error === 'no-speech');
+
+        console.log('🔍 DEBUG: isRecoverableError =', isRecoverableError);
+
+        if (!isRecoverableError) {
+          console.log('🚫 DEBUG: Disabling continuous listening for non-recoverable error');
+          setIsContinuousListening(false);
+        } else {
+          console.log(`🔄 DEBUG: Error "${event.error}" is recoverable, keeping continuous listening enabled`);
+          console.log('🔄 DEBUG: Current continuous listening state:', isContinuousListening);
+        }
+      };
+
+      recognition.onend = () => {
+        console.log('🛑 Speech recognition ended');
+        console.log('🔄 Current continuous listening state:', isContinuousListening);
+        console.log('🔄 DEBUG: isRecording before setIsRecording(false):', isRecording);
+        setIsRecording(false);
+        console.log('🔄 DEBUG: isRecording after setIsRecording(false):', isRecording);
+
+        // For continuous mode, restart recognition if enabled
+        if (isContinuousListening) {
+          console.log('🔄 Continuous mode active, restarting recognition in 500ms...');
+          setTimeout(() => {
+            if (isContinuousListening && recognitionRef.current && !isRecording) {
+              try {
+                console.log('▶️ Restarting speech recognition...');
+                recognitionRef.current.start();
+              } catch (error) {
+                console.error('❌ Failed to restart recognition in onend:', error);
+        setIsContinuousListening(false);
+              }
+            } else {
+              console.log('⚠️ Cannot restart: continuous=', isContinuousListening, 'recording=', isRecording);
+            }
+          }, 500);
+        } else {
+          console.log('ℹ️ Continuous listening disabled, recognition ended');
+        }
+      };
+
+      recognitionRef.current = recognition;
+
+    } catch (error) {
+      console.error('❌ Failed to initialize speech recognition:', error);
+    }
+    
+    // Cleanup function
+    return () => {
+      if (autoSendTimerRef.current) {
+        clearTimeout(autoSendTimerRef.current);
+        console.log('🧹 Cleaned up auto-send timer on unmount');
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  // Manage beep interval based on app state - beep only during AI/TTS processing, not during playback
   useEffect(() => {
     // Start beep when loading (AI thinking) or when TTS is being generated, but NOT during TTS playback
-    if ((isProcessingAudio || isGeneratingTTS) && !isPlayingTTS) {
+    if ((isLoading || isGeneratingTTS) && !isPlayingTTS) {
       startBeepInterval();
     } else {
       stopBeepInterval();
@@ -158,355 +494,314 @@ const Voice = () => {
     return () => {
       stopBeepInterval();
     };
-  }, [isProcessingAudio, isGeneratingTTS, isPlayingTTS, startBeepInterval, stopBeepInterval]);
+  }, [isLoading, isGeneratingTTS, isPlayingTTS, startBeepInterval, stopBeepInterval]);
 
-  // Generate conversation summary
-  const generateConversationSummary = useCallback(async (messages: Message[]) => {
-    if (messages.length < 2) return; // Need at least user question and AI response
-
-    setIsGeneratingSummary(true);
-
+  // TTS function for AI responses using OpenAI TTS
+  const speakAIResponse = async (text: string) => {
     try {
-      // Extract key points from conversation
-      const userMessages = messages.filter(m => m.role === 'user').map(m => m.content);
-      const aiMessages = messages.filter(m => m.role === 'assistant').slice(1); // Skip greeting
-
-      const summary = [];
-
-      // Add main topics/questions
-      if (userMessages.length > 0) {
-        summary.push(`📋 Основные вопросы клиента:`);
-        userMessages.forEach((msg, index) => {
-          const shortMsg = msg.length > 100 ? msg.substring(0, 100) + '...' : msg;
-          summary.push(`   ${index + 1}. ${shortMsg}`);
-        });
-      }
-
-      // Add key recommendations from AI
-      if (aiMessages.length > 0) {
-        summary.push(``);
-        summary.push(`💡 Рекомендации юриста:`);
-
-        aiMessages.forEach((msg, index) => {
-          // Extract key sentences that contain advice
-          const sentences = msg.content.split(/[.!?]+/).filter(s => s.trim().length > 10);
-
-          sentences.forEach(sentence => {
-            const trimmed = sentence.trim();
-            // Look for sentences with advice keywords
-            if (trimmed.includes('рекомендую') ||
-                trimmed.includes('следует') ||
-                trimmed.includes('необходимо') ||
-                trimmed.includes('важно') ||
-                trimmed.includes('обратитесь') ||
-                trimmed.includes('подготовьте') ||
-                trimmed.includes('составьте')) {
-              summary.push(`   • ${trimmed}`);
-            }
-          });
-
-          // If no specific advice found, add a general summary
-          if (summary.length === 2) { // Only header added
-            const shortResponse = msg.content.length > 150 ? msg.content.substring(0, 150) + '...' : msg.content;
-            summary.push(`   • ${shortResponse}`);
-          }
-        });
-      }
-
-      // Add conversation metadata
-      summary.push(``);
-      summary.push(`📊 Информация о консультации:`);
-      summary.push(`   • Дата и время: ${new Date().toLocaleString('ru-RU')}`);
-      summary.push(`   • Количество сообщений: ${messages.length}`);
-      summary.push(`   • Продолжительность: ~${Math.ceil(messages.length / 2)} мин`);
-
-      setConversationSummary(summary);
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      setConversationSummary(['Ошибка генерации сводки разговора']);
-    } finally {
-      setIsGeneratingSummary(false);
-    }
-  }, []);
-
-  // Generate PDF from conversation summary
-  const downloadConversationPDF = useCallback(async () => {
-    if (conversationSummary.length === 0) return;
-
-    try {
-      const pdf = new jsPDF();
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      let yPosition = 30;
-
-      // Title
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Юридическая консультация - основные тезисы', margin, yPosition);
-      yPosition += 20;
-
-      // Date
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Дата: ${new Date().toLocaleDateString('ru-RU')}`, margin, yPosition);
-      yPosition += 15;
-
-      // Content
-      pdf.setFontSize(11);
-      conversationSummary.forEach((line) => {
-        if (yPosition > pageHeight - 30) {
-          pdf.addPage();
-          yPosition = 30;
-        }
-
-        // Handle different line types
-        if (line.includes('📋') || line.includes('💡') || line.includes('📊')) {
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(line, margin, yPosition);
-            } else {
-          pdf.setFont('helvetica', 'normal');
-          pdf.text(line, margin, yPosition);
-        }
-
-        yPosition += 8;
-      });
-
-      // Footer
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'italic');
-      pdf.text('Сгенерировано AI-юристом Галиной', margin, pageHeight - 20);
-
-      // Download
-      const fileName = `consultation-summary-${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
-
-      console.log('✅ PDF generated and downloaded:', fileName);
-    } catch (error) {
-      console.error('❌ Error generating PDF:', error);
-      alert('Ошибка при генерации PDF файла');
-    }
-  }, [conversationSummary]);
-
-  // Handle sending messages to AI
-  const handleSendMessage = useCallback(async (messageText?: string) => {
-    const textToSend = messageText || transcript;
-    if (!textToSend.trim()) return;
-
-    console.log('🚀 handleSendMessage called with:', textToSend);
-
-    // Clear auto-send timer if running
-      if (autoSendTimerRef.current) {
-        clearTimeout(autoSendTimerRef.current);
-      console.log('🕐 Cleared auto-send timer on send');
-    }
-
-    // Add user message to chat
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: textToSend,
-      role: 'user',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setTranscript('');
-    setInterimTranscript('');
-    setAutoSendStatus('idle');
-
-    try {
-      // Send to AI
-      const response = await sendChatMessage([{
-        role: 'user',
-        content: textToSend
-      }]);
-
-      if (response.success && response.data.content) {
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: response.data.content,
-          role: 'assistant',
-          timestamp: new Date()
-        };
-
-        const updatedMessages = [...messages, userMessage, aiMessage];
-        setMessages(updatedMessages);
-
-        // Generate conversation summary after AI response
-        setTimeout(() => {
-          generateConversationSummary(updatedMessages);
-        }, 1000); // Delay to allow UI to update
-
-        // Auto-generate TTS for AI response
-        speakAIResponse(response.data.content);
-    } else {
-        console.error('❌ AI response error:', response.error);
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          content: 'Извините, произошла ошибка при обработке вашего запроса. Попробуйте еще раз.',
-          role: 'assistant',
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      }
-    } catch (error) {
-      console.error('❌ Error in handleSendMessage:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'Произошла ошибка при отправке сообщения. Проверьте подключение к интернету.',
-        role: 'assistant',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    }
-  }, [transcript]);
-
-  // TTS function for AI responses using OpenAI with parallel generation
-  const speakAIResponse = useCallback(async (responseText: string) => {
-    if (!responseText || !isSecure) return;
-
-      console.log('🎵 Preparing parallel OpenAI TTS for AI response...');
+      console.log('🎵 Preparing OpenAI TTS for AI response...');
       setIsGeneratingTTS(true);
 
-    try {
-      // Split response into sentences for parallel processing
-      const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      console.log('📝 Split into', sentences.length, 'sentences for parallel TTS');
+      // Split text into sentences
+      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      console.log('📝 Split into', sentences.length, 'sentences for OpenAI TTS');
+
+      // Start video animation
+      console.log('🎬 VIDEO SHOULD APPEAR NOW - setIsPlayingTTS(true)');
+      setIsPlayingTTS(true);
 
       // Process and generate TTS for each sentence in parallel
       const ttsPromises = sentences.map(async (sentence, index) => {
         const cleanSentence = sentence.trim();
-        if (!cleanSentence) return null;
+        if (cleanSentence.length === 0) return null;
 
-        console.log(`🎵 Generating TTS for sentence ${index + 1}/${sentences.length}: "${cleanSentence.substring(0, 50)}..."`);
+        console.log(`🎵 Generating OpenAI TTS for sentence ${index + 1}/${sentences.length}: "${cleanSentence.substring(0, 50)}..."`);
+
+        // Process text for better speech synthesis
+        const processedSentence = processTextForSpeech(cleanSentence);
 
         try {
-          const audioBlob = await textToSpeech(cleanSentence);
-          return { audio: audioBlob, text: cleanSentence, index };
+          const audioBlob = await textToSpeech(processedSentence);
+          return { audio: audioBlob, text: processedSentence, index };
     } catch (error) {
-          console.error(`❌ Failed to generate TTS for sentence ${index + 1}:`, error);
+          console.error(`❌ Failed to generate OpenAI TTS for sentence ${index + 1}:`, error);
           return null;
         }
       });
 
       // Wait for all TTS generations to complete
+      console.log('⏳ Waiting for all OpenAI TTS generations...');
       const results = await Promise.allSettled(ttsPromises);
-      console.log('⏳ Waiting for all parallel TTS generations...');
 
-      // Check if any TTS generation failed
-      const failedGenerations = results.filter(result => result.status === 'rejected').length;
-      if (failedGenerations > 0) {
-        console.warn(`⚠️ ${failedGenerations} TTS generations failed`);
-      }
-
+      // Play sentences sequentially
       console.log('▶️ Starting sequential playback...');
-      console.log('🎬 VIDEO SHOULD APPEAR NOW - setIsPlayingTTS(true)');
-      setIsPlayingTTS(true);
 
-      let ttsFailed = false;
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value?.audio) {
           const { audio, index } = result.value;
           console.log(`🎵 Playing sentence ${index + 1}, size: ${audio.size} bytes`);
           console.log(`🔊 AUDIO SHOULD PLAY NOW for sentence ${index + 1}`);
-          const playbackSuccess = await playAudioBlob(audio);
-          console.log(`✅ Finished playing sentence ${index + 1}, success: ${playbackSuccess}`);
-
-          if (!playbackSuccess) {
-            ttsFailed = true;
-          }
+          await playAudioBlob(audio);
+          console.log(`✅ Finished playing sentence ${index + 1}`);
 
           // Small pause between sentences
           if (index < results.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
       }
 
-      // Show notification if TTS failed
-      if (ttsFailed) {
-        console.log('⚠️ TTS playback failed, showing notification to user');
-        // You could add a toast notification here if desired
-      }
-
       setIsPlayingTTS(false);
       console.log('🎬 VIDEO SHOULD DISAPPEAR NOW - setIsPlayingTTS(false)');
-
-      console.log('✅ Parallel TTS completed for all sentences');
-      console.log('✅ TTS function completed - AUDIO SHOULD BE PLAYING');
+      console.log('✅ OpenAI TTS completed for all sentences');
 
     } catch (error) {
-      console.error('❌ TTS function error:', error);
-      setIsPlayingTTS(false);
+      console.error('❌ Error in OpenAI TTS:', error);
     } finally {
       setIsGeneratingTTS(false);
-    }
-  }, [isSecure]);
-
-  // Voice interaction handler - simplified for auto-send workflow
-  const handleVoiceInteraction = async () => {
-    console.log('handleVoiceInteraction called:', {
-      isRecording,
-      hasTranscript: !!transcript.trim(),
-      isProcessing: isProcessingAudio
-    });
-
-    if (isRecording) {
-      console.log('Stopping current recording');
-      stopListening();
-    } else if (!isProcessingAudio) {
-      console.log('Starting new recording (will auto-send to LLM after transcription)');
-      await startListening();
-    } else {
-      console.log('Processing audio, please wait...');
+      setIsPlayingTTS(false);
     }
   };
 
-  // Start listening function using Whisper API
+  // Process text for better speech synthesis
+  const processTextForSpeech = (text: string): string => {
+    // Convert numbers to words for better pronunciation
+    text = text.replace(/\b\d+\b/g, (match) => {
+      const num = parseInt(match);
+      return numberToWords(num);
+    });
+
+    // Convert dates to natural speech
+    text = text.replace(/(\d{1,2})\.(\d{1,2})\.(\d{4})/g, (match, day, month, year) => {
+      const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+      return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year} года`;
+    });
+
+    // Convert mathematical expressions
+    text = text.replace(/(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)/g, '$1 плюс $2 равно $3');
+    text = text.replace(/(\d+)\s*\*\s*(\d+)\s*=\s*(\d+)/g, '$1 умножить на $2 равно $3');
+    text = text.replace(/(\d+)\s*\/\s*(\d+)\s*=\s*(\d+)/g, '$1 разделить на $2 равно $3');
+
+    return text;
+  };
+
+  // Convert number to words (simplified Russian)
+  const numberToWords = (num: number): string => {
+    const units = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
+    const teens = ['десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать', 'пятнадцать',
+                   'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать'];
+    const tens = ['', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят', 'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто'];
+    const hundreds = ['', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот', 'шестьсот', 'семьсот', 'восемьсот', 'девятьсот'];
+
+    if (num === 0) return 'ноль';
+    if (num < 10) return units[num];
+    if (num < 20) return teens[num - 10];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ` ${  units[num % 10]}` : '');
+    if (num < 1000) return hundreds[Math.floor(num / 100)] + (num % 100 ? ` ${  numberToWords(num % 100)}` : '');
+
+    return num.toString(); // Fallback for larger numbers
+  };
+
+  // Voice control functions
   const startListening = useCallback(async () => {
-    console.log('🎯 startListening called with Whisper API, current state:', {
+    console.log('🎯 startListening called, current state:', {
       isRecording,
+      recognitionExists: !!recognitionRef.current,
       continuousListening: isContinuousListening
     });
 
-    if (isRecording) {
-      console.log('⚠️ Already recording, ignoring start request');
-      return;
-    }
+    if (recognitionRef.current && !isRecording) {
+      try {
+        console.log('▶️ Starting speech recognition process...');
 
-    try {
-      console.log('▶️ Starting audio recording process...');
+        // Check microphone permissions first
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            console.log('🎙️ Requesting microphone permission...');
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }
+            });
+            console.log('✅ Microphone permission granted, testing audio context...');
 
-      // Check microphone permissions
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            // Test audio context
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            console.log('🎵 Audio context class available:', !!AudioContextClass);
+
+            const audioContext = new AudioContextClass();
+            console.log('🎵 Audio context created:', {
+              state: audioContext.state,
+              sampleRate: audioContext.sampleRate,
+              baseLatency: audioContext.baseLatency
+            });
+
+            if (audioContext.state === 'suspended') {
+              console.log('🔄 Audio context suspended, attempting to resume...');
+              await audioContext.resume();
+              console.log('✅ Audio context resumed, new state:', audioContext.state);
+            }
+
+            // Test stream properties
+            const audioTracks = stream.getAudioTracks();
+            console.log('🎙️ Audio tracks:', audioTracks.length);
+            if (audioTracks.length > 0) {
+              const track = audioTracks[0];
+              console.log('🎙️ Audio track settings:', {
+                enabled: track.enabled,
+                muted: track.muted,
+                readyState: track.readyState,
+                contentHint: track.contentHint
+              });
+            }
+
+            stream.getTracks().forEach(track => track.stop());
+            await audioContext.close();
+            console.log('✅ Audio context test successful');
+          } catch (permError) {
+            console.error('🚫 Microphone permission denied:', permError);
+            console.error('🚫 Error name:', permError.name);
+            console.error('🚫 Error message:', permError.message);
+            alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
+            return;
+          }
+        } else {
           console.error('❌ getUserMedia not supported');
           alert('Ваш браузер не поддерживает доступ к микрофону');
           return;
         }
 
-      console.log('🎙️ Requesting microphone permission...');
+        // Check if we're in a secure context
+        const currentIsLocalhost = typeof window !== 'undefined' &&
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+        const currentIsSecure = typeof window !== 'undefined' &&
+          (window.isSecureContext || window.location.protocol === 'https:');
+
+        if (typeof window !== 'undefined') {
+          console.log('🔒 Security context check:', {
+            hostname: window.location.hostname,
+            protocol: window.location.protocol,
+            isSecure: currentIsSecure,
+            secureContext: window.isSecureContext,
+            isLocalhost: currentIsLocalhost
+          });
+
+          if (!currentIsSecure) {
+            console.log('⚠️ Not in secure context - Web Speech API may not work');
+            console.log(`📍 Current protocol: ${window.location.protocol}`);
+            console.log(`🔒 Secure context: ${window.isSecureContext}`);
+
+            if (currentIsLocalhost) {
+              console.log('💡 For localhost development, you can:');
+              console.log('   1. Use HTTPS: npm run dev -- --https');
+              console.log('   2. Configure Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure + http://localhost:3001');
+              console.log('   3. Use Firefox with media.webspeech.recognition.force_allow_insecure = true');
+
+              // For localhost, we'll try anyway but warn the user
+              console.log('🔄 Trying to use speech recognition despite insecure context...');
+            } else {
+              alert('Web Speech API требует HTTPS соединения для работы с микрофоном.');
+              return;
+            }
+          }
+        }
+
+        console.log('⏳ Delaying recognition start by 100ms...');
+        setTimeout(() => {
+          console.log('🚀 Attempting to start recognition, final check:', {
+            recognitionExists: !!recognitionRef.current,
+            isRecording,
+            continuousListening: isContinuousListening
+          });
+
+          if (recognitionRef.current && !isRecording) {
+            try {
+        recognitionRef.current.start();
+              console.log('🎤 Recognition.start() called successfully');
+            } catch (startError) {
+              console.error('❌ Failed to start recognition:', startError);
+              console.error('❌ Start error details:', {
+                name: startError.name,
+                message: startError.message,
+                stack: startError.stack
+              });
+            }
+          } else {
+            console.log('⚠️ Recognition not started - conditions not met');
+          }
+        }, 100);
+
+      } catch (error) {
+        console.error('❌ Error starting speech recognition:', error);
+      }
+    }
+  }, [isRecording]);
+
+  const stopListening = useCallback((forcedStop = false) => {
+      console.log('🛑 Stopping speech recognition', forcedStop ? '(FORCED STOP)' : '(TEMPORARY STOP)');
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsRecording(false);
+    // Only disable continuous listening if it's a forced stop (user toggle)
+    if (forcedStop) {
+      console.log('🚫 Disabling continuous listening (forced stop)');
+      setIsContinuousListening(false);
+    } else {
+      console.log('⏸️ Pausing for processing, continuous listening remains enabled');
+    }
+    setInterimTranscript('');
+  }, []);
+
+  // Handle audio recording completion (legacy MediaRecorder - keeping for compatibility)
+  const handleAudioRecorded = async (audioBlob: Blob) => {
+    // Since we now use Web Speech API, this function is mainly for legacy compatibility
+    // The actual transcription happens in the Web Speech API result handler
+    console.log('🎤 Legacy audio processing called, but using Web Speech API instead');
+    setIsProcessingAudio(false);
+  };
+
+  // Функция для сжатия аудио (упрощенная версия)
+  const compressAudio = async (audioBlob: Blob): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      try {
+        // Simple passthrough for now - in a real implementation you'd compress
+        resolve(audioBlob);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  };
+
+  // Функция для отправки аудио на сервер для распознавания
+  const transcribeAudioOnServer = async (audioBlob: Blob): Promise<string> => {
+    // Since we're using Web Speech API, this is just a placeholder
+    return '';
+  };
+
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      console.log('🎤 Starting audio recording...');
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          sampleRate: 16000,
+          channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000 // Good for Whisper
+          noiseSuppression: true
         }
       });
 
-      console.log('✅ Microphone permission granted');
+      const selectedMimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
 
-      // Check if we're in a secure context
-      if (!isSecure) {
-        console.log('⚠️ Not in secure context - audio recording may not work');
-        alert('Для голосового распознавания требуется HTTPS соединение.');
-        stream.getTracks().forEach(track => track.stop());
-        return;
-      }
-
-      // Create MediaRecorder
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus' // Better for Whisper
+        mimeType: selectedMimeType
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -518,303 +813,470 @@ const Voice = () => {
         }
       };
 
-      mediaRecorder.onstop = async () => {
-        console.log('🎵 Audio recording stopped, processing...');
-        setIsProcessingAudio(true);
-
-        try {
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('📦 Audio blob created, size:', audioBlob.size, 'bytes');
-
-          if (audioBlob.size < 1000) {
-            console.warn('⚠️ Audio blob too small, likely empty recording');
-            setTranscript('Не удалось записать аудио. Попробуйте еще раз.');
-            setIsProcessingAudio(false);
-            return;
-          }
-
-          // Send to Whisper API
-          const transcription = await speechToText(audioBlob);
-          console.log('✅ Transcription received:', transcription);
-
-          setTranscript(transcription);
-
-          // Auto-send transcription to LLM immediately after successful transcription
-          if (transcription.trim()) {
-            console.log('🚀 Auto-sending transcription to LLM...');
-            setIsAutoSending(true);
-
-            // Small delay to let user see the transcription before sending
-            setTimeout(async () => {
-              try {
-                await handleSendMessage(transcription);
-              } finally {
-                setIsAutoSending(false);
-              }
-            }, 800); // 800ms delay to show the status
-          }
-
-    } catch (error) {
-          console.error('❌ Transcription error:', error);
-          setTranscript('Ошибка распознавания речи. Попробуйте еще раз.');
-        } finally {
-          setIsProcessingAudio(false);
-        }
-
-        // Clean up
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: selectedMimeType });
+        console.log('🎤 Recording stopped, processing audio...', {
+          size: audioBlob.size,
+          type: audioBlob.type
+        });
+        handleAudioRecorded(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('❌ MediaRecorder error:', event);
-        setTranscript('Ошибка записи аудио. Попробуйте еще раз.');
-        setIsRecording(false);
-        setIsProcessingAudio(false);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      console.log('🎬 Starting audio recording...');
+      mediaRecorder.start(1000); // Собираем данные каждую секунду для лучшего контроля размера
       setIsRecording(true);
-      mediaRecorder.start();
-
-      // Auto-stop after 30 seconds if still recording
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          console.log('⏰ Auto-stopping recording after 30 seconds');
-      stopListening();
-        }
-      }, 30000);
 
     } catch (error) {
-      console.error('❌ Error starting audio recording:', error);
-      if (error.name === 'NotAllowedError') {
-        alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
-    } else {
-        alert('Ошибка доступа к микрофону: ' + error.message);
-      }
+      console.error('❌ Error starting recording:', error);
+      alert('Не удалось начать запись. Проверьте разрешения на микрофон.');
     }
-  }, [isRecording, isContinuousListening, isSecure]);
+  };
 
-  // Stop listening function
-  const stopListening = useCallback(() => {
-    console.log('🛑 Stopping audio recording');
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      console.log('🛑 Stopping audio recording...');
       mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
-    setIsRecording(false);
-    setIsContinuousListening(false);
+  };
+
+  // Функция отправки сообщения
+  const handleSendMessage = async (messageText: string, isVoice: boolean = false) => {
+    if (!messageText.trim()) return;
+
+    console.log('🎯 handleSendMessage called with:', messageText, 'isVoice:', isVoice);
+    console.log('🔍 Continuous listening state at send:', isContinuousListening);
+    console.log('📤 Message details:', {
+      original: messageText,
+      trimmed: messageText.trim(),
+      length: messageText.length,
+      words: messageText.trim().split(' ').length
+    });
+
+    // Clear auto-send timer when sending manually or automatically
+    if (autoSendTimerRef.current) {
+      clearTimeout(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+      console.log('🕐 Cleared auto-send timer on send');
+    }
+    
+    // Note: TTS playback interruption will be handled by the audio system
+    // when new audio starts playing
+    
+    setIsLoading(true);
+
+    // Save the continuous listening state at the start
+    // If continuous listening is not enabled yet, enable it automatically for voice conversations
+    const shouldResumeContinuous = isContinuousListening || isVoice; // Enable if isVoice flag is true OR if continuous was enabled
+    console.log('💾 Saved continuous listening state for resume:', shouldResumeContinuous, '(original:', isContinuousListening, ', isVoice:', isVoice, ')');
+
+    // If this is a voice message and continuous listening wasn't enabled, enable it now
+    if (!isContinuousListening && isVoice) {
+      console.log('🎯 Auto-enabling continuous listening for voice conversation');
+      setIsContinuousListening(true);
+    }
+
+    // Add user message
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      content: messageText,
+      role: 'user',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setTranscript('');
     setInterimTranscript('');
-  }, []);
+    setAutoSendStatus('idle');
+
+    try {
+      console.log('🚀 Calling AI API...');
+      
+      // Prepare conversation history with context
+      const conversationHistory = [
+        {
+              role: 'system',
+              content: AI_SYSTEM_MESSAGES.voice
+        },
+        // Add all previous messages for context
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        // Add current user message
+        {
+              role: 'user',
+              content: messageText
+            }
+      ];
+      
+      console.log('📝 Sending conversation with history:', conversationHistory.length, 'messages');
+      
+      // Generate session ID for conversation memory
+      const sessionId = `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Call AI API with full conversation history
+      const apiUrl = `${API_CONFIG.BASE_URL}/chat`;
+      console.log('🔗 Making API request to:', apiUrl);
+      console.log('📊 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
+      console.log('🔄 Session ID:', sessionId);
+      console.log('📨 Request payload:', JSON.stringify({
+        messages: conversationHistory,
+        model: 'gpt-5.1',
+        temperature: 0.7,
+        max_completion_tokens: 2000
+      }, null, 2));
+
+      let response;
+      try {
+        console.log('🚀 Executing fetch request...');
+        console.log('🔗 Full URL:', apiUrl);
+        console.log('📦 Request body:', JSON.stringify({
+          messages: conversationHistory,
+          model: 'gpt-5.1',
+          temperature: 0.7,
+          max_completion_tokens: 2000
+        }, null, 2));
+
+        // Add timeout to fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+        response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionId,
+          },
+          body: JSON.stringify({
+            messages: conversationHistory,
+            model: 'gpt-5.1',
+            temperature: 0.7,
+            max_completion_tokens: 2000
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log('✅ Fetch completed, response received');
+        console.log('📊 Response status:', response.status);
+        console.log('📊 Response statusText:', response.statusText);
+        console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
+      } catch (fetchError) {
+        console.error('❌ Fetch failed with error:', fetchError);
+        console.error('❌ Error name:', fetchError.name);
+        console.error('❌ Error message:', fetchError.message);
+        if (fetchError.name === 'AbortError') {
+          console.error('❌ Request timed out after 30 seconds');
+        }
+        throw new Error(`Network error: ${fetchError.message}`);
+      }
+
+      if (!response.ok) {
+        console.log('⚠️ Response not OK, reading error body...');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('❌ API error body:', errorText);
+        console.error('❌ Full response details:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          body: errorText
+        });
+        throw new Error(`API error: ${response.status} - ${errorText}`);
+      }
+
+      console.log('📥 Response OK, parsing JSON...');
+      let data;
+      try {
+        data = await response.json();
+        console.log('📄 JSON parsed successfully');
+        console.log('📊 Response data keys:', Object.keys(data));
+        console.log('📊 Response data:', JSON.stringify(data, null, 2));
+      } catch (jsonError) {
+        console.error('❌ JSON parsing failed:', jsonError);
+        throw new Error(`JSON parsing error: ${jsonError.message}`);
+      }
+
+      console.log('💬 Extracting AI response...');
+      const aiResponse = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка при обработке вашего запроса.';
+      console.log('💬 AI response extracted successfully:', aiResponse.substring(0, 100) + '...');
+
+      // Add AI response
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: aiResponse,
+        role: 'assistant',
+        timestamp: new Date()
+      };
+
+      console.log('✅ Adding AI message to chat...');
+      setMessages(prev => {
+        console.log('📊 Total messages after adding AI response:', prev.length + 1);
+        return [...prev, assistantMessage];
+      });
+
+      // Speak the AI response using OpenAI TTS
+      console.log('🔊 Starting OpenAI TTS for AI response...');
+      console.log('🎵 TTS text length:', aiResponse.length, 'characters');
+      console.log('🎬 About to call speakAIResponse, isPlayingTTS should change to true');
+      console.log('▶️ CALLING speakAIResponse NOW...');
+      await speakAIResponse(aiResponse);
+      console.log('✅ TTS function completed - AUDIO SHOULD BE PLAYING');
+
+      // Resume continuous listening after AI response is complete
+      console.log('🔄 CHECKING CONTINUOUS LISTENING RESUMPTION...');
+      console.log('📊 CURRENT STATE IMMEDIATELY AFTER TTS:', {
+        continuous: isContinuousListening,
+        recording: isRecording,
+        playingTTS: isPlayingTTS,
+        recognitionExists: !!recognitionRef.current
+      });
+
+      // Force resume continuous listening using saved state
+      // We know TTS has completed because we're in this code block
+      if (shouldResumeContinuous) {
+        console.log('🔄 FORCED: Resuming continuous listening after AI response...');
+        console.log('💾 Using saved state (shouldResumeContinuous):', shouldResumeContinuous);
+        console.log('🎯 This should enable continuous listening for ongoing voice conversation');
+
+        // Use a longer delay to ensure any audio cleanup is complete
+        setTimeout(() => {
+          console.log('⏰ FORCED RESUMPTION: Timeout triggered');
+          console.log('📊 STATE AT FORCED RESUMPTION:', {
+            savedContinuous: shouldResumeContinuous,
+            currentContinuous: isContinuousListening,
+            recording: isRecording,
+            playingTTS: isPlayingTTS,
+            recognitionExists: !!recognitionRef.current
+          });
+
+          // Only check if we're not currently recording
+          if (!isRecording) {
+            console.log('▶️ FORCED: Starting new listening session after AI response');
+            try {
+              startListening();
+              console.log('✅ FORCED: startListening() called successfully');
+            } catch (error) {
+              console.error('❌ FORCED: Failed to start listening:', error);
+            }
+          } else {
+            console.log('⚠️ FORCED: Cannot resume - currently recording');
+
+            // Try again in another second if still recording
+            setTimeout(() => {
+              if (shouldResumeContinuous && !isRecording) {
+                console.log('▶️ RETRY: Starting listening session after second delay');
+                try {
+                  startListening();
+                } catch (error) {
+                  console.error('❌ RETRY: Failed to start listening:', error);
+                }
+              }
+            }, 1000);
+          }
+        }, 2000); // Longer delay to ensure everything is cleaned up
+      } else {
+        console.log('🚫 CONTINUOUS LISTENING WAS NOT ENABLED - NO RESUMPTION NEEDED');
+        console.log('💡 User can manually enable continuous listening via toggle');
+      }
+
+    } catch (error) {
+      console.error('❌ CRITICAL ERROR in handleSendMessage:', error);
+      console.error('❌ Error type:', error.constructor.name);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+
+      // Additional error details
+      if (error instanceof TypeError) {
+        console.error('❌ This is a TypeError - likely network or parsing issue');
+      } else if (error instanceof SyntaxError) {
+        console.error('❌ This is a SyntaxError - likely JSON parsing issue');
+      } else if (error.name === 'AbortError') {
+        console.error('❌ This is an AbortError - request was aborted');
+      } else if (error.name === 'TimeoutError') {
+        console.error('❌ This is a TimeoutError - request timed out');
+      }
+
+      // Check network connectivity
+      console.log('🌐 Checking network connectivity...');
+      fetch('http://127.0.0.1:3003/test-proxy', { method: 'GET' })
+        .then(networkResponse => {
+          if (networkResponse.ok) {
+            console.log('✅ Network connectivity OK - backend reachable');
+          } else {
+            console.log('⚠️ Network connectivity issue - backend responded with error');
+          }
+        })
+        .catch(networkError => {
+          console.error('❌ Network connectivity FAILED - cannot reach backend:', networkError);
+        });
+
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `Извините, произошла ошибка при обработке вашего запроса. Детали: ${error.message}`,
+        role: 'assistant',
+        timestamp: new Date()
+      };
+
+      console.log('🚨 Adding error message to chat...');
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      console.log('🏁 handleSendMessage finished');
+      setIsLoading(false);
+    }
+  };
+
+  // Функция для переключения голосового режима
+  const toggleVoiceMode = async () => {
+    console.log('🎛️ toggleVoiceMode called, isContinuousListening:', isContinuousListening, 'isLoading:', isLoading, 'isRecording:', isRecording, 'playingTTS:', isPlayingTTS);
+
+    // Prevent toggling while TTS is playing to avoid accidental interruption
+    if (isPlayingTTS) {
+      console.log('🚫 Cannot toggle voice mode while TTS is playing');
+      return;
+    }
+
+    if (isContinuousListening) {
+      console.log('🛑 Stopping continuous listening via toggle');
+      setIsContinuousListening(false);
+      stopListening(true); // Force stop when user toggles
+    } else if (!isLoading) {
+      console.log('▶️ Starting continuous listening via toggle');
+      setTranscript(''); // Очищаем предыдущую транскрипцию
+      setInterimTranscript('');
+      setIsContinuousListening(true); // Включаем постоянное прослушивание при первом нажатии
+      console.log('✅ Set isContinuousListening to true');
+      startListening();
+    } else {
+      console.log('❌ Cannot start voice recognition: isLoading=', isLoading);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex flex-col bg-muted/20">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
-              Голосовой AI-Юрист Галина
+      <main className="flex-1">
+        <div className="container mx-auto px-4 py-12">
+          {/* Header Section */}
+          <div className="mb-12 text-center space-y-4">
+            <div className="flex justify-center mb-4">
+              <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center">
+                <Mic className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-foreground">
+              Голосовое общение
             </h1>
-            <p className="text-xl text-gray-600">
-              Задайте вопрос голосом - получите профессиональную юридическую консультацию
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Говорите естественно - система автоматически распознает вашу речь и отвечает голосом.
             </p>
           </div>
 
-          {/* Chat Messages */}
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="space-y-4 max-h-96 overflow-y-auto">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        message.role === 'user'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-800'
-                      }`}
-                    >
-                      <p className="text-sm">{message.content}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {message.timestamp.toLocaleTimeString()}
+          {/* Main Interface */}
+          <div className="max-w-4xl mx-auto">
+            <Card className="border-border/50">
+                <CardContent className="p-12">
+                <div className="text-center space-y-8">
+                    {/* Voice Visualizer */}
+                    <div className="relative">
+                      <video
+                        className="h-64 w-64 rounded-full object-cover cursor-pointer mx-auto shadow-2xl"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        onClick={toggleVoiceMode}
+                      >
+                        <source src="/Untitled Video-2.mp4" type="video/mp4" />
+                        Ваш браузер не поддерживает видео.
+                      </video>
+                    </div>
+
+                    <div className="text-center space-y-2">
+                      <h2 className="text-2xl font-bold text-foreground">
+                      {isLoading ? "" : ""}
+                      </h2>
+                      <p className="text-muted-foreground">
+                      {isLoading ? "" : ""}
                       </p>
                     </div>
-                      </div>
-                ))}
-                      </div>
-            </CardContent>
-          </Card>
 
-          {/* Voice Controls */}
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="text-center">
-                <Button
-                  onClick={handleVoiceInteraction}
-                  disabled={isProcessingAudio || isAutoSending}
-                  size="lg"
-                  className={`mb-4 ${
-                    isRecording
-                      ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                      : isProcessingAudio
-                      ? 'bg-orange-500 hover:bg-orange-600'
-                      : isAutoSending
-                      ? 'bg-purple-500 hover:bg-purple-600'
-                      : 'bg-blue-500 hover:bg-blue-600'
-                  }`}
-                >
-                  {isAutoSending ? (
-                    <>
-                      <Sparkles className="mr-2 h-5 w-5 animate-spin" />
-                      Отправка в AI...
-                    </>
-                  ) : isProcessingAudio ? (
-                    <>
-                      <Sparkles className="mr-2 h-5 w-5 animate-spin" />
-                      Распознавание речи...
-                    </>
-                  ) : isRecording ? (
-                    <>
-                      <MicOff className="mr-2 h-5 w-5" />
-                      Остановить запись
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="mr-2 h-5 w-5" />
-                      Начать голосовую консультацию
-                    </>
-                  )}
-                </Button>
 
-                {isProcessingAudio && (
-                  <div className="text-center mb-4">
-                    <div className="inline-flex items-center">
-                      <Sparkles className="mr-2 h-5 w-5 animate-spin text-blue-500" />
-                      <span className="text-blue-600 font-medium">
-                        Распознавание речи с помощью Whisper...
-                      </span>
+                  {/* Test input for development */}
+                  {(showTestMode || (isLocalhost && !isSecure)) && (
+                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200 mb-4">
+                      <div className="text-sm text-yellow-800 mb-2 font-medium">
+                        🧪 Режим разработки {showTestMode ? '(включен из-за ошибки)' : '(без HTTPS)'}
+                      </div>
+                      <div className="text-xs text-yellow-700 mb-3">
+                        {showTestMode
+                          ? 'Произошла ошибка с микрофоном. Используйте тестовый ввод для проверки AI ответов.'
+                          : 'Speech API не работает без HTTPS. Используйте тестовый ввод для проверки функциональности.'
+                        }
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Введите тестовый текст..."
+                          className="flex-1 px-3 py-2 border rounded text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                              setTranscript(e.currentTarget.value.trim());
+                              e.currentTarget.value = '';
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const testTexts = [
+                              'Здравствуйте, помогите составить договор',
+                              'Что такое трудовой договор?',
+                              'Как зарегистрировать ООО?',
+                              'Какие документы нужны для развода?'
+                            ];
+                            const randomText = testTexts[Math.floor(Math.random() * testTexts.length)];
+                            setTranscript(randomText);
+                            console.log('🧪 Test input:', randomText);
+                          }}
+                          className="px-3 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+                        >
+                          🎲 Случайный
+                        </button>
                       </div>
                     </div>
                   )}
 
-                        {transcript && (
-                  <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                    <p className="text-blue-800 font-medium mb-2">Распознанный текст:</p>
-                    <p className="text-blue-700">{transcript}</p>
-                  </div>
-                )}
 
-                        {interimTranscript && (
-                  <div className="bg-yellow-50 rounded-lg p-4 mb-4">
-                    <p className="text-yellow-800 font-medium mb-2">Промежуточный результат:</p>
-                    <p className="text-yellow-700 italic">{interimTranscript}</p>
-                          </div>
-                        )}
-
-                {/* Status indicators */}
-                <div className="flex justify-center space-x-4 text-sm text-gray-600 mb-4">
-                  <span className={isSecure ? 'text-green-600' : 'text-red-600'}>
-                    🔒 {isSecure ? 'Безопасный контекст' : 'Небезопасный контекст'}
-                  </span>
-                  <span className={isRecording ? 'text-red-600' : 'text-green-600'}>
-                    🎙️ {isRecording ? 'Запись активна' : 'Готов к записи'}
-                  </span>
-                  <span className={isProcessingAudio ? 'text-blue-600' : 'text-gray-400'}>
-                    🤖 {isProcessingAudio ? 'Распознавание речи' : 'Ожидание'}
-                  </span>
-                  {isAutoSending && (
-                    <span className="text-orange-600 animate-pulse">
-                      📤 Отправка в AI...
-                    </span>
-                        )}
-                      </div>
-
-                {/* Auto-send info */}
-                <div className="text-center text-sm text-gray-500 mb-4">
-                  🎯 После окончания записи текст автоматически отправится в AI для консультации
-                      </div>
-                    </div>
-            </CardContent>
-          </Card>
-
-          {/* Conversation Summary */}
-          {conversationSummary.length > 0 && (
-            <Card className="mb-6">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <FileText className="mr-2 h-5 w-5 text-blue-500" />
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      Основные тезисы разговора
-                    </h3>
-                  </div>
-                          <Button
-                    onClick={downloadConversationPDF}
-                            size="sm"
-                            variant="outline"
-                    className="flex items-center"
-                    disabled={isGeneratingSummary}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Скачать PDF
-                          </Button>
-                      </div>
-
-                {isGeneratingSummary ? (
-                  <div className="text-center py-4">
-                    <Sparkles className="mx-auto h-6 w-6 animate-spin text-blue-500 mb-2" />
-                    <p className="text-gray-600">Формирую сводку разговора...</p>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                    <div className="text-sm text-gray-700 space-y-1 font-mono">
-                      {conversationSummary.map((line, index) => (
-                        <div key={index} className={line.trim() === '' ? 'h-2' : ''}>
-                          {line.trim() === '' ? '\u00A0' : line}
-                        </div>
-                      ))}
-                      </div>
-                    </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Text Input Fallback */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="text-center">
-                <p className="text-gray-600 mb-4">
-                  Или введите вопрос текстом:
-                </p>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={transcript}
-                    onChange={(e) => setTranscript(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && transcript.trim()) {
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder="Введите ваш вопрос..."
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
+                  {/* Action buttons */}
+                  <div className="flex gap-4 justify-center">
                       <Button
-                    onClick={() => handleSendMessage()}
-                    disabled={!transcript.trim()}
-                  >
-                    <Send className="h-4 w-4" />
+                        size="lg"
+                        variant={isLoading ? "secondary" : isRecording ? "destructive" : "default"}
+                        onClick={toggleVoiceMode}
+                        disabled={isLoading}
+                        className="shadow-elegant"
+                      >
+                        {isLoading ? (
+                          <Sparkles className="h-5 w-5 mr-2 animate-spin" />
+                        ) : isRecording ? (
+                          <MicOff className="h-5 w-5 mr-2" />
+                        ) : (
+                          <Mic className="h-5 w-5 mr-2" />
+                        )}
+                        {isLoading ? "Обработка..." :
+                       isContinuousListening ? "Остановить прослушивание" :
+                       transcript ? "Продолжить запись" : "Начать запись"}
                       </Button>
                   </div>
+
                   </div>
                 </CardContent>
               </Card>
           </div>
         </div>
+      </main>
     </div>
   );
 };

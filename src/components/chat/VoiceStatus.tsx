@@ -35,8 +35,8 @@ export const VoiceStatus = ({
           )}
           {isVoiceMode && (
             <>
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span className="text-green-600 font-medium">✅ Готова к ответу</span>
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#129246' }}></div>
+              <span className="font-medium" style={{ color: '#129246' }}>✅ Готова к ответу</span>
             </>
           )}
           {isSpeaking && (

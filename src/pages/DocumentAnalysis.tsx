@@ -200,7 +200,7 @@ const DocumentAnalysis = () => {
                   ]
                 }
               ],
-              max_tokens: 2000,
+              max_completion_tokens: 2000,
               temperature: 0.1
             })
           });
@@ -411,7 +411,7 @@ const DocumentAnalysis = () => {
               content: `Проанализируйте следующий документ:\n\nНазвание файла: ${fileName}\n\nСодержимое:\n${fileContent}\n\nПожалуйста, проведите полный юридический анализ этого документа.`
             }
           ],
-          max_tokens: 2000,
+          max_completion_tokens: 2000,
           temperature: 0.3
         })
       });
@@ -575,7 +575,7 @@ const DocumentAnalysis = () => {
                   {analysisResult ? (
                     <div className="space-y-6">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-green-600">
+                        <div className="flex items-center gap-2" style={{ color: '#129246' }}>
                           <CheckCircle2 className="h-5 w-5" />
                           <span className="font-medium">Анализ завершен</span>
                         </div>
