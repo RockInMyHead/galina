@@ -20,7 +20,7 @@ export default defineConfig(({ mode }) => ({
     },
     // Прокси для API запросов в режиме разработки
     // Все запросы к /api/* будут проксироваться на localhost:3001 с сохранением /api префикса
-    proxy: {
+    proxy: mode === 'development' ? {
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => ({
           });
         },
       },
-    },
+    } : {}, // В production режиме прокси не нужен - API на том же домене
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
