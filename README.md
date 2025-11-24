@@ -76,11 +76,105 @@ cd api && ./start-server.sh
 - **SSL**: Полный HTTPS с Let's Encrypt
 - **CDN**: Cloudflare для оптимизации загрузки
 
+### Настройка Nginx (важно для корректной работы API):
+
+```nginx
+server {
+    listen 80;
+    server_name lawyer.windexs.ru;
+
+    # Redirect HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name lawyer.windexs.ru;
+
+    # SSL certificates
+    ssl_certificate /etc/letsencrypt/live/lawyer.windexs.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/lawyer.windexs.ru/privkey.pem;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # API proxy to Node.js backend
+    location /api/ {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        # CORS headers
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+
+        # Handle preflight requests
+        if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Type' 'text/plain charset=UTF-8';
+            add_header 'Content-Length' 0;
+            return 204;
+        }
+    }
+
+    # Static files and frontend
+    location / {
+        root /var/www/lawyer.windexs.ru/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+    }
+
+    # Security: deny access to hidden files
+    location ~ /\. {
+        deny all;
+    }
+}
+```
+
+### Запуск сервисов:
+
+```bash
+# 1. Backend API (Node.js) - порт 3001
+cd /var/www/lawyer.windexs.ru/api
+NODE_ENV=production PORT=3001 node index.js &
+
+# 2. Проверить что API работает:
+curl http://localhost:3001/api/chat
+
+# 3. Frontend файлы должны быть в /var/www/lawyer.windexs.ru/html/
+# Скопировать из dist/ после npm run build
+
+# 4. Nginx конфигурация (nginx.conf в корне проекта)
+sudo cp nginx.conf /etc/nginx/sites-available/lawyer.windexs.ru
+sudo ln -sf /etc/nginx/sites-available/lawyer.windexs.ru /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
 ### Мониторинг production:
 Если возникают проблемы, проверьте:
 - ✅ Доступность домена
 - ✅ SSL сертификат
-- ✅ API endpoints (/api/chat, /api/tts)
+- ✅ API endpoints (`curl https://lawyer.windexs.ru/api/chat`)
+- ✅ Nginx конфигурация (`nginx -t`)
+- ✅ Node.js процесс (`ps aux | grep node`)
 - ✅ CORS настройки
 
 ## 📋 Использование
