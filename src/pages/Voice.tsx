@@ -95,12 +95,6 @@ const Voice = () => {
 
   // Initialize Web Speech API
   useEffect(() => {
-    // Initialize Web Speech API
-      speechRecognition: !!window.SpeechRecognition,
-      webkitSpeechRecognition: !!(window as any).webkitSpeechRecognition,
-      mediaDevices: !!navigator.mediaDevices,
-      getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
-    });
 
     const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -391,45 +385,39 @@ const Voice = () => {
       try {
         // Check microphone permissions first
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              }
+            });
+
+            // Test audio context
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            const audioContext = new AudioContextClass();
+
+            if (audioContext.state === 'suspended') {
+              await audioContext.resume();
             }
-          });
 
-          // Test audio context
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          const audioContext = new AudioContextClass();
-
-          if (audioContext.state === 'suspended') {
-            await audioContext.resume();
+            // Clean up stream
+            stream.getTracks().forEach(track => track.stop());
+            await audioContext.close();
+          } catch (permError) {
+            console.error('🚫 Microphone permission denied:', permError.message);
+            alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
+            return;
           }
-
-          // Clean up stream
-          stream.getTracks().forEach(track => track.stop());
-          await audioContext.close();
-        } catch (permError) {
-          console.error('🚫 Microphone permission denied:', permError.message);
-          alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
+        } else {
+          console.error('❌ getUserMedia not supported');
+          alert('Ваш браузер не поддерживает доступ к микрофону');
           return;
         }
-      } else {
-        console.error('❌ getUserMedia not supported');
-        alert('Ваш браузер не поддерживает доступ к микрофону');
-        return;
-      }
 
-      // Start recognition
-      recognitionRef.current.start();
-              });
-            }
-          } else {
-            console.log('⚠️ Recognition not started - conditions not met');
-          }
-        }, 100);
-
+        // Start recognition
+        recognitionRef.current.start();
       } catch (error) {
         console.error('❌ Error starting speech recognition:', error);
       }
@@ -444,8 +432,6 @@ const Voice = () => {
     if (forcedStop) {
       setIsContinuousListening(false);
     }
-    }
-    setInterimTranscript('');
   }, []);
 
   // Handle audio recording completion (legacy MediaRecorder - keeping for compatibility)
@@ -592,9 +578,6 @@ const Voice = () => {
 
       let response;
       try {
-          max_completion_tokens: 2000
-        }, null, 2));
-
         // Add timeout to fetch
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
@@ -620,7 +603,6 @@ const Voice = () => {
           console.error('❌ Request timed out');
         } else {
           console.error('❌ API request failed:', fetchError.message);
-        }
         }
         throw new Error(`Network error: ${fetchError.message}`);
       }
@@ -663,10 +645,7 @@ const Voice = () => {
               startListening();
             } catch (error) {
               console.error('❌ Failed to resume listening:', error.message);
-                  console.error('❌ RETRY: Failed to start listening:', error);
-                }
-              }
-            }, 1000);
+            }
           }
         }, 2000); // Longer delay to ensure everything is cleaned up
       }
