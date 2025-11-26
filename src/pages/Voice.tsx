@@ -288,7 +288,35 @@ const Voice = () => {
     };
   }, [isLoading, isGeneratingTTS, isPlayingTTS, startBeepInterval, stopBeepInterval]);
 
-  // TTS function for AI responses using OpenAI TTS
+  // Browser TTS fallback function
+  const speakWithBrowserTTS = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (!('speechSynthesis' in window)) {
+        resolve();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ru-RU';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      // Try to find a Russian voice
+      const voices = window.speechSynthesis.getVoices();
+      const russianVoice = voices.find(v => v.lang.startsWith('ru'));
+      if (russianVoice) {
+        utterance.voice = russianVoice;
+      }
+
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+
+      window.speechSynthesis.speak(utterance);
+    });
+  };
+
+  // TTS function for AI responses using OpenAI TTS with browser fallback
   const speakAIResponse = async (text: string) => {
     try {
       setIsGeneratingTTS(true);
@@ -297,6 +325,9 @@ const Voice = () => {
       const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
       setIsPlayingTTS(true);
 
+      // Try OpenAI TTS first
+      let useOpenAITTS = true;
+      
       // Process and generate TTS for each sentence in parallel
       const ttsPromises = sentences.map(async (sentence, index) => {
         const cleanSentence = sentence.trim();
@@ -307,25 +338,48 @@ const Voice = () => {
 
         try {
           const audioBlob = await textToSpeech(processedSentence);
-          return { audio: audioBlob, text: processedSentence, index };
+          // Check if audio is valid (more than 100 bytes - mock audio is only 48 bytes)
+          if (audioBlob && audioBlob.size > 100) {
+            return { audio: audioBlob, text: processedSentence, index };
+          } else {
+            // OpenAI TTS returned mock/invalid audio, use browser TTS
+            useOpenAITTS = false;
+            return null;
+          }
         } catch (error) {
           console.error(`❌ TTS failed for sentence ${index + 1}:`, error.message);
+          useOpenAITTS = false;
           return null;
         }
       });
 
       // Wait for all TTS generations to complete
-      console.log('⏳ Waiting for all OpenAI TTS generations...');
       const results = await Promise.allSettled(ttsPromises);
 
-      // Play sentences sequentially
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value?.audio) {
-          const { audio } = result.value;
-          await playAudioBlob(audio);
+      // Check if any valid audio was generated
+      const hasValidAudio = results.some(
+        r => r.status === 'fulfilled' && r.value?.audio && r.value.audio.size > 100
+      );
 
-          // Small pause between sentences
-          await new Promise(resolve => setTimeout(resolve, 200));
+      if (hasValidAudio) {
+        // Play OpenAI TTS sentences sequentially
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value?.audio && result.value.audio.size > 100) {
+            const { audio } = result.value;
+            await playAudioBlob(audio);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+      } else {
+        // Fallback to browser TTS
+        console.log('🔊 Using browser TTS fallback...');
+        for (const sentence of sentences) {
+          const cleanSentence = sentence.trim();
+          if (cleanSentence.length > 0) {
+            const processedSentence = processTextForSpeech(cleanSentence);
+            await speakWithBrowserTTS(processedSentence);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
         }
       }
 
