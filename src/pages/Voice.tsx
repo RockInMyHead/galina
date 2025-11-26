@@ -32,30 +32,10 @@ const Voice = () => {
   const isSecure = typeof window !== 'undefined' ?
     (window.isSecureContext || (window.location && window.location.protocol === 'https:')) : false;
 
-  // Detailed logging of environment detection
+  // Environment setup
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      console.log('🔍 Environment detection:', {
-        hostname: window.location.hostname,
-        protocol: window.location.protocol,
-        port: window.location.port,
-        href: window.location.href,
-        isLocalhost,
-        isSecure,
-        secureContext: window.isSecureContext,
-        userAgent: navigator.userAgent.substring(0, 50) + '...'
-      });
-    }
-
     if (isLocalhost && !isSecure) {
-      console.log('🔧 Auto-enabling test mode for localhost development');
       setShowTestMode(true);
-    } else {
-      console.log('ℹ️ Environment check:', {
-        isLocalhost,
-        isSecure,
-        reason: !isLocalhost ? 'not localhost' : 'already secure or HTTPS'
-      });
     }
   }, [isLocalhost, isSecure]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -115,8 +95,7 @@ const Voice = () => {
 
   // Initialize Web Speech API
   useEffect(() => {
-    console.log('🔧 Initializing Web Speech API...');
-    console.log('📊 Browser capabilities:', {
+    // Initialize Web Speech API
       speechRecognition: !!window.SpeechRecognition,
       webkitSpeechRecognition: !!(window as any).webkitSpeechRecognition,
       mediaDevices: !!navigator.mediaDevices,
@@ -130,40 +109,19 @@ const Voice = () => {
       return;
     }
 
-    console.log('✅ Web Speech API supported, creating recognition instance...');
-
     try {
       const recognition = new SpeechRecognition();
-      console.log('🎯 Recognition instance created:', {
-        continuous: recognition.continuous,
-        interimResults: recognition.interimResults,
-        lang: recognition.lang,
-        maxAlternatives: recognition.maxAlternatives,
-        serviceURI: recognition.serviceURI,
-        grammars: recognition.grammars
-      });
 
       recognition.continuous = false; // Use single-shot mode for better reliability
       recognition.interimResults = true;
       recognition.lang = 'ru-RU';
       recognition.maxAlternatives = 1;
 
-      console.log('⚙️ Recognition configured:', {
-        continuous: recognition.continuous,
-        interimResults: recognition.interimResults,
-        lang: recognition.lang,
-        maxAlternatives: recognition.maxAlternatives
-      });
-
       recognition.onstart = () => {
-        console.log('🎤 Speech recognition started successfully');
         setIsRecording(true);
-        // isContinuousListening is already set by toggleVoiceMode
       };
 
       recognition.onresult = (event) => {
-        console.log('📝 Speech recognition result received');
-
         let finalTranscript = '';
         let interimTranscript = '';
 
@@ -181,13 +139,7 @@ const Voice = () => {
         }
 
         if (finalTranscript && finalTranscript.trim()) {
-          console.log('✅ Final transcript:', finalTranscript.trim());
-          console.log('🔍 Raw transcript data:', {
-            finalTranscript,
-            trimmed: finalTranscript.trim(),
-            length: finalTranscript.length,
-            charCodes: [...finalTranscript.trim()].map(c => c.charCodeAt(0))
-          });
+          console.log('🎤 Распознано:', finalTranscript.trim());
 
           // Update transcript and immediately schedule auto-send
           setTranscript(prev => {
@@ -206,242 +158,88 @@ const Voice = () => {
             // Start new auto-send timer for 2 seconds of silence
             autoSendTimerRef.current = setTimeout(() => {
               if (newTranscript.trim()) {
-                console.log('⏰ Auto-sending after 2 seconds of silence:', newTranscript.trim());
-                setAutoSendStatus('sending');
                 handleSendMessage(newTranscript.trim(), true);
               }
             }, SILENCE_TIMEOUT);
-            console.log('⏱️ Started auto-send timer (2 seconds)');
 
             return newTranscript;
           });
 
         // If continuous listening is enabled, restart recognition after a delay
-        console.log('🔍 Checking continuous listening in onresult:', isContinuousListening);
         if (isContinuousListening) {
-          console.log('🔄 Continuous mode: restarting recognition in 1 second...');
           setTimeout(() => {
-            console.log('⏰ Timeout triggered, checking conditions...');
-            console.log('🔍 isContinuousListening:', isContinuousListening, 'recognition exists:', !!recognitionRef.current, 'isRecording:', isRecording);
             if (isContinuousListening && recognitionRef.current && !isRecording) {
               try {
-                console.log('▶️ Actually restarting speech recognition...');
                 recognitionRef.current.start();
               } catch (error) {
-                console.error('❌ Failed to restart recognition:', error);
+                console.error('❌ Failed to restart recognition:', error.message);
                 setIsContinuousListening(false);
               }
-            } else {
-              console.log('⚠️ Conditions not met for restart');
             }
           }, 1000); // 1 second delay to prevent conflicts
-        } else {
-          console.log('ℹ️ Continuous listening disabled in onresult');
         }
         }
       };
 
       recognition.onerror = async (event) => {
-        console.error('❌ Speech recognition error:', event.error, event);
-        console.error('❌ Error type:', event.type);
-        console.error('❌ Error message:', event.message || 'No message');
+        console.error('❌ Speech recognition error:', event.error);
 
-        // Detailed debug information
-        const debugInfo = {
-          isLocalhost,
-          isSecure,
-          hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
-          protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown',
-          port: typeof window !== 'undefined' ? window.location.port : 'unknown',
-          href: typeof window !== 'undefined' ? window.location.href : 'unknown',
-          secureContext: typeof window !== 'undefined' ? window.isSecureContext : false,
-          webkitSpeechRecognition: typeof (window as any).webkitSpeechRecognition,
-          speechRecognition: typeof window.SpeechRecognition,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString(),
-          errorDetails: {
-            error: event.error,
-            message: event.message,
-            type: event.type
-          }
-        };
-
-        console.log('🔍 Full error event object:', JSON.stringify(debugInfo, null, 2));
-
-        // Network connectivity test
-        console.log('🌐 Testing network connectivity...');
-        try {
-          const testUrls = [
-            'https://www.google.com/favicon.ico',
-            'https://www.gstatic.com/speech-api/models/manifest.json',
-            'https://clients5.google.com/v1/speech:recognize'
-          ];
-          
-          for (const url of testUrls) {
-            try {
-              const startTime = performance.now();
-              await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-              const endTime = performance.now();
-              console.log(`✅ Network test passed for ${url} (${Math.round(endTime - startTime)}ms)`);
-            } catch (fetchError) {
-              console.error(`❌ Network test failed for ${url}:`, fetchError);
-            }
-          }
-        } catch (networkError) {
-          console.error('❌ Network connectivity test error:', networkError);
-        }
-
-        // Check browser permissions
-        console.log('🔐 Checking browser permissions...');
-        if (navigator.permissions) {
-          try {
-            const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-            console.log('🎤 Microphone permission status:', micPermission.state);
-            
-            // Try to get more detailed permission info
-            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-              const devices = await navigator.mediaDevices.enumerateDevices();
-              const audioInputs = devices.filter(device => device.kind === 'audioinput');
-              console.log('🎙️ Available audio input devices:', audioInputs.length);
-              audioInputs.forEach((device, idx) => {
-                console.log(`  ${idx + 1}. ${device.label || `Device ${idx + 1}`} (${device.deviceId.substring(0, 20)}...)`);
-              });
-            }
-          } catch (permError) {
-            console.error('❌ Permission check error:', permError);
-          }
-        }
-
-        // Detect Safari for error handling
-        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent) ||
-                        /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
-
-        // Provide more specific error handling
+        // Handle specific errors
         switch (event.error) {
           case 'network':
             console.error('🔗 Network error - check internet connection');
-            console.log('💡 Possible causes:');
-            console.log('   - No internet connection');
-            console.log('   - Firewall blocking Google Speech API');
-            console.log('   - VPN interfering with speech services');
-            console.log('   - Regional restrictions');
             break;
           case 'not-allowed':
-            console.error('🚫 Microphone access denied - check permissions');
-            console.log('💡 To fix:');
-            console.log('   - Click the 🔒 icon in address bar');
-            console.log('   - Allow microphone access');
-            console.log('   - Refresh the page');
+            console.error('🚫 Microphone access denied');
             break;
           case 'no-speech':
-            console.error('🤫 No speech detected');
-            // This is recoverable - will be handled by the centralized error recovery logic
+            // No speech detected - silently continue
             break;
           case 'aborted':
-            console.error('🛑 Recognition was aborted');
-            console.log('🔍 Detailed debug info:', debugInfo);
-
-            // Safari detection already done above
-
+            // Check if Safari
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
             if (isSafari) {
-              console.log('🧭 Browser detected: Safari');
-              console.log('⚠️ Safari often aborts speech recognition due to system conflicts');
-              console.log('💡 This is usually NOT a critical error in Safari');
-              console.log('🔍 DEBUG: isContinuousListening in Safari error handler:', isContinuousListening);
-
-              // For Safari, ALWAYS try to restart recognition since "aborted" is recoverable
-              console.log('🔄 Attempting to restart speech recognition for Safari (forced)...');
+              // For Safari, try to restart recognition
               setTimeout(() => {
-                console.log('⏰ Safari restart timeout triggered');
-                console.log('🔍 DEBUG: isRecording at restart time:', isRecording);
                 if (!isRecording) {
-                  console.log('▶️ Restarting speech recognition after Safari abort...');
                   try {
                     startListening();
-                    console.log('✅ Successfully restarted speech recognition');
                   } catch (restartError) {
-                    console.error('❌ Failed to restart after Safari abort:', restartError);
-                    // Only then fall back to manual mode
-                    console.log('💻 Falling back to manual input mode...');
+                    console.error('❌ Safari restart failed:', restartError.message);
                     setShowTestMode(true);
                   }
-                } else {
-                  console.log('⚠️ Cannot restart - still recording');
                 }
-              }, 2000); // Longer delay for Safari
-              return; // Don't set isContinuousListening to false
-            } else {
-              console.log('💡 "Failed to access assets" usually means:');
-              console.log('   1. Browser cannot download Google Speech models');
-              console.log('   2. Network/Firewall is blocking https://www.gstatic.com');
-              console.log('   3. VPN or proxy interfering');
-              console.log('   4. Regional restrictions (some countries)');
-              console.log('   5. Browser settings blocking third-party requests');
-              console.log('');
-              console.log('🔧 Recommended fixes:');
-              console.log('   1. Try disabling VPN/proxy');
-              console.log('   2. Check firewall settings');
-              console.log('   3. Try Chrome in Incognito mode (no extensions)');
-              console.log('   4. Check if you can access https://www.google.com');
-              console.log('   5. Try different network (mobile hotspot)');
+              }, 2000);
+              return;
             }
-
-            console.log('');
-            console.log('💻 Enabling test mode for manual text input...');
-            console.log('💡 Test mode works in all browsers and doesn\'t require speech recognition!');
-
             setShowTestMode(true);
             break;
           case 'audio-capture':
-            console.error('🎙️ Audio capture failed - check microphone');
-            console.log('💡 Possible causes:');
-            console.log('   - Microphone is being used by another app');
-            console.log('   - Microphone hardware issue');
-            console.log('   - Microphone drivers need update');
+            console.error('🎙️ Audio capture failed');
             break;
           case 'service-not-allowed':
             console.error('🚫 Speech recognition service not allowed');
-            console.log('💡 This might be due to:');
-            console.log('   - Browser policy restrictions');
-            console.log('   - Corporate/school network blocking');
             break;
           default:
-            console.error('❓ Unknown error:', event.error);
+            console.error('❓ Speech recognition error:', event.error);
         }
 
         setIsRecording(false);
 
         // Don't disable continuous listening for recoverable errors
-        // 'aborted' in Safari and 'no-speech' are usually recoverable
-        console.log('🔍 DEBUG: Checking recoverable error logic');
-        console.log('🔍 DEBUG: event.error =', event.error);
-        console.log('🔍 DEBUG: isSafari =', isSafari);
-        console.log('🔍 DEBUG: navigator.userAgent =', navigator.userAgent);
-
         const isRecoverableError = (event.error === 'aborted' && isSafari) ||
                                   (event.error === 'no-speech');
 
-        console.log('🔍 DEBUG: isRecoverableError =', isRecoverableError);
-
         if (!isRecoverableError) {
-          console.log('🚫 DEBUG: Disabling continuous listening for non-recoverable error');
           setIsContinuousListening(false);
-        } else {
-          console.log(`🔄 DEBUG: Error "${event.error}" is recoverable, keeping continuous listening enabled`);
-          console.log('🔄 DEBUG: Current continuous listening state:', isContinuousListening);
         }
       };
 
       recognition.onend = () => {
-        console.log('🛑 Speech recognition ended');
-        console.log('🔄 Current continuous listening state:', isContinuousListening);
-        console.log('🔄 DEBUG: isRecording before setIsRecording(false):', isRecording);
         setIsRecording(false);
-        console.log('🔄 DEBUG: isRecording after setIsRecording(false):', isRecording);
 
         // For continuous mode, restart recognition if enabled
         if (isContinuousListening) {
-          console.log('🔄 Continuous mode active, restarting recognition in 500ms...');
           setTimeout(() => {
             if (isContinuousListening && recognitionRef.current && !isRecording) {
               try {
@@ -499,15 +297,10 @@ const Voice = () => {
   // TTS function for AI responses using OpenAI TTS
   const speakAIResponse = async (text: string) => {
     try {
-      console.log('🎵 Preparing OpenAI TTS for AI response...');
       setIsGeneratingTTS(true);
 
       // Split text into sentences
       const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      console.log('📝 Split into', sentences.length, 'sentences for OpenAI TTS');
-
-      // Start video animation
-      console.log('🎬 VIDEO SHOULD APPEAR NOW - setIsPlayingTTS(true)');
       setIsPlayingTTS(true);
 
       // Process and generate TTS for each sentence in parallel
@@ -515,16 +308,14 @@ const Voice = () => {
         const cleanSentence = sentence.trim();
         if (cleanSentence.length === 0) return null;
 
-        console.log(`🎵 Generating OpenAI TTS for sentence ${index + 1}/${sentences.length}: "${cleanSentence.substring(0, 50)}..."`);
-
         // Process text for better speech synthesis
         const processedSentence = processTextForSpeech(cleanSentence);
 
         try {
           const audioBlob = await textToSpeech(processedSentence);
           return { audio: audioBlob, text: processedSentence, index };
-    } catch (error) {
-          console.error(`❌ Failed to generate OpenAI TTS for sentence ${index + 1}:`, error);
+        } catch (error) {
+          console.error(`❌ TTS failed for sentence ${index + 1}:`, error.message);
           return null;
         }
       });
@@ -534,26 +325,17 @@ const Voice = () => {
       const results = await Promise.allSettled(ttsPromises);
 
       // Play sentences sequentially
-      console.log('▶️ Starting sequential playback...');
-
       for (const result of results) {
         if (result.status === 'fulfilled' && result.value?.audio) {
-          const { audio, index } = result.value;
-          console.log(`🎵 Playing sentence ${index + 1}, size: ${audio.size} bytes`);
-          console.log(`🔊 AUDIO SHOULD PLAY NOW for sentence ${index + 1}`);
+          const { audio } = result.value;
           await playAudioBlob(audio);
-          console.log(`✅ Finished playing sentence ${index + 1}`);
 
           // Small pause between sentences
-          if (index < results.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
 
       setIsPlayingTTS(false);
-      console.log('🎬 VIDEO SHOULD DISAPPEAR NOW - setIsPlayingTTS(false)');
-      console.log('✅ OpenAI TTS completed for all sentences');
 
     } catch (error) {
       console.error('❌ Error in OpenAI TTS:', error);
@@ -605,128 +387,42 @@ const Voice = () => {
 
   // Voice control functions
   const startListening = useCallback(async () => {
-    console.log('🎯 startListening called, current state:', {
-      isRecording,
-      recognitionExists: !!recognitionRef.current,
-      continuousListening: isContinuousListening
-    });
-
     if (recognitionRef.current && !isRecording) {
       try {
-        console.log('▶️ Starting speech recognition process...');
-
         // Check microphone permissions first
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          try {
-            console.log('🎙️ Requesting microphone permission...');
-            const stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-              }
-            });
-            console.log('✅ Microphone permission granted, testing audio context...');
-
-            // Test audio context
-            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-            console.log('🎵 Audio context class available:', !!AudioContextClass);
-
-            const audioContext = new AudioContextClass();
-            console.log('🎵 Audio context created:', {
-              state: audioContext.state,
-              sampleRate: audioContext.sampleRate,
-              baseLatency: audioContext.baseLatency
-            });
-
-            if (audioContext.state === 'suspended') {
-              console.log('🔄 Audio context suspended, attempting to resume...');
-              await audioContext.resume();
-              console.log('✅ Audio context resumed, new state:', audioContext.state);
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
             }
+          });
 
-            // Test stream properties
-            const audioTracks = stream.getAudioTracks();
-            console.log('🎙️ Audio tracks:', audioTracks.length);
-            if (audioTracks.length > 0) {
-              const track = audioTracks[0];
-              console.log('🎙️ Audio track settings:', {
-                enabled: track.enabled,
-                muted: track.muted,
-                readyState: track.readyState,
-                contentHint: track.contentHint
-              });
-            }
+          // Test audio context
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const audioContext = new AudioContextClass();
 
-            stream.getTracks().forEach(track => track.stop());
-            await audioContext.close();
-            console.log('✅ Audio context test successful');
-          } catch (permError) {
-            console.error('🚫 Microphone permission denied:', permError);
-            console.error('🚫 Error name:', permError.name);
-            console.error('🚫 Error message:', permError.message);
-            alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
-            return;
+          if (audioContext.state === 'suspended') {
+            await audioContext.resume();
           }
-        } else {
-          console.error('❌ getUserMedia not supported');
-          alert('Ваш браузер не поддерживает доступ к микрофону');
+
+          // Clean up stream
+          stream.getTracks().forEach(track => track.stop());
+          await audioContext.close();
+        } catch (permError) {
+          console.error('🚫 Microphone permission denied:', permError.message);
+          alert('Для голосового распознавания нужен доступ к микрофону. Разрешите доступ в настройках браузера.');
           return;
         }
+      } else {
+        console.error('❌ getUserMedia not supported');
+        alert('Ваш браузер не поддерживает доступ к микрофону');
+        return;
+      }
 
-        // Check if we're in a secure context
-        const currentIsLocalhost = typeof window !== 'undefined' &&
-          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        const currentIsSecure = typeof window !== 'undefined' &&
-          (window.isSecureContext || window.location.protocol === 'https:');
-
-        if (typeof window !== 'undefined') {
-          console.log('🔒 Security context check:', {
-            hostname: window.location.hostname,
-            protocol: window.location.protocol,
-            isSecure: currentIsSecure,
-            secureContext: window.isSecureContext,
-            isLocalhost: currentIsLocalhost
-          });
-
-          if (!currentIsSecure) {
-            console.log('⚠️ Not in secure context - Web Speech API may not work');
-            console.log(`📍 Current protocol: ${window.location.protocol}`);
-            console.log(`🔒 Secure context: ${window.isSecureContext}`);
-
-            if (currentIsLocalhost) {
-              console.log('💡 For localhost development, you can:');
-              console.log('   1. Use HTTPS: npm run dev -- --https');
-              console.log('   2. Configure Chrome: chrome://flags/#unsafely-treat-insecure-origin-as-secure + http://localhost:3001');
-              console.log('   3. Use Firefox with media.webspeech.recognition.force_allow_insecure = true');
-
-              // For localhost, we'll try anyway but warn the user
-              console.log('🔄 Trying to use speech recognition despite insecure context...');
-            } else {
-              alert('Web Speech API требует HTTPS соединения для работы с микрофоном.');
-              return;
-            }
-          }
-        }
-
-        console.log('⏳ Delaying recognition start by 100ms...');
-        setTimeout(() => {
-          console.log('🚀 Attempting to start recognition, final check:', {
-            recognitionExists: !!recognitionRef.current,
-            isRecording,
-            continuousListening: isContinuousListening
-          });
-
-          if (recognitionRef.current && !isRecording) {
-            try {
-        recognitionRef.current.start();
-              console.log('🎤 Recognition.start() called successfully');
-            } catch (startError) {
-              console.error('❌ Failed to start recognition:', startError);
-              console.error('❌ Start error details:', {
-                name: startError.name,
-                message: startError.message,
-                stack: startError.stack
+      // Start recognition
+      recognitionRef.current.start();
               });
             }
           } else {
@@ -741,17 +437,13 @@ const Voice = () => {
   }, [isRecording]);
 
   const stopListening = useCallback((forcedStop = false) => {
-      console.log('🛑 Stopping speech recognition', forcedStop ? '(FORCED STOP)' : '(TEMPORARY STOP)');
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
     setIsRecording(false);
-    // Only disable continuous listening if it's a forced stop (user toggle)
     if (forcedStop) {
-      console.log('🚫 Disabling continuous listening (forced stop)');
       setIsContinuousListening(false);
-    } else {
-      console.log('⏸️ Pausing for processing, continuous listening remains enabled');
+    }
     }
     setInterimTranscript('');
   }, []);
@@ -844,35 +536,19 @@ const Voice = () => {
   const handleSendMessage = async (messageText: string, isVoice: boolean = false) => {
     if (!messageText.trim()) return;
 
-    console.log('🎯 handleSendMessage called with:', messageText, 'isVoice:', isVoice);
-    console.log('🔍 Continuous listening state at send:', isContinuousListening);
-    console.log('📤 Message details:', {
-      original: messageText,
-      trimmed: messageText.trim(),
-      length: messageText.length,
-      words: messageText.trim().split(' ').length
-    });
-
     // Clear auto-send timer when sending manually or automatically
     if (autoSendTimerRef.current) {
       clearTimeout(autoSendTimerRef.current);
       autoSendTimerRef.current = null;
-      console.log('🕐 Cleared auto-send timer on send');
     }
-    
-    // Note: TTS playback interruption will be handled by the audio system
-    // when new audio starts playing
-    
+
     setIsLoading(true);
 
     // Save the continuous listening state at the start
-    // If continuous listening is not enabled yet, enable it automatically for voice conversations
-    const shouldResumeContinuous = isContinuousListening || isVoice; // Enable if isVoice flag is true OR if continuous was enabled
-    console.log('💾 Saved continuous listening state for resume:', shouldResumeContinuous, '(original:', isContinuousListening, ', isVoice:', isVoice, ')');
+    const shouldResumeContinuous = isContinuousListening || isVoice;
 
     // If this is a voice message and continuous listening wasn't enabled, enable it now
     if (!isContinuousListening && isVoice) {
-      console.log('🎯 Auto-enabling continuous listening for voice conversation');
       setIsContinuousListening(true);
     }
 
@@ -890,13 +566,11 @@ const Voice = () => {
     setAutoSendStatus('idle');
 
     try {
-      console.log('🚀 Calling AI API...');
-      
       // Prepare conversation history with context
       const conversationHistory = [
         {
-              role: 'system',
-              content: AI_SYSTEM_MESSAGES.voice
+          role: 'system',
+          content: AI_SYSTEM_MESSAGES.voice
         },
         // Add all previous messages for context
         ...messages.map(msg => ({
@@ -905,36 +579,19 @@ const Voice = () => {
         })),
         // Add current user message
         {
-              role: 'user',
-              content: messageText
-            }
+          role: 'user',
+          content: messageText
+        }
       ];
-      
-      console.log('📝 Sending conversation with history:', conversationHistory.length, 'messages');
-      
+
       // Generate session ID for conversation memory
       const sessionId = `voice-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // Call AI API with full conversation history
       const apiUrl = `${API_CONFIG.BASE_URL}/chat`;
-      console.log('🔗 Making API request to:', apiUrl);
-      console.log('📊 API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
-      console.log('🔄 Session ID:', sessionId);
-      console.log('📨 Request payload:', JSON.stringify({
-        messages: conversationHistory,
-        model: 'gpt-5.1',
-        temperature: 0.7,
-        max_completion_tokens: 2000
-      }, null, 2));
 
       let response;
       try {
-        console.log('🚀 Executing fetch request...');
-        console.log('🔗 Full URL:', apiUrl);
-        console.log('📦 Request body:', JSON.stringify({
-          messages: conversationHistory,
-          model: 'gpt-5.1',
-          temperature: 0.7,
           max_completion_tokens: 2000
         }, null, 2));
 
@@ -958,49 +615,29 @@ const Voice = () => {
         });
 
         clearTimeout(timeoutId);
-
-        console.log('✅ Fetch completed, response received');
-        console.log('📊 Response status:', response.status);
-        console.log('📊 Response statusText:', response.statusText);
-        console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()));
       } catch (fetchError) {
-        console.error('❌ Fetch failed with error:', fetchError);
-        console.error('❌ Error name:', fetchError.name);
-        console.error('❌ Error message:', fetchError.message);
         if (fetchError.name === 'AbortError') {
-          console.error('❌ Request timed out after 30 seconds');
+          console.error('❌ Request timed out');
+        } else {
+          console.error('❌ API request failed:', fetchError.message);
+        }
         }
         throw new Error(`Network error: ${fetchError.message}`);
       }
 
       if (!response.ok) {
-        console.log('⚠️ Response not OK, reading error body...');
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('❌ API error body:', errorText);
-        console.error('❌ Full response details:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries()),
-          body: errorText
-        });
         throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
-      console.log('📥 Response OK, parsing JSON...');
       let data;
       try {
         data = await response.json();
-        console.log('📄 JSON parsed successfully');
-        console.log('📊 Response data keys:', Object.keys(data));
-        console.log('📊 Response data:', JSON.stringify(data, null, 2));
       } catch (jsonError) {
-        console.error('❌ JSON parsing failed:', jsonError);
         throw new Error(`JSON parsing error: ${jsonError.message}`);
       }
 
-      console.log('💬 Extracting AI response...');
       const aiResponse = data.choices?.[0]?.message?.content || 'Извините, произошла ошибка при обработке вашего запроса.';
-      console.log('💬 AI response extracted successfully:', aiResponse.substring(0, 100) + '...');
 
       // Add AI response
       const assistantMessage: Message = {
@@ -1010,116 +647,42 @@ const Voice = () => {
         timestamp: new Date()
       };
 
-      console.log('✅ Adding AI message to chat...');
-      setMessages(prev => {
-        console.log('📊 Total messages after adding AI response:', prev.length + 1);
-        return [...prev, assistantMessage];
-      });
+      setMessages(prev => [...prev, assistantMessage]);
 
       // Speak the AI response using OpenAI TTS
-      console.log('🔊 Starting OpenAI TTS for AI response...');
-      console.log('🎵 TTS text length:', aiResponse.length, 'characters');
-      console.log('🎬 About to call speakAIResponse, isPlayingTTS should change to true');
-      console.log('▶️ CALLING speakAIResponse NOW...');
+      console.log('🔊 Starting TTS for AI response...');
       await speakAIResponse(aiResponse);
-      console.log('✅ TTS function completed - AUDIO SHOULD BE PLAYING');
 
       // Resume continuous listening after AI response is complete
-      console.log('🔄 CHECKING CONTINUOUS LISTENING RESUMPTION...');
-      console.log('📊 CURRENT STATE IMMEDIATELY AFTER TTS:', {
-        continuous: isContinuousListening,
-        recording: isRecording,
-        playingTTS: isPlayingTTS,
-        recognitionExists: !!recognitionRef.current
-      });
-
-      // Force resume continuous listening using saved state
-      // We know TTS has completed because we're in this code block
       if (shouldResumeContinuous) {
-        console.log('🔄 FORCED: Resuming continuous listening after AI response...');
-        console.log('💾 Using saved state (shouldResumeContinuous):', shouldResumeContinuous);
-        console.log('🎯 This should enable continuous listening for ongoing voice conversation');
 
-        // Use a longer delay to ensure any audio cleanup is complete
+        // Resume continuous listening after AI response
         setTimeout(() => {
-          console.log('⏰ FORCED RESUMPTION: Timeout triggered');
-          console.log('📊 STATE AT FORCED RESUMPTION:', {
-            savedContinuous: shouldResumeContinuous,
-            currentContinuous: isContinuousListening,
-            recording: isRecording,
-            playingTTS: isPlayingTTS,
-            recognitionExists: !!recognitionRef.current
-          });
-
-          // Only check if we're not currently recording
-          if (!isRecording) {
-            console.log('▶️ FORCED: Starting new listening session after AI response');
+          if (!isRecording && shouldResumeContinuous) {
             try {
               startListening();
-              console.log('✅ FORCED: startListening() called successfully');
             } catch (error) {
-              console.error('❌ FORCED: Failed to start listening:', error);
-            }
-          } else {
-            console.log('⚠️ FORCED: Cannot resume - currently recording');
-
-            // Try again in another second if still recording
-            setTimeout(() => {
-              if (shouldResumeContinuous && !isRecording) {
-                console.log('▶️ RETRY: Starting listening session after second delay');
-                try {
-                  startListening();
-                } catch (error) {
+              console.error('❌ Failed to resume listening:', error.message);
                   console.error('❌ RETRY: Failed to start listening:', error);
                 }
               }
             }, 1000);
           }
         }, 2000); // Longer delay to ensure everything is cleaned up
-      } else {
-        console.log('🚫 CONTINUOUS LISTENING WAS NOT ENABLED - NO RESUMPTION NEEDED');
-        console.log('💡 User can manually enable continuous listening via toggle');
       }
-
     } catch (error) {
-      console.error('❌ CRITICAL ERROR in handleSendMessage:', error);
-      console.error('❌ Error type:', error.constructor.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-
-      // Additional error details
-      if (error instanceof TypeError) {
-        console.error('❌ This is a TypeError - likely network or parsing issue');
-      } else if (error instanceof SyntaxError) {
-        console.error('❌ This is a SyntaxError - likely JSON parsing issue');
-      } else if (error.name === 'AbortError') {
-        console.error('❌ This is an AbortError - request was aborted');
-      } else if (error.name === 'TimeoutError') {
-        console.error('❌ This is a TimeoutError - request timed out');
-      }
+      console.error('❌ Error in voice chat:', error.message);
 
       // Check network connectivity
       console.log('🌐 Checking network connectivity...');
       fetch('http://127.0.0.1:3003/test-proxy', { method: 'GET' })
-        .then(networkResponse => {
-          if (networkResponse.ok) {
-            console.log('✅ Network connectivity OK - backend reachable');
-          } else {
-            console.log('⚠️ Network connectivity issue - backend responded with error');
-          }
-        })
-        .catch(networkError => {
-          console.error('❌ Network connectivity FAILED - cannot reach backend:', networkError);
-        });
-
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `Извините, произошла ошибка при обработке вашего запроса. Детали: ${error.message}`,
+        content: `Извините, произошла ошибка при обработке вашего запроса.`,
         role: 'assistant',
         timestamp: new Date()
       };
 
-      console.log('🚨 Adding error message to chat...');
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       console.log('🏁 handleSendMessage finished');
@@ -1129,20 +692,15 @@ const Voice = () => {
 
   // Функция для переключения голосового режима
   const toggleVoiceMode = async () => {
-    console.log('🎛️ toggleVoiceMode called, isContinuousListening:', isContinuousListening, 'isLoading:', isLoading, 'isRecording:', isRecording, 'playingTTS:', isPlayingTTS);
-
     // Prevent toggling while TTS is playing to avoid accidental interruption
     if (isPlayingTTS) {
-      console.log('🚫 Cannot toggle voice mode while TTS is playing');
       return;
     }
 
     if (isContinuousListening) {
-      console.log('🛑 Stopping continuous listening via toggle');
       setIsContinuousListening(false);
       stopListening(true); // Force stop when user toggles
     } else if (!isLoading) {
-      console.log('▶️ Starting continuous listening via toggle');
       setTranscript(''); // Очищаем предыдущую транскрипцию
       setInterimTranscript('');
       setIsContinuousListening(true); // Включаем постоянное прослушивание при первом нажатии
