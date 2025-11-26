@@ -35,6 +35,13 @@ fi
 # Запустить API сервер
 echo "🔧 Запускаем API сервер на порту 3003..."
 cd api
+# Загрузить переменные окружения из .env файла
+if [ -f ".env" ]; then
+    echo "📋 Загружаем переменные окружения из .env файла..."
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "⚠️ Файл .env не найден в директории api/"
+fi
 PORT=3003 node index.js &
 API_PID=$!
 cd ..
