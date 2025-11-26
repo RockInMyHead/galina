@@ -345,8 +345,8 @@ const Voice = () => {
             isValid: audioBlob && audioBlob.size > 100
           });
 
-          // Check if audio is valid (more than 100 bytes - mock audio is only 48 bytes)
-          if (audioBlob && audioBlob.size > 100) {
+          // Check if audio is valid (more than 1000 bytes - mock audio is only 48 bytes, real MP3 starts from ~1KB)
+          if (audioBlob && audioBlob.size > 1000) {
             console.log(`✅ Valid OpenAI TTS audio for sentence ${index + 1} (${audioBlob.size} bytes)`);
             return { audio: audioBlob, text: processedSentence, index };
           } else {
