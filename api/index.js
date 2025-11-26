@@ -938,6 +938,13 @@ app.post('/chat', async (req, res) => {
 // Text to Speech endpoint
 app.post('/tts', async (req, res) => {
   try {
+    console.log('🎵 TTS request received:', {
+      text: req.body.text?.substring(0, 50),
+      voice: req.body.voice,
+      model: req.body.model,
+      hasApiKey: !!process.env.OPENAI_API_KEY
+    });
+
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
 
     if (!text) {
@@ -945,6 +952,12 @@ app.post('/tts', async (req, res) => {
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
+    console.log('🔑 TTS API Key check:', {
+      exists: !!apiKey,
+      length: apiKey?.length,
+      startsWith: apiKey?.substring(0, 15) + '...',
+      envVarSet: 'OPENAI_API_KEY' in process.env
+    });
 
     // Check if API key exists and is valid
     let apiKeyValid = false;
@@ -961,10 +974,15 @@ app.post('/tts', async (req, res) => {
         });
         apiKeyValid = testResponse.ok;
         console.log('🔑 TTS API key valid:', apiKeyValid, 'Status:', testResponse.status);
+        if (!apiKeyValid) {
+          console.log('❌ API key validation failed, response status:', testResponse.status);
+        }
       } catch (error) {
         console.log('❌ TTS API key test failed:', error.message);
         apiKeyValid = false;
       }
+    } else {
+      console.log('❌ No OPENAI_API_KEY environment variable found');
     }
 
     // Use demo mode if API key is not valid

@@ -139,6 +139,8 @@ export const createErrorMessage = (code: string, details?: any): string => {
  */
 export const textToSpeech = async (text: string): Promise<Blob | null> => {
   try {
+    console.log('🎵 Requesting TTS for text:', text.substring(0, 50))
+
     const response = await fetch(`${API_CONFIG.BASE_URL}/tts`, {
       method: 'POST',
       headers: {
@@ -151,14 +153,28 @@ export const textToSpeech = async (text: string): Promise<Blob | null> => {
       }),
     })
 
+    console.log('🎵 TTS API response:', {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length')
+    })
+
     if (!response.ok) {
       throw new Error(`TTS API error: ${response.status}`)
     }
 
     const audioBlob = await response.blob()
+    console.log('🎵 TTS blob created:', {
+      size: audioBlob.size,
+      type: audioBlob.type,
+      isValid: audioBlob.size > 100
+    })
+
     return audioBlob
   } catch (error) {
-    console.error('Text to Speech error:', error)
+    console.error('❌ Text to Speech error:', error)
     return null
   }
 }
@@ -168,21 +184,55 @@ export const textToSpeech = async (text: string): Promise<Blob | null> => {
  */
 export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
   return new Promise((resolve) => {
+    console.log('🎵 Attempting to play audio blob:', {
+      size: audioBlob.size,
+      type: audioBlob.type,
+      isValid: audioBlob.size > 100
+    })
+
     const audioUrl = URL.createObjectURL(audioBlob)
     const audio = new Audio(audioUrl)
 
     audio.onended = () => {
+      console.log('✅ Audio playback completed successfully')
       URL.revokeObjectURL(audioUrl)
       resolve()
     }
 
-    audio.onerror = () => {
+    audio.onerror = (event) => {
+      console.error('❌ Audio element error:', event)
       URL.revokeObjectURL(audioUrl)
       resolve()
+    }
+
+    audio.oncanplay = () => {
+      console.log('✅ Audio can play, starting playback...')
+    }
+
+    audio.oncanplaythrough = () => {
+      console.log('✅ Audio fully loaded and can play through')
+    }
+
+    audio.onloadstart = () => {
+      console.log('🔄 Audio loading started')
+    }
+
+    audio.onload = () => {
+      console.log('✅ Audio loaded')
     }
 
     audio.play().catch((error) => {
-      console.error('Audio playback error:', error)
+      console.error('❌ Audio play() failed:', {
+        error: error.message,
+        name: error.name,
+        audioError: audio.error,
+        audioState: {
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          duration: audio.duration,
+          src: audio.src ? 'set' : 'not set'
+        }
+      })
       URL.revokeObjectURL(audioUrl)
       resolve()
     })

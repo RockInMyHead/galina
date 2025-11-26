@@ -338,10 +338,19 @@ const Voice = () => {
 
         try {
           const audioBlob = await textToSpeech(processedSentence);
+          console.log(`🎵 TTS result for sentence ${index + 1}:`, {
+            hasBlob: !!audioBlob,
+            blobSize: audioBlob?.size,
+            blobType: audioBlob?.type,
+            isValid: audioBlob && audioBlob.size > 100
+          });
+
           // Check if audio is valid (more than 100 bytes - mock audio is only 48 bytes)
           if (audioBlob && audioBlob.size > 100) {
+            console.log(`✅ Valid OpenAI TTS audio for sentence ${index + 1} (${audioBlob.size} bytes)`);
             return { audio: audioBlob, text: processedSentence, index };
           } else {
+            console.log(`⚠️ Invalid/mock OpenAI TTS audio for sentence ${index + 1} (${audioBlob?.size || 0} bytes), switching to browser TTS`);
             // OpenAI TTS returned mock/invalid audio, use browser TTS
             useOpenAITTS = false;
             return null;
