@@ -7,7 +7,7 @@ import { componentTagger } from "lovable-tagger";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
-    port: 3000,
+    port: 3002,
     hmr: {
       // Настройки для WebSocket HMR
       port: 0,
@@ -19,13 +19,13 @@ export default defineConfig(({ mode }) => ({
       usePolling: false,
     },
     // Прокси для API запросов в режиме разработки
-    // Все запросы к /api/* будут проксироваться на localhost:3001 с сохранением /api префикса
+    // Все запросы к /api/* будут проксироваться на localhost:3003 без префикса /api
     proxy: mode === 'development' ? {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3005',
         changeOrigin: true,
         secure: false,
-        // Убираем rewrite, чтобы сохранить /api префикс
+        rewrite: (path) => path.replace(/^\/api/, ''), // Убираем /api префикс
       },
       // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
       '/proxy': {

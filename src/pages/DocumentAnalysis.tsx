@@ -391,35 +391,113 @@ const DocumentAnalysis = () => {
   // Функция для анализа документа через OpenAI
   const analyzeDocumentWithAI = async (fileName: string, fileContent: string): Promise<string> => {
     try {
-      // Generate session ID for this analysis
-      const sessionId = `analysis-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // Ограничиваем длину контента, чтобы не превысить лимиты API
+      const maxContentLength = 2000; // Баланс между качеством анализа и надежностью
+      console.log('Original fileContent length:', fileContent.length);
+
+      // Для уставов ООО пытаемся взять ключевые разделы
+      let contentToAnalyze = fileContent;
+
+      if (fileName.toLowerCase().includes('устав') || fileName.toLowerCase().includes('ustav')) {
+        console.log('Detected charter document, extracting key sections...');
+        // Ищем ключевые разделы устава
+        const sections = [];
+        const lines = fileContent.split('\n');
+
+        let currentSection = '';
+        let inKeySection = false;
+
+        for (const line of lines) {
+          const lowerLine = line.toLowerCase();
+          // Ищем ключевые разделы
+          if (lowerLine.includes('общие положения') ||
+              lowerLine.includes('уставный капитал') ||
+              lowerLine.includes('права и обязанности') ||
+              lowerLine.includes('управление') ||
+              lowerLine.includes('ликвидация') ||
+              lowerLine.match(/^\s*(i|ii|iii|iv|v|vi|vii|viii|ix|x|1\.|2\.|3\.|4\.|5\.)/i)) {
+            if (currentSection && inKeySection) {
+              sections.push(currentSection.trim());
+            }
+            currentSection = line;
+            inKeySection = true;
+          } else if (inKeySection && line.trim()) {
+            currentSection += '\n' + line;
+            // Ограничиваем размер каждого раздела
+            if (currentSection.length > 300) {
+              sections.push(currentSection.substring(0, 300) + '...');
+              inKeySection = false;
+              currentSection = '';
+            }
+          }
+        }
+
+        if (currentSection && inKeySection) {
+          sections.push(currentSection.trim());
+        }
+
+        if (sections.length > 0) {
+          contentToAnalyze = sections.join('\n\n---\n\n');
+          console.log('Extracted', sections.length, 'key sections for analysis');
+        }
+      }
+
+      // Очищаем и упрощаем текст перед отправкой
+      const cleanedContent = contentToAnalyze
+        .replace(/\s+/g, ' ') // Заменяем множественные пробелы на один
+        .replace(/[^\w\sа-яёіїєґА-ЯЁІЇЄҐ.,!?-]/g, '') // Убираем специальные символы, кроме базовых
+        .trim();
+
+      console.log('Cleaned content length:', cleanedContent.length);
+
+      const truncatedContent = cleanedContent.length > maxContentLength
+        ? cleanedContent.substring(0, maxContentLength) + '\n\n[Текст обрезан для анализа]'
+        : cleanedContent;
+
+      console.log('Final truncated content length:', truncatedContent.length);
+      console.log('Sending truncated content preview:', truncatedContent.substring(0, 100) + '...');
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Session-ID': sessionId,
         },
         body: JSON.stringify({
           messages: [
             {
               role: 'system',
-              content: 'Вы - опытный юрист в России. Проанализируйте предоставленный документ и дайте подробный юридический анализ на русском языке. Структура ответа должна включать: 1) Основные положения документа, 2) Выявленные риски и проблемы, 3) Рекомендации по улучшению, 4) Заключение. Будьте максимально точны и профессиональны.'
+              content: `Ты Галина - адвокат с 25-летним стажем, "зубодробительный" профессионал, который всегда на стороне клиента. Ты анализируешь документы не как формальный юрист, а как адвокат защиты. Твоя задача - найти все способы укрепить позицию клиента и минимизировать риски для него.
+
+ТВОЙ ПОДХОД К АНАЛИЗУ:
+1. ИЩИ СИЛЬНЫЕ СТОРОНЫ: Что в документе защищает интересы клиента
+2. НАХОДИ ЛАЗЕЙКИ: Какие формулировки можно использовать в пользу клиента
+3. ВЫЯВЛЯЙ РИСКИ: Что может навредить клиенту и как это предотвратить
+4. ДАВАЙ СТРАТЕГИЮ: Конкретные шаги для улучшения позиции клиента
+5. БУДЬ НАСТОЙЧИВОЙ: Предлагай смелые, но законные решения
+
+СТИЛЬ АНАЛИЗА:
+- Фокус на интересах клиента: "Это укрепит вашу позицию", "Это защитит вас от..."
+- Конкретные рекомендации: "Измените пункт 3.2 на следующую формулировку..."
+- Стратегическое мышление: "Если дело дойдет до суда, мы сможем использовать..."
+- Оптимизм: "Мы можем повернуть ситуацию в вашу пользу"
+
+ЗАПОМНИ: Ты не формальный эксперт, а адвокат клиента. Каждый анализ должен помогать клиенту "выкрутиться" и усилить его юридическую позицию.`
             },
             {
               role: 'user',
-              content: `Проанализируйте следующий документ:\n\nНазвание файла: ${fileName}\n\nСодержимое:\n${fileContent}\n\nПожалуйста, проведите полный юридический анализ этого документа.`
+              content: `Прошу провести полный юридический анализ этого документа "${fileName}". Вот его содержание:\n\n${truncatedContent}\n\nПожалуйста, проанализируйте этот документ как опытный юрист: определите его тип, найдите все юридические риски, оцените соответствие законодательству РФ, предложите конкретные улучшения и дайте практические рекомендации.`
             }
           ],
-          max_completion_tokens: 2000,
+          model: 'gpt-3.5-turbo',
+          max_completion_tokens: 1000, // Достаточно для подробного анализа
           temperature: 0.3
         })
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('OpenAI API Error:', response.status, errorData);
-        throw new Error(`Ошибка OpenAI API: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('Document analysis API Error:', response.status, errorText);
+        throw new Error(`Ошибка анализа документа: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();

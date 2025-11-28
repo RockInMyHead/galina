@@ -347,3 +347,62 @@ export const deleteDocumentAnalysis = async (id: string): Promise<void> => {
     throw new Error(result.error || 'Failed to delete document analysis')
   }
 }
+
+/**
+ * Transcribe audio using OpenAI Whisper API
+ */
+export const transcribeAudioWithWhisper = async (audioBlob: Blob): Promise<string> => {
+  try {
+    console.log('🎵 Sending audio to OpenAI Whisper API...')
+
+    // Определение расширения по MIME типу
+    let extension = 'webm'
+    if (audioBlob.type.includes('mp4') || audioBlob.type.includes('aac') || audioBlob.type.includes('m4a')) {
+      extension = 'm4a'
+    } else if (audioBlob.type.includes('wav')) {
+      extension = 'wav'
+    } else if (audioBlob.type.includes('mpeg') || audioBlob.type.includes('mp3')) {
+      extension = 'mp3'
+    } else if (audioBlob.type.includes('ogg')) {
+      extension = 'ogg'
+    }
+
+    // Создание File из Blob
+    const file = new File([audioBlob], `voice-message.${extension}`, { type: audioBlob.type })
+    console.debug(`[OpenAI] Отправляется аудио на транскрибацию (${file.type}, size: ${file.size})`)
+
+    // Используем прямой fetch вместо OpenAI клиента для совместимости
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model', 'whisper-1')
+    formData.append('language', 'ru')
+    formData.append('response_format', 'text')
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY || ''}`,
+      },
+      body: formData
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Whisper API error:', response.status, errorText)
+      throw new Error(`Whisper API error: ${response.status}`)
+    }
+
+    const transcription = await response.text()
+    console.log('✅ Whisper transcription received:', transcription.trim())
+
+    if (!transcription.trim()) {
+      throw new Error('Empty transcription result')
+    }
+
+    return transcription.trim()
+
+  } catch (error) {
+    console.error('❌ Whisper transcription failed:', error)
+    throw error
+  }
+}

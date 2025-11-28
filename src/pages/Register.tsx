@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 import { useForm } from '@/hooks/useForm'
 import { RegisterFormData } from '@/types'
 import { validateRegisterForm } from '@/utils/validation'
@@ -14,6 +15,7 @@ import { validateRegisterForm } from '@/utils/validation'
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const { register } = useAuth()
   const navigate = useNavigate()
 
       const {
@@ -21,7 +23,8 @@ const Register = () => {
         errors,
         isSubmitting,
         updateField,
-        handleSubmit: handleFormSubmit
+        handleSubmit: handleFormSubmit,
+        setError
       } = useForm<RegisterFormData>({
     initialValues: {
       name: '',
@@ -30,12 +33,13 @@ const Register = () => {
       confirmPassword: ''
     },
     validate: validateRegisterForm,
-    onSubmit: async () => {
-      // Имитация регистрации
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // В реальном приложении здесь был бы запрос к API
-      navigate('/login')
+    onSubmit: async (formValues) => {
+      const success = await register(formValues.email, formValues.password, formValues.name)
+      if (success) {
+        navigate('/dashboard')
+      } else {
+        setError('general', 'Ошибка регистрации. Возможно, email уже используется.')
+      }
     }
   })
 

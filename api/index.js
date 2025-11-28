@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 require('dotenv').config({ path: './.env' });
@@ -17,11 +19,46 @@ const fetchWithProxy = (url, options = {}) => {
   });
 };
 
-// Initialize Prisma Client (disabled for testing)
-// const prisma = new PrismaClient();
+// Initialize Prisma Client
+const prisma = new PrismaClient();
 
 // Environment loaded successfully
 console.log('Database URL:', process.env.DATABASE_URL);
+
+// Initialize demo user on startup
+async function initializeDemoUser() {
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: { email: 'demo@galina.ai' }
+    });
+
+    if (!existingUser) {
+      const demoUser = await prisma.user.create({
+        data: {
+          email: 'demo@galina.ai',
+          name: 'Demo User',
+        },
+      });
+
+      // Create initial balance
+      await prisma.userBalance.create({
+        data: {
+          userId: demoUser.id,
+          amount: 1500, // Initial balance from BALANCE_CONFIG
+        },
+      });
+
+      console.log('✅ Demo user created with initial balance');
+    } else {
+      console.log('✅ Demo user already exists');
+    }
+  } catch (error) {
+    console.error('❌ Error initializing demo user:', error);
+  }
+}
+
+// Initialize demo user
+initializeDemoUser();
 
 // In-memory conversation storage for GPT-5.1 (since it doesn't support conversation history)
 const conversationMemory = new Map();
@@ -210,7 +247,79 @@ _________________________
       // Check for specific legal questions
       const lowerContent = content.toLowerCase();
 
-      if (lowerContent.includes('регистрац') && lowerContent.includes('ооо') ||
+      if (lowerContent.includes('потребител') && lowerContent.includes('прав') && lowerContent.includes('нарушени')) {
+        // Question about consumer rights violation
+        responseContent = `## Защита прав потребителей
+
+При нарушении ваших прав как потребителя вы имеете право на защиту в соответствии с Законом РФ "О защите прав потребителей". Вот что делать:
+
+### Шаги для защиты ваших прав:
+
+1. **Соберите доказательства:**
+   - Договор купли-продажи, чек, квитанцию
+   - Фотографии товара/услуги
+   - Переписку с продавцом/исполнителем
+   - Свидетельские показания
+
+2. **Напишите претензию:**
+   - Укажите ваши требования (замена, ремонт, возврат денег)
+   - Сослаться на нормы Закона о защите прав потребителей
+   - Установите срок для ответа (10 дней)
+
+3. **Если претензия не помогла:**
+   - Обратитесь в Роспотребнадзор
+   - Подайте иск в суд
+   - Обратитесь в общество защиты прав потребителей
+
+### Ваши права как потребителя:
+
+**При покупке некачественного товара:**
+- Замена на качественный товар
+- Соразмерное уменьшение цены
+- Безвозмездный ремонт
+- Возврат денег и расторжение договора
+
+**При оказании некачественной услуги:**
+- Безвозмездное устранение недостатков
+- Повторное оказание услуги
+- Возврат денег
+
+**Сроки для предъявления претензий:**
+- Для товаров: в пределах гарантийного срока или 2 лет
+- Для услуг: в течение срока службы или 10 лет
+
+Хотите, чтобы я помог вам составить претензию или исковое заявление?`;
+      } else if (lowerContent.includes('расторгнуть') && lowerContent.includes('трудовой') && lowerContent.includes('договор')) {
+        // Question about terminating employment contract
+        responseContent = `## Расторжение трудового договора
+
+Для расторжения трудового договора предусмотрено несколько оснований. Вот основные случаи:
+
+### По инициативе работника:
+1. **Увольнение по собственному желанию** - работник пишет заявление за 2 недели
+2. **Соглашение сторон** - договоренность с работодателем
+
+### По инициативе работодателя:
+1. **Ликвидация организации** - увольнение всех сотрудников
+2. **Сокращение штата** - предупреждение за 2 месяца
+3. **Нарушение трудовой дисциплины** - прогул, появление в нетрезвом состоянии и т.д.
+
+### По обоюдному согласию:
+**Соглашение о расторжении** - наиболее выгодный вариант для обеих сторон
+
+### Порядок действий:
+1. Обсудить условия расторжения с работодателем
+2. Подготовить необходимые документы
+3. Получить расчет и трудовую книжку
+4. Зарегистрироваться в центре занятости (при увольнении не по собственному желанию)
+
+**Важно:** При увольнении работодатель обязан выплатить:
+- Заработную плату за отработанное время
+- Компенсацию за неиспользованный отпуск
+- Выходное пособие (в некоторых случаях)
+
+Если вы столкнулись с нарушением ваших прав при увольнении, рекомендую обратиться в трудовую инспекцию или суд.`;
+      } else if (lowerContent.includes('регистрац') && lowerContent.includes('ооо') ||
           lowerContent.includes('документ') && lowerContent.includes('ооо') ||
           lowerContent.includes('нужн') && lowerContent.includes('ооо')) {
         // Question about LLC registration documents
@@ -263,6 +372,37 @@ _________________________
 4. Получение свидетельства ОГРНИП через 3-5 рабочих дней
 
 Хотите, чтобы я помог вам заполнить заявление на регистрацию ИП?`;
+      } else if (lowerContent.includes('трудовой') && lowerContent.includes('договор') && !lowerContent.includes('расторгнуть')) {
+        // Question about employment contract
+        responseContent = `## Трудовой договор
+
+Трудовой договор - это соглашение между работником и работодателем, устанавливающее взаимные права и обязанности.
+
+### Обязательные условия трудового договора:
+
+1. **Место работы** - указывается организация и ее местонахождение
+2. **Трудовая функция** - должность, специальность, квалификация
+3. **Дата начала работы** - когда работник приступает к исполнению обязанностей
+4. **Условия оплаты труда** - размер оклада, доплаты, надбавки
+5. **Режим рабочего времени и времени отдыха**
+6. **Компенсации и льготы** (если предусмотрены)
+7. **Характер работы** (подвижной, разъездной и т.д.)
+
+### Права и обязанности сторон:
+
+**Работодатель обязан:**
+- Своевременно выплачивать заработную плату
+- Обеспечивать безопасные условия труда
+- Предоставлять ежегодный оплачиваемый отпуск
+- Вести трудовую книжку работника
+
+**Работник обязан:**
+- Добросовестно выполнять трудовые обязанности
+- Соблюдать трудовую дисциплину
+- Соблюдать требования охраны труда
+- Бережно относиться к имуществу работодателя
+
+Хотите, чтобы я помог вам составить трудовой договор или разъяснил какие-либо конкретные аспекты?`;
       } else if (lowerContent.includes('договор') || lowerContent.includes('контракт')) {
         responseContent = `Я могу помочь вам с составлением различных видов договоров:
 
@@ -645,6 +785,152 @@ app.post('/chat', async (req, res) => {
           res.end();
         }
         return;
+      }
+    }
+
+    // Handle non-streaming requests
+    if (!stream) {
+      console.log('Processing non-streaming request...');
+
+      // Check for placeholder API key (same as STT endpoint)
+      if (!apiKey || apiKey.trim() === '' || apiKey === 'sk-your-actual-openai-api-key-here') {
+        console.log('⚠️ No valid API key configured for chat - using demo response');
+        console.log('💡 To enable real AI responses, set OPENAI_API_KEY in api/.env');
+
+        const lastMessage = messages[messages.length - 1];
+        const userContent = lastMessage?.content || '';
+        const lowerContent = userContent.toLowerCase();
+
+        let mockContent = '';
+
+        if (lowerContent.includes('потребител') && lowerContent.includes('прав') && lowerContent.includes('нарушени')) {
+          mockContent = '## Защита прав потребителей\n\nПри нарушении ваших прав как потребителя вы имеете право на защиту в соответствии с Законом РФ "О защите прав потребителей". Вот что делать:\n\n### Шаги для защиты ваших прав:\n\n1. **Соберите доказательства:**\n   - Договор купли-продажи, чек, квитанцию\n   - Фотографии товара/услуги\n   - Переписку с продавцом/исполнителем\n   - Свидетельские показания\n\n2. **Напишите претензию:**\n   - Укажите ваши требования (замена, ремонт, возврат денег)\n   - Сослаться на нормы Закона о защите прав потребителей\n   - Установите срок для ответа (10 дней)\n\n3. **Если претензия не помогла:**\n   - Обратитесь в Роспотребнадзор\n   - Подайте иск в суд\n   - Обратитесь в общество защиты прав потребителей\n\n### Ваши права как потребителя:\n\n**При покупке некачественного товара:**\n- Замена на качественный товар\n- Соразмерное уменьшение цены\n- Безвозмездный ремонт\n- Возврат денег и расторжение договора\n\n**При оказании некачественной услуги:**\n- Безвозмездное устранение недостатков\n- Повторное оказание услуги\n- Возврат денег\n\n**Сроки для предъявления претензий:**\n- Для товаров: в пределах гарантийного срока или 2 лет\n- Для услуг: в течение срока службы или 10 лет\n\nХотите, чтобы я помог вам составить претензию или исковое заявление?';
+        } else if (lowerContent.includes('расторгнуть') && lowerContent.includes('трудовой') && lowerContent.includes('договор')) {
+          mockContent = '## Расторжение трудового договора\n\nДля расторжения трудового договора предусмотрено несколько оснований. Вот основные случаи:\n\n### По инициативе работника:\n1. **Увольнение по собственному желанию** - работник пишет заявление за 2 недели\n2. **Соглашение сторон** - договоренность с работодателем\n\n### По инициативе работодателя:\n1. **Ликвидация организации** - увольнение всех сотрудников\n2. **Сокращение штата** - предупреждение за 2 месяца\n3. **Нарушение трудовой дисциплины** - прогул, появление в нетрезвом состоянии и т.д.\n\n### По обоюдному согласию:\n**Соглашение о расторжении** - наиболее выгодный вариант для обеих сторон\n\n### Порядок действий:\n1. Обсудить условия расторжения с работодателем\n2. Подготовить необходимые документы\n3. Получить расчет и трудовую книжку\n4. Зарегистрироваться в центре занятости (при увольнении не по собственному желанию)\n\n**Важно:** При увольнении работодатель обязан выплатить:\n- Заработную плату за отработанное время\n- Компенсацию за неиспользованный отпуск\n- Выходное пособие (в некоторых случаях)\n\nЕсли вы столкнулись с нарушением ваших прав при увольнении, рекомендую обратиться в трудовую инспекцию или суд.';
+        } else if (lowerContent.includes('трудовой') && lowerContent.includes('договор') && !lowerContent.includes('расторгнуть')) {
+          mockContent = '## Трудовой договор\n\nТрудовой договор - это соглашение между работником и работодателем, устанавливающее взаимные права и обязанности.\n\n### Обязательные условия трудового договора:\n\n1. **Место работы** - указывается организация и ее местонахождение\n2. **Трудовая функция** - должность, специальность, квалификация\n3. **Дата начала работы** - когда работник приступает к исполнению обязанностей\n4. **Условия оплаты труда** - размер оклада, доплаты, надбавки\n5. **Режим рабочего времени и времени отдыха**\n6. **Компенсации и льготы** (если предусмотрены)\n7. **Характер работы** (подвижной, разъездной и т.д.)\n\n### Права и обязанности сторон:\n\n**Работодатель обязан:**\n- Своевременно выплачивать заработную плату\n- Обеспечивать безопасные условия труда\n- Предоставлять ежегодный оплачиваемый отпуск\n- Вести трудовую книжку работника\n\n**Работник обязан:**\n- Добросовестно выполнять трудовые обязанности\n- Соблюдать трудовую дисциплину\n- Соблюдать требования охраны труда\n- Бережно относиться к имуществу работодателя\n\nХотите, чтобы я помог вам составить трудовой договор или разъяснил какие-либо конкретные аспекты?';
+        } else if (lowerContent.includes('регистрац') && lowerContent.includes('ооо') ||
+            lowerContent.includes('документ') && lowerContent.includes('ооо') ||
+            lowerContent.includes('нужн') && lowerContent.includes('ооо')) {
+          mockContent = 'Для регистрации ООО в России требуются следующие документы: Устав общества, Решение о создании ООО, Заявление по форме Р11001, Договор об учреждении ООО (если несколько учредителей), Квитанция об оплате госпошлины (4000 рублей), Паспорта и ИНН учредителей и директора, а также документы на юридический адрес.';
+        } else if (lowerContent.includes('ип') || lowerContent.includes('индивидуальн') && lowerContent.includes('предпринимател')) {
+          mockContent = 'Для регистрации ИП в России требуются: Заявление по форме Р21001, Паспорт, ИНН и Квитанция об оплате госпошлины (800 рублей).';
+        } else if (lowerContent.includes('план') && lowerContent.includes('ответ')) {
+          mockContent = '1. Правовые основы проблемы\n2. Практические рекомендации\n3. Возможные риски и решения';
+        } else if (lowerContent.trim() === '') {
+          mockContent = 'Извините, ваш вопрос пустой. Пожалуйста, задайте конкретный юридический вопрос.';
+        } else {
+          mockContent = `Я Галина, ваш AI-юрист. Вы спросили: "${userContent.substring(0, 100)}${userContent.length > 100 ? '...' : ''}".
+
+Для предоставления точной юридической консультации мне нужно больше деталей о вашей ситуации. Пожалуйста, уточните:
+- Какой тип юридической проблемы вас интересует?
+- В какой сфере права (гражданское, уголовное, трудовое и т.д.)?
+- Какие обстоятельства привели к данному вопросу?
+
+Я готов помочь вам с любыми вопросами законодательства Российской Федерации.`;
+        }
+
+        return res.json({
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: 'demo-mode',
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: mockContent
+            },
+            finish_reason: 'stop'
+          }],
+          usage: {
+            prompt_tokens: messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0),
+            completion_tokens: mockContent.length,
+            total_tokens: messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) + mockContent.length
+          }
+        });
+      }
+
+      if (!apiKey) {
+        // Fallback mock response for testing when no API key
+        console.log('No API key - using fallback mock response for testing');
+
+        const lastMessage = messages[messages.length - 1];
+        const userContent = lastMessage?.content || '';
+        const lowerContent = userContent.toLowerCase();
+
+        let mockContent = '';
+
+        if (lowerContent.includes('регистрац') && lowerContent.includes('ооо') ||
+            lowerContent.includes('документ') && lowerContent.includes('ооо') ||
+            lowerContent.includes('нужн') && lowerContent.includes('ооо')) {
+          mockContent = 'Для регистрации ООО в России требуются следующие документы: Устав общества, Решение о создании ООО, Заявление по форме Р11001, Договор об учреждении ООО (если несколько учредителей), Квитанция об оплате госпошлины (4000 рублей), Паспорта и ИНН учредителей и директора, а также документы на юридический адрес.';
+        } else if (lowerContent.includes('ип') || lowerContent.includes('индивидуальн') && lowerContent.includes('предпринимател')) {
+          mockContent = 'Для регистрации ИП в России требуются: Заявление по форме Р21001, Паспорт, ИНН и Квитанция об оплате госпошлины (800 рублей).';
+        } else if (lowerContent.includes('план') && lowerContent.includes('ответ')) {
+          mockContent = '1. Правовые основы проблемы\n2. Практические рекомендации\n3. Возможные риски и решения';
+        } else if (lowerContent.trim() === '') {
+          mockContent = 'Извините, ваш вопрос пустой. Пожалуйста, задайте конкретный юридический вопрос.';
+        } else {
+          mockContent = `Я Галина, ваш AI-юрист. Вы спросили: "${userContent.substring(0, 100)}${userContent.length > 100 ? '...' : ''}". 
+
+Для предоставления точной юридической консультации мне нужно больше деталей о вашей ситуации. Пожалуйста, уточните:
+- Какой тип юридической проблемы вас интересует?
+- В какой сфере права (гражданское, уголовное, трудовое и т.д.)?
+- Какие обстоятельства привели к данному вопросу?
+
+Я готов помочь вам с любыми вопросами законодательства Российской Федерации.`;
+        }
+
+        return res.json({
+          id: `chatcmpl-${Date.now()}`,
+          object: 'chat.completion',
+          created: Math.floor(Date.now() / 1000),
+          model: model,
+          choices: [{
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: mockContent
+            },
+            finish_reason: 'stop'
+          }],
+          usage: {
+            prompt_tokens: messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0),
+            completion_tokens: mockContent.length,
+            total_tokens: messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) + mockContent.length
+          }
+        });
+      } else {
+        // Real OpenAI API call for non-streaming
+        console.log('Making real non-streaming request to OpenAI...');
+
+        const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            max_completion_tokens,
+            temperature,
+            top_p,
+            presence_penalty,
+            frequency_penalty
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('OpenAI API error:', response.status, errorData);
+          return res.status(response.status).json(errorData);
+        }
+
+        const data = await response.json();
+        console.log('OpenAI response received, sending to client');
+        return res.json(data);
       }
     }
 
@@ -1207,22 +1493,163 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ===== AUTHENTICATION MIDDLEWARE =====
+
+// Middleware для проверки JWT токена
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET || 'galina-secret-key', (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// ===== AUTHENTICATION ENDPOINTS =====
+
+// Регистрация пользователя
+app.post('/auth/register', async (req, res) => {
+  try {
+    console.log('🔐 Registration request:', { email: req.body.email, name: req.body.name });
+    const { email, password, name } = req.body;
+
+    if (!email || !password) {
+      console.log('❌ Missing email or password');
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (password.length < 6) {
+      console.log('❌ Password too short');
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+
+    // Проверяем, существует ли пользователь
+    console.log('🔍 Checking if user exists...');
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      console.log('❌ User already exists');
+      return res.status(400).json({ error: 'User with this email already exists' });
+    }
+
+    // Хэшируем пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Создаем пользователя
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name: name || email.split('@')[0]
+      }
+    });
+
+    // Создаем баланс для пользователя
+    await prisma.userBalance.create({
+      data: {
+        userId: user.id,
+        amount: 1500 // Initial balance
+      }
+    });
+
+    // Создаем JWT токен
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET || 'galina-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+// Вход пользователя
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Ищем пользователя
+    const user = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Проверяем пароль
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Создаем JWT токен
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET || 'galina-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
 // ===== DATABASE API ENDPOINTS =====
 
 // Получить историю чата пользователя
-app.get('/chat/history', async (req, res) => {
+app.get('/chat/history', authenticateToken, async (req, res) => {
   try {
-    // Для демо получаем пользователя по email
-    const user = await prisma.user.findFirst({
-      where: { email: 'demo@galina.ai' }
-    });
-    if (!user) {
-      return res.status(404).json({ error: 'Demo user not found' });
+    const userId = req.user.id;
+
+    const { since } = req.query;
+    const whereClause = { userId };
+
+    // Add since filter for incremental sync
+    if (since) {
+      const sinceDate = new Date(since);
+      if (!isNaN(sinceDate.getTime())) {
+        whereClause.timestamp = {
+          gt: sinceDate
+        };
+      }
     }
-    const userId = user.id;
 
     const messages = await prisma.chatMessage.findMany({
-      where: { userId },
+      where: whereClause,
       include: {
         files: true,
       },
@@ -1283,16 +1710,9 @@ app.post('/chat/message', async (req, res) => {
 });
 
 // Получить информацию о пользователе
-app.get('/user/profile', async (req, res) => {
+app.get('/user/profile', authenticateToken, async (req, res) => {
   try {
-    // Для демо получаем пользователя по email
-    const user = await prisma.user.findFirst({
-      where: { email: 'demo@galina.ai' }
-    });
-    if (!user) {
-      return res.status(404).json({ error: 'Demo user not found' });
-    }
-    const userId = user.id;
+    const userId = req.user.id;
 
     const userProfile = await prisma.user.findUnique({
       where: { id: userId },
@@ -1309,7 +1729,7 @@ app.get('/user/profile', async (req, res) => {
       },
     });
 
-    if (!user) {
+    if (!userProfile) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -1317,6 +1737,73 @@ app.get('/user/profile', async (req, res) => {
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// Получить баланс пользователя
+app.get('/user/balance', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const userBalance = await prisma.userBalance.findUnique({
+      where: { userId },
+    });
+
+    res.json({
+      balance: userBalance?.amount || 0,
+      currency: 'RUB'
+    });
+  } catch (error) {
+    console.error('Error fetching user balance:', error);
+    res.status(500).json({ error: 'Failed to fetch user balance' });
+  }
+});
+
+// Обновить баланс пользователя
+app.put('/user/balance', authenticateToken, async (req, res) => {
+  try {
+    const { amount, operation } = req.body; // operation: 'set', 'add', 'subtract'
+
+    if (typeof amount !== 'number' || amount < 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
+
+    const userId = req.user.id;
+
+    let newAmount;
+    const currentBalance = await prisma.userBalance.findUnique({
+      where: { userId },
+    });
+
+    switch (operation) {
+      case 'set':
+        newAmount = amount;
+        break;
+      case 'add':
+        newAmount = (currentBalance?.amount || 0) + amount;
+        break;
+      case 'subtract':
+        newAmount = Math.max(0, (currentBalance?.amount || 0) - amount);
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid operation. Use: set, add, subtract' });
+    }
+
+    const updatedBalance = await prisma.userBalance.upsert({
+      where: { userId },
+      update: { amount: newAmount },
+      create: { userId, amount: newAmount },
+    });
+
+    res.json({
+      balance: updatedBalance.amount,
+      currency: 'RUB',
+      operation,
+      previousAmount: currentBalance?.amount || 0
+    });
+  } catch (error) {
+    console.error('Error updating user balance:', error);
+    res.status(500).json({ error: 'Failed to update user balance' });
   }
 });
 

@@ -1,31 +1,204 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { balanceStorage } from '@/utils/storageUtils'
+import { API_CONFIG } from '@/config/constants'
+import { syncService } from '@/utils/syncService'
 
 /**
- * Hook for managing user balance
+ * Hook for managing user balance with API sync
  */
 export const useBalance = () => {
   const [balance, setBalance] = useState(() => balanceStorage.get())
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  // Fetch balance from API
+  const fetchBalance = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch balance: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const apiBalance = data.balance
+
+      // Update local state and storage
+      setBalance(apiBalance)
+      balanceStorage.set(apiBalance)
+
+      return apiBalance
+    } catch (err) {
+      console.error('Error fetching balance from API:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
+
+      // Fallback to localStorage if API fails
+      const localBalance = balanceStorage.get()
+      setBalance(localBalance)
+      return localBalance
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Update balance via API
+  const updateBalanceAPI = useCallback(async (newBalance: number) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: newBalance,
+          operation: 'set'
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update balance: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Update local state and storage
+      setBalance(data.balance)
+      balanceStorage.set(data.balance)
+
+      return data.balance
+    } catch (err) {
+      console.error('Error updating balance via API:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
+
+      // Fallback to localStorage if API fails
+      setBalance(newBalance)
+      balanceStorage.set(newBalance)
+      return newBalance
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const addToBalance = async (amount: number) => {
+    const newBalance = balance + amount
+
+    // Update local state immediately for responsive UI
+    setBalance(newBalance)
+    balanceStorage.set(newBalance)
+
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          operation: 'add'
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to add to balance: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Update with server response (in case of conflicts)
+      setBalance(data.balance)
+      balanceStorage.set(data.balance)
+
+      return data.balance
+    } catch (err) {
+      console.error('Error adding to balance via API:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
+
+      // Add to offline queue if offline
+      if (!navigator.onLine) {
+        syncService.addToOfflineQueue({
+          type: 'balance_update',
+          data: { amount, operation: 'add' }
+        })
+        console.log('📋 Balance update queued for offline sync')
+      }
+
+      // Return locally calculated value
+      return newBalance
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const subtractFromBalance = async (amount: number) => {
+    const newBalance = Math.max(0, balance - amount)
+
+    // Update local state immediately for responsive UI
+    setBalance(newBalance)
+    balanceStorage.set(newBalance)
+
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          operation: 'subtract'
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to subtract from balance: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      // Update with server response (in case of conflicts)
+      setBalance(data.balance)
+      balanceStorage.set(data.balance)
+
+      return data.balance
+    } catch (err) {
+      console.error('Error subtracting from balance via API:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error')
+
+      // Add to offline queue if offline
+      if (!navigator.onLine) {
+        syncService.addToOfflineQueue({
+          type: 'balance_update',
+          data: { amount, operation: 'subtract' }
+        })
+        console.log('📋 Balance update queued for offline sync')
+      }
+
+      // Return locally calculated value
+      return newBalance
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Legacy localStorage methods for backward compatibility
   const updateBalance = (newBalance: number) => {
     setBalance(newBalance)
     balanceStorage.set(newBalance)
   }
 
-  const addToBalance = (amount: number) => {
-    const newBalance = balance + amount
-    updateBalance(newBalance)
-    return newBalance
-  }
-
-  const subtractFromBalance = (amount: number) => {
-    const newBalance = Math.max(0, balance - amount)
-    updateBalance(newBalance)
-    return newBalance
-  }
-
   const resetBalance = () => {
-    updateBalance(balanceStorage.reset() ? balanceStorage.get() : 0)
+    const resetAmount = balanceStorage.reset() ? balanceStorage.get() : 0
+    updateBalance(resetAmount)
   }
 
   // Sync with localStorage changes (in case of multi-tab usage)
@@ -40,11 +213,20 @@ export const useBalance = () => {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
+  // Fetch balance on mount
+  useEffect(() => {
+    fetchBalance()
+  }, [fetchBalance])
+
   return {
     balance,
+    isLoading,
+    error,
     updateBalance,
+    updateBalanceAPI,
     addToBalance,
     subtractFromBalance,
     resetBalance,
+    refetch: fetchBalance,
   }
 }

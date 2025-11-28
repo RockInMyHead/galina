@@ -51,3 +51,4 @@ template_test.txt
 *.db
 *.sqlite
 *.sqlite3
+api/.env

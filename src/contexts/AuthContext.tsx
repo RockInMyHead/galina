@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { User, AuthContextType } from '@/types'
+import { API_CONFIG } from '@/config/constants'
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -21,10 +22,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Проверяем, есть ли сохраненная сессия при загрузке
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
       try {
+        const token = localStorage.getItem('galina-token')
         const savedUser = localStorage.getItem('galina-user')
-        if (savedUser) {
+
+        if (token && savedUser) {
+          // Проверяем токен через API
+          try {
+            const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            })
+            if (response.ok) {
+              const data = await response.json()
+              if (data.user) {
+                const apiUser: User = {
+                  id: data.user.id,
+                  email: data.user.email,
+                  name: data.user.name
+                }
+                setUser(apiUser)
+                setIsLoading(false)
+                return
+              }
+            }
+          } catch (apiError) {
+            console.warn('Token validation failed, clearing session:', apiError)
+            localStorage.removeItem('galina-token')
+            localStorage.removeItem('galina-user')
+          }
+        }
+
+        // Если токен недействителен или отсутствует, пробуем localStorage как fallback
+        if (savedUser && !token) {
           const parsedUser = JSON.parse(savedUser) as User
           // Валидация сохраненных данных
           if (parsedUser.id && parsedUser.email && parsedUser.name) {
@@ -37,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.warn('Failed to load saved user session:', error)
         localStorage.removeItem('galina-user')
+        localStorage.removeItem('galina-token')
       } finally {
         setIsLoading(false)
       }
@@ -49,25 +83,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true)
 
-      // Имитация API вызова - в реальном приложении здесь будет запрос к серверу
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Реальный API вызов для входа
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      })
 
-      // Простая проверка для демо (любой email/password подойдет)
-      if (email && password.length >= 6) {
-        const mockUser: User = {
-          id: crypto.randomUUID(),
-          email,
-          name: email.split('@')[0]
+      if (response.ok) {
+        const data = await response.json()
+        const apiUser: User = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name
         }
 
-        setUser(mockUser)
-        localStorage.setItem('galina-user', JSON.stringify(mockUser))
+        setUser(apiUser)
+        // Сохраняем токен и пользователя
+        localStorage.setItem('galina-user', JSON.stringify(apiUser))
+        localStorage.setItem('galina-token', data.token)
         return true
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Login failed:', errorData.error)
+        return false
       }
-
-      return false
     } catch (error) {
       console.error('Login error:', error)
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const register = async (email: string, password: string, name?: string): Promise<boolean> => {
+    try {
+      setIsLoading(true)
+
+      // Реальный API вызов для регистрации
+      const response = await fetch(`${API_CONFIG.BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, name }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const apiUser: User = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name
+        }
+
+        setUser(apiUser)
+        // Сохраняем токен и пользователя
+        localStorage.setItem('galina-user', JSON.stringify(apiUser))
+        localStorage.setItem('galina-token', data.token)
+        return true
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Registration failed:', errorData.error)
+        return false
+      }
+    } catch (error) {
+      console.error('Registration error:', error)
       return false
     } finally {
       setIsLoading(false)
@@ -78,6 +161,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setUser(null)
       localStorage.removeItem('galina-user')
+      localStorage.removeItem('galina-token')
     } catch (error) {
       console.error('Logout error:', error)
     }
@@ -86,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     login,
+    register,
     logout,
     isLoading,
     isAuthenticated: !!user

@@ -1,18 +1,22 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { VOICE_CONFIG, SPEECH_CONFIG, BEEP_CONFIG } from '@/config/constants'
+import { transcribeAudioWithWhisper } from '@/utils/apiUtils'
 
 interface UseVoiceOptions {
   onTranscript?: (transcript: string) => void
   onInterimTranscript?: (transcript: string) => void
   onError?: (error: string) => void
+  onInfo?: (message: string) => void // Информационные сообщения
   onStart?: () => void
   onEnd?: () => void
   onSpeakingStart?: () => void
   onSpeakingEnd?: () => void
+  useWhisperFallback?: boolean // Включить fallback через OpenAI Whisper
+  silenceTimeout?: number // Таймер молчания в ms (по умолчанию 3000)
 }
 
 export const useVoice = (options: UseVoiceOptions = {}) => {
-  const { onTranscript, onInterimTranscript, onError, onStart, onEnd, onSpeakingStart, onSpeakingEnd } = options
+  const { onTranscript, onInterimTranscript, onError, onInfo, onStart, onEnd, onSpeakingStart, onSpeakingEnd, useWhisperFallback = true, silenceTimeout = 3000 } = options
 
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -23,6 +27,13 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
   const synthRef = useRef<SpeechSynthesis | null>(null)
   const beepIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const sessionEndedRef = useRef(false)
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastResultTimeRef = useRef<number>(0)
+
+  // Для fallback через OpenAI Whisper
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const isUsingFallbackRef = useRef(false)
 
   // Check if speech recognition is supported
   useEffect(() => {
@@ -51,16 +62,19 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
       }
 
       recognition.onstart = () => {
-        console.log('Speech recognition started successfully')
+        console.log('🎤 Speech recognition started successfully')
         setIsListening(true)
         sessionEndedRef.current = false
+        lastResultTimeRef.current = Date.now()
         onStart?.()
         startBeepInterval()
+        resetSilenceTimeout() // Запускаем таймер молчания
+        onInfo?.('🎤 Микрофон активен! Говорите сейчас...')
       }
 
       recognition.onspeechstart = () => {
-        console.log('Speech detected! User started speaking')
-        // Пользователь начал говорить - отлично!
+        console.log('🎤 Speech detected! User started speaking')
+        resetSilenceTimeout() // Сбрасываем таймер молчания при начале речи
       }
 
       recognition.onspeechend = () => {
@@ -84,15 +98,20 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
       }
 
       recognition.onresult = (event) => {
-        console.log('Recognition result received:', event.results.length, 'results')
+        console.log('🎤 Recognition result received:', event.results.length, 'results')
+        console.log('🎤 Result index:', event.resultIndex)
         let finalTranscript = ''
         let interimTranscript = ''
 
         // Собираем все результаты
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript
-          console.log(`Result ${i}: "${transcript}", isFinal: ${event.results[i].isFinal}`)
-          if (event.results[i].isFinal) {
+          const result = event.results[i]
+          const transcript = result[0].transcript
+          const confidence = result[0].confidence
+
+          console.log(`🎤 Result ${i}: "${transcript}", isFinal: ${result.isFinal}, confidence: ${confidence}`)
+
+          if (result.isFinal) {
             finalTranscript += transcript
           } else {
             interimTranscript += transcript
@@ -101,45 +120,81 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
 
         // Отправляем промежуточные результаты в реальном времени
         if (interimTranscript) {
-          console.log('Interim transcript:', interimTranscript)
+          console.log('🎤 Interim transcript:', interimTranscript)
           onInterimTranscript?.(interimTranscript)
+          setTranscript(interimTranscript)
         }
 
-        // Используем финальный результат, если он есть, иначе промежуточный
-        const currentTranscript = finalTranscript || interimTranscript
-        console.log('Current transcript:', currentTranscript)
-        if (currentTranscript) {
-          setTranscript(currentTranscript)
-          onTranscript?.(currentTranscript)
+        // Если есть финальный результат, используем его
+        if (finalTranscript.trim()) {
+          console.log('✅ Final transcript received:', finalTranscript)
+          setTranscript(finalTranscript.trim())
+          onTranscript?.(finalTranscript.trim())
+
+          // Для continuous: false перезапускаем распознавание
+          setTimeout(() => {
+            if (isListening && recognitionRef.current && !sessionEndedRef.current) {
+              try {
+                console.log('🔄 Restarting recognition after final result')
+                recognitionRef.current.start()
+              } catch (error) {
+                console.error('❌ Failed to restart recognition:', error)
+              }
+            }
+          }, 1000)
         }
+
+        // Сбрасываем таймер молчания при любом результате
+        resetSilenceTimeout()
       }
 
-      recognition.onerror = (event) => {
-        console.log('Speech recognition event:', event.error, event)
+      recognition.onerror = async (event) => {
+        console.log('Speech recognition event:', event.error, event.message)
         setIsListening(false)
         stopBeepInterval()
+        clearSilenceTimeout() // Очищаем таймер молчания
 
         // Обрабатываем разные типы ошибок
         if (event.error === 'aborted') {
           console.log('Speech recognition was aborted (normal behavior)')
           // Для aborted не показываем ошибку пользователю
         } else if (event.error === 'no-speech') {
-          console.log('No speech detected - user needs to start speaking immediately')
-          // Для no-speech тоже не показываем ошибку, но это сигнал что нужно говорить сразу
+          console.log('🎤 No speech detected - trying Whisper fallback if enabled')
+
+          // Если включен fallback через Whisper, пробуем записать аудио
+          if (useWhisperFallback && !isUsingFallbackRef.current) {
+            const hasApiKey = import.meta.env.VITE_OPENAI_API_KEY && import.meta.env.VITE_OPENAI_API_KEY.length > 10
+            if (!hasApiKey) {
+              console.log('❌ OpenAI API key not found, skipping Whisper fallback')
+              onError?.('API ключ OpenAI не найден. Резервное распознавание недоступно.')
+              return
+            }
+
+            console.log('🎵 Switching to Whisper fallback...')
+            onInfo?.('🎤 Резервное распознавание: говорите четко в микрофон 5 секунд...')
+            isUsingFallbackRef.current = true
+            await startWhisperFallback()
+          } else {
+            // Показываем подсказку пользователю
+            onError?.('❌ Речь не обнаружена. Возможные причины:\n• Говорите громче и ближе к микрофону\n• Проверьте, что микрофон не отключен\n• Попробуйте другой браузер (Chrome)\n• Обновите страницу')
+          }
         } else if (event.error === 'audio-capture') {
           console.error('Audio capture error - microphone issue')
-          onError?.('Ошибка захвата звука. Проверьте микрофон.')
+          onError?.('Ошибка захвата звука. Проверьте доступ к микрофону в настройках браузера.')
+        } else if (event.error === 'not-allowed') {
+          console.error('Microphone access denied')
+          onError?.('Доступ к микрофону заблокирован. Разрешите доступ в настройках браузера.')
         } else if (event.error === 'network') {
           console.error('Network error during speech recognition')
           onError?.('Ошибка сети при распознавании речи.')
         } else {
           console.error('Speech recognition error:', event.error)
-        onError?.(`Ошибка распознавания речи: ${event.error}`)
+          onError?.(`Ошибка распознавания речи: ${event.error}`)
         }
 
         if (!sessionEndedRef.current) {
           sessionEndedRef.current = true
-        onEnd?.()
+          onEnd?.()
         }
       }
 
@@ -147,10 +202,11 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
         console.log('Speech recognition ended normally')
         setIsListening(false)
         stopBeepInterval()
+        clearSilenceTimeout() // Очищаем таймер молчания
 
         if (!sessionEndedRef.current) {
           sessionEndedRef.current = true
-        onEnd?.()
+          onEnd?.()
         }
       }
     }
@@ -168,6 +224,7 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
         synthRef.current.cancel()
       }
       stopBeepInterval()
+      clearSilenceTimeout()
     }
   }, [onTranscript, onError, onStart, onEnd])
 
@@ -206,35 +263,41 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
     }
   }, [])
 
+  // Reset silence timeout
+  const resetSilenceTimeout = useCallback(() => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current)
+    }
+    silenceTimeoutRef.current = setTimeout(() => {
+      console.log(`Silence timeout reached (${silenceTimeout}ms), stopping recognition`)
+      if (recognitionRef.current && isListening) {
+        recognitionRef.current.stop()
+      }
+    }, silenceTimeout)
+  }, [isListening, silenceTimeout])
+
+  // Clear silence timeout
+  const clearSilenceTimeout = useCallback(() => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current)
+      silenceTimeoutRef.current = null
+    }
+  }, [])
+
   // Start listening
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
       try {
-        console.log('Starting speech recognition session')
-        // Сбрасываем предыдущее состояние
-        try {
-          recognitionRef.current.abort()
-        } catch (e) {
-          // Игнорируем ошибку если не было активной сессии
-        }
-        
-        // Запускаем новую сессию
+        console.log('🎤 Starting speech recognition session')
         recognitionRef.current.start()
       } catch (error: any) {
-        console.error('Error starting speech recognition:', error)
-        if (error.message && error.message.includes('already started')) {
-          console.log('Recognition already started, aborting and restarting...')
-          recognitionRef.current?.abort()
-          setTimeout(() => {
-            try {
-              recognitionRef.current?.start()
-            } catch (e) {
-              console.error('Failed to restart:', e)
-              onError?.('Не удалось начать распознавание речи')
-            }
-          }, 100)
+        console.error('❌ Error starting speech recognition:', error)
+        if (error.message && error.message.includes('not-allowed')) {
+          onError?.('Доступ к микрофону заблокирован. Разрешите доступ в настройках браузера.')
+        } else if (error.message && error.message.includes('already started')) {
+          console.log('Recognition already started, ignoring')
         } else {
-        onError?.('Не удалось начать распознавание речи')
+          onError?.('Не удалось начать распознавание речи. Попробуйте обновить страницу.')
         }
       }
     } else {
@@ -246,8 +309,109 @@ export const useVoice = (options: UseVoiceOptions = {}) => {
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
       recognitionRef.current.stop()
+      clearSilenceTimeout() // Очищаем таймер молчания
     }
+
+    // Также останавливаем MediaRecorder если он работает
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('🎵 Stopping MediaRecorder...')
+      mediaRecorderRef.current.stop()
+    }
+
+    isUsingFallbackRef.current = false
   }, [isListening])
+
+  // Fallback транскрибация через OpenAI Whisper
+  const startWhisperFallback = useCallback(async () => {
+    try {
+      console.log('🎵 Starting Whisper fallback recording...')
+      onStart?.() // Уведомляем о начале записи
+
+      // Запрашиваем доступ к микрофону
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+      })
+
+      // Создаем MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      })
+
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        console.log('🎵 Audio recording stopped, sending to Whisper...')
+
+        // Закрываем поток
+        stream.getTracks().forEach(track => track.stop())
+
+        // Создаем Blob из chunks
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        console.log('🎵 Audio blob created:', audioBlob.size, 'bytes')
+
+        try {
+          // Отправляем в OpenAI Whisper
+          const transcription = await transcribeAudioWithWhisper(audioBlob)
+
+          if (transcription && transcription.trim()) {
+            console.log('✅ Whisper fallback successful:', transcription)
+            setTranscript(transcription.trim())
+            onTranscript?.(transcription.trim())
+          } else {
+            console.log('⚠️ Whisper returned empty transcription')
+            onError?.('Не удалось распознать речь. Попробуйте говорить четче.')
+          }
+        } catch (whisperError) {
+          console.error('❌ Whisper fallback failed:', whisperError)
+          onError?.('Ошибка распознавания речи. Попробуйте еще раз.')
+        } finally {
+          isUsingFallbackRef.current = false
+          setIsListening(false)
+          onEnd?.()
+        }
+      }
+
+      mediaRecorder.onerror = (error) => {
+        console.error('❌ MediaRecorder error:', error)
+        onError?.('Ошибка записи аудио.')
+        isUsingFallbackRef.current = false
+        setIsListening(false)
+        onEnd?.()
+      }
+
+      // Начинаем запись
+      mediaRecorder.start()
+      console.log('🎵 Whisper fallback recording started for 5 seconds')
+      setIsListening(true) // Обновляем состояние
+
+      // Автоматически останавливаем через 5 секунд
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          console.log('🎵 Auto-stopping Whisper recording after 5 seconds')
+          mediaRecorder.stop()
+        }
+      }, 5000)
+
+    } catch (error) {
+      console.error('❌ Failed to start Whisper fallback:', error)
+      onError?.('Не удалось начать запись аудио для распознавания.')
+      isUsingFallbackRef.current = false
+      setIsListening(false)
+      onEnd?.()
+    }
+  }, [onTranscript, onError, onEnd])
 
   // Speak text
   const speak = useCallback((text: string) => {

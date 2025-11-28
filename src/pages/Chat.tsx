@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { useVoice } from "@/hooks/useVoice";
+// Removed: import { useVoice } from "@/hooks/useVoice";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { sendChatMessage } from "@/utils/apiUtils";
 import { EXAMPLE_QUESTIONS, STORAGE_KEYS, AI_SYSTEM_MESSAGES, API_CONFIG } from "@/config/constants";
@@ -17,7 +17,7 @@ import ReactMarkdown from 'react-markdown';
 
 const Chat = () => {
   const [message, setMessage] = useState("");
-  const voice = useVoice();
+  // Removed: const voice = useVoice();
 
   // Загружаем сообщения из localStorage или используем дефолтные
   const [messages, setMessages] = useState<ChatMessageType[]>(() => {
@@ -185,10 +185,10 @@ const Chat = () => {
   };
 
   // Функция для обработки streaming ответа с модульной генерацией
-  const sendStreamingMessageToAI = async (userMessage: string, files: File[] = []): Promise<string> => {
+  const sendStreamingMessageToAI = async (userMessage: string, files: File[] = [], currentMessages?: ChatMessageType[]): Promise<string> => {
     try {
-      const currentMessages = [...messages];
-      const lastMessage = currentMessages[currentMessages.length - 1];
+      const messagesToUse = currentMessages || [...messages];
+      const lastMessage = messagesToUse[messagesToUse.length - 1];
 
       let hasUploadedFile = false;
       let uploadedFileData: ChatMessageType['uploadedFile'] | null = null;
@@ -201,6 +201,14 @@ const Chat = () => {
           userMessage.includes('Проанализируй его содержимое') ||
                            userMessage.includes('заполнением или создай соответствующий шаблон');
       }
+
+      // Создаем контекст сообщений для API
+      const contextMessages = [
+        ...messagesToUse.slice(-2).map((msg) => ({  // Берем последние 2 сообщения для контекста
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }))
+      ];
 
       // Если добавлены новые файлы, инлайн-расширяем пользовательское сообщение
       let content = userMessage;
@@ -524,7 +532,7 @@ const Chat = () => {
                   }
                   
                   if (contentChunk) {
-                    setStreamingMessage(`<div style="color: #6b7280; font-style: italic;">📋 План ответа:\n\n${planContent}</div>`);
+                    setStreamingMessage(`> *📋 План ответа:*\n\n${planContent}`);
                   }
                 } catch (e) {
                   console.warn('⚠️ Failed to parse JSON chunk:', data, e);
@@ -682,12 +690,13 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
 Выведи только текст раздела №${i + 1} без заголовка и без общего резюме.`;
 
         // Создаем сообщения для API для текущего пункта
+        // Включаем контекст из последних сообщений
         const pointMessages = [
           {
             role: 'system' as const,
             content: AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT,
           },
-          ...currentMessages.slice(-3).map((msg) => ({
+          ...messagesToUse.slice(-2).map((msg) => ({  // Берем последние 2 сообщения для контекста
             role: msg.role as 'user' | 'assistant',
             content: msg.content,
           })),
@@ -836,15 +845,20 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
 Верни только конечный текст для пользователя, без указания номеров разделов в финальном ответе.`;
 
+      // Включаем контекст для финальной сборки
+      const finalContextMessages = [
+        ...messagesToUse.slice(-1).map((msg) => ({  // Берем последнее сообщение для контекста
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }))
+      ];
+
       const finalMessages = [
         {
           role: 'system' as const,
           content: AI_SYSTEM_MESSAGES.LEGAL_ASSISTANT,
         },
-        ...currentMessages.slice(-2).map((msg) => ({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        })),
+        ...finalContextMessages,
         {
           role: 'user' as const,
           content: finalPrompt,
@@ -935,52 +949,90 @@ ${previousResponses[2] || 'Ошибка генерации'}
       setIsStreaming(false);
         console.log('✅ Финальная сборка завершена');
 
-        return finalAnswer.trim();
+        const result = finalAnswer.trim();
+        if (result.length === 0) {
+          console.warn('⚠️ Финальный ответ пустой, возвращаем объединенные разделы');
+          return fullResponse.trim();
+        }
+
+        return result;
 
       } catch (finalError) {
         console.error('Ошибка финальной сборки:', finalError);
         // Если финальная сборка не удалась, возвращаем объединенные разделы
         setIsStreaming(false);
-        return fullResponse.trim();
+        const fallbackResult = fullResponse.trim();
+        if (fallbackResult.length === 0) {
+          console.error('❌ Все попытки генерации вернули пустой результат');
+          throw new Error('Не удалось сгенерировать ответ. Попробуйте переформулировать вопрос.');
+        }
+        return fallbackResult;
       } finally {
         clearTimeout(finalTimeoutId);
       }
     } catch (outerError: any) {
       console.error('Outer error in sendStreamingMessageToAI:', outerError);
-      throw new Error(`Ошибка модульной генерации: ${outerError?.message || outerError}`);
+
+      // Emergency fallback - use simple API call
+      try {
+        console.log('🚨 Используем аварийный fallback - sendMessageToAI');
+        const emergencyResponse = await sendMessageToAI(userMessage, files);
+        if (emergencyResponse && emergencyResponse.trim().length > 0) {
+          return emergencyResponse;
+        }
+      } catch (emergencyError) {
+        console.error('❌ Аварийный fallback тоже не сработал:', emergencyError);
+      }
+
+      throw new Error(`Ошибка генерации ответа: ${outerError?.message || outerError}`);
     }
   };
 
   // Функция для озвучивания ответа с использованием OpenAI TTS
 
-  // Функция для обработки голосового взаимодействия
-  const handleVoiceInteraction = async () => {
-    console.log('handleVoiceInteraction called:', {
-      isVoiceMode,
-      message: message.trim(),
-      isListening: voice.isListening,
-      isSupported: voice.isSupported
-    });
-
-    if (isVoiceMode && message.trim()) {
-      console.log('Sending voice message');
-      await handleSendMessage();
-      setIsVoiceMode(false);
-    } else if (!voice.isListening) {
-      console.log('Starting voice listening');
-      if (!voice.isSupported) {
-        alert('Голосовой ввод не поддерживается в этом браузере');
-        return;
-      }
-      voice.startListening();
-    } else {
-      console.log('Already listening or no action needed');
+  // Функция для обработки голосовой транскрибации
+  const handleVoiceTranscript = (transcript: string) => {
+    console.log('Voice transcript received:', transcript);
+    if (transcript.trim()) {
+      setMessage(transcript.trim());
+      // Автоматически отправляем голосовое сообщение через 1 секунду
+      setTimeout(() => {
+        if (transcript.trim() === message.trim() && !isLoading) {
+          console.log('Auto-sending voice message:', transcript);
+          handleSendMessage();
+        }
+      }, 1000);
     }
   };
 
-  const sendMessageToAI = async (userMessage: string, files: File[] = []) => {
+  // Функция для обработки голосового взаимодействия (устаревшая - теперь в ChatInput)
+  // const handleVoiceInteraction = async () => {
+  //   console.log('handleVoiceInteraction called:', {
+  //     isVoiceMode,
+  //     message: message.trim(),
+  //     isListening: voice.isListening,
+  //     isSupported: voice.isSupported
+  //   });
+
+  //   if (isVoiceMode && message.trim()) {
+  //     console.log('Sending voice message');
+  //     await handleSendMessage();
+  //     setIsVoiceMode(false);
+  //   } else if (!voice.isListening) {
+  //     console.log('Starting voice listening');
+  //     if (!voice.isSupported) {
+  //       alert('Голосовой ввод не поддерживается в этом браузере');
+  //       return;
+  //     }
+  //     voice.startListening();
+  //   } else {
+  //     console.log('Already listening or no action needed');
+  //   }
+  // };
+
+  const sendMessageToAI = async (userMessage: string, files: File[] = [], currentMessages?: ChatMessageType[]) => {
     try {
-      const currentMessages = [...messages];
+      const messagesToUse = currentMessages || [...messages];
 
       // Если есть файлы, добавляем их в сообщение
       let content = userMessage;
@@ -1056,7 +1108,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
           role: 'system' as const,
           content: systemMessage
         },
-        ...currentMessages.map(msg => ({
+        ...messagesToUse.map(msg => ({
           role: msg.role,
           content: msg.content
         })),
@@ -1092,7 +1144,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
         // Проверяем, что контент существует и не пустой
         if (!response.data.content) {
           console.warn('Ответ от AI не содержит контента');
-          return 'Извините, AI не вернул ответ. Попробуйте еще раз.';
+          return 'Извините, AI не вернул ответ. Попробуйте переформулировать свой вопрос более конкретно.';
         }
 
         // Проверяем, что контент не пустой после trim
@@ -1102,13 +1154,20 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
         if (content.length === 0) {
           console.warn('Ответ от AI пустой после trim');
-          return 'Извините, AI вернул пустой ответ. Попробуйте переформулировать вопрос.';
+          return 'Извините, AI вернул неполный ответ. Попробуйте задать вопрос по-другому или добавьте больше деталей.';
+        }
+
+        // Проверяем минимальную длину ответа
+        if (content.length < 10) {
+          console.warn('Ответ от AI слишком короткий');
+          return `Короткий ответ: ${content}. Рекомендую уточнить вопрос для более подробной консультации.`;
         }
 
         return content;
       } else {
         console.error('Ошибка в ответе AI:', response);
-        return 'Произошла ошибка при обработке ответа AI. Попробуйте еще раз.';
+        const errorMsg = response.error || 'неизвестная ошибка';
+        return `Произошла ошибка при обращении к AI: ${errorMsg}. Попробуйте еще раз через некоторое время.`;
       }
     } catch (error) {
       console.error('Error in sendMessageToAI:', error);
@@ -1132,14 +1191,16 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
     console.log('handleSendMessage: Создано пользовательское сообщение:', userMessage);
 
-    setMessages(prev => [...prev, userMessage]);
+    // Добавляем сообщение в чат синхронно
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setMessage("");
     fileUpload.clearFiles();
     setIsLoading(true);
 
     try {
       // Проверяем, есть ли в сообщении загруженный файл
-      const lastMessage = messages[messages.length - 1];
+      const lastMessage = updatedMessages[updatedMessages.length - 1];
       const hasUploadedFile = lastMessage && lastMessage.uploadedFile;
 
       let aiResponse: string;
@@ -1148,7 +1209,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
       if (hasUploadedFile) {
         console.log('handleSendMessage: Обнаружен загруженный файл, запускаем анализ документа');
         // Для загруженных файлов используем специальный режим анализа
-        aiResponse = await sendStreamingMessageToAI(message, files);
+        aiResponse = await sendStreamingMessageToAI(userMessage.content, files, updatedMessages);
         console.log('handleSendMessage: Получен анализ документа от AI:', aiResponse);
 
         // Применяем постобработку для анализа документов тоже
@@ -1159,10 +1220,10 @@ ${previousResponses[2] || 'Ошибка генерации'}
         console.log('handleSendMessage: Постобработка анализа завершена. Статистика:', processedResponse.statistics);
       } else {
         console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
-        await simulateReasoning(message);
+        await simulateReasoning(userMessage.content);
 
         console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
-        aiResponse = await sendStreamingMessageToAI(message, files);
+        aiResponse = await sendStreamingMessageToAI(userMessage.content, files, updatedMessages);
         console.log('handleSendMessage: Получен ответ от AI:', aiResponse);
 
         // Применяем профессиональную постобработку для удаления дубликатов и оптимизации
@@ -1174,9 +1235,23 @@ ${previousResponses[2] || 'Ошибка генерации'}
         console.log('handleSendMessage: Оптимизированный ответ:', finalResponse);
       }
 
+      // Проверяем, что ответ не пустой
+      const finalContent = (finalResponse || aiResponse || '').trim();
+      if (finalContent.length === 0) {
+        console.error('❌ Получен пустой ответ от AI');
+        const errorMessage: ChatMessageType = {
+          id: (Date.now() + 1).toString(),
+          content: 'Извините, произошла ошибка при генерации ответа. Попробуйте переформулировать вопрос или попробуйте позже.',
+          role: 'assistant',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMessage]);
+        return;
+      }
+
       const assistantMessage: ChatMessageType = {
         id: (Date.now() + 1).toString(),
-        content: finalResponse || aiResponse,
+        content: finalContent,
         role: 'assistant',
         timestamp: new Date()
       };
@@ -1308,6 +1383,7 @@ ${previousResponses[2] || 'Ошибка генерации'}
                   selectedFiles={fileUpload.files}
                   onRemoveFile={fileUpload.removeFile}
                   isLoading={isLoading}
+                  onVoiceTranscript={handleVoiceTranscript}
                   />
                 </div>
               </CardContent>
