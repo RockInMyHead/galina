@@ -41,10 +41,12 @@ async function initializeDemoUser() {
     });
 
     if (!existingUser) {
+      const hashedPassword = await bcrypt.hash('demo123', 10);
       const demoUser = await prisma.user.create({
         data: {
           email: 'demo@galina.ai',
           name: 'Demo User',
+          password: hashedPassword,
         },
       });
 
