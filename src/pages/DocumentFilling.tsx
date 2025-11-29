@@ -503,7 +503,7 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       // Подготавливаем изображение для Gemini API (убираем data:image/jpeg;base64, префикс)
       const imageDataForGemini = scannedImageData.replace(/^data:image\/[a-z]+;base64,/, '');
 
-      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyC6hXULlNleQKFlwip_MVw1HnMa-ys81ZM', {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=AIzaSyC6hXULlNleQKFlwip_MVw1HnMa-ys81ZM', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
