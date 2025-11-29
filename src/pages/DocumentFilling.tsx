@@ -44,18 +44,12 @@ const DocumentFilling = () => {
   // Используем шаблоны из констант
   const allTemplates = DOCUMENT_TEMPLATES;
 
-  // Функция для начала сканирования документа для Nana Banana Pro
-  const handleScanDocument = (templateName: string) => {
-    console.log('🔄 Начинаем сканирование документа:', templateName);
-
-    const template = allTemplates.find(t => t.name === templateName);
-    if (!template) {
-      console.error('❌ Template not found:', templateName);
-      return;
-    }
-
-    startScanFill(template);
-  };
+  // Функция для начала универсального сканирования документа
+  const startUniversalScan = useCallback(() => {
+    console.log('🚀 Запуск универсального сканирования документа');
+    setSelectedTemplateForScan(null); // Без конкретного шаблона
+    setShowScanFill(true);
+  }, []);
 
   // Функция для обработки загруженного файла
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,17 +64,8 @@ const DocumentFilling = () => {
     reader.readAsDataURL(file);
   };
 
-  // Функция запуска Nana Banana Pro процесса
-  const startScanFill = useCallback(async (template: typeof DOCUMENT_TEMPLATES[0]) => {
-    console.log('🚀 Запуск Nana Banana Pro процесса для:', template.name);
-    setSelectedTemplateForScan(template);
-    setShowScanFill(true);
-  }, []);
-
   // Функция обработки отсканированного изображения
   const processScannedImage = useCallback(async (imageData: string) => {
-    if (!selectedTemplateForScan) return;
-
     setIsAutoFilling(true);
     setScannedImageData(imageData);
     console.log('🤖 Начинаем анализ изображения через LLM...');
@@ -95,15 +80,16 @@ const DocumentFilling = () => {
           messages: [
             {
               role: 'system',
-              content: `Ты - AI-ассистент для анализа документов. Твоя задача - проанализировать изображение документа и определить поля, которые нужно заполнить для документа "${selectedTemplateForScan.name}".
+              content: `Ты - AI-ассистент для анализа юридических документов. Твоя задача - проанализировать изображение любого документа и определить поля, которые обычно заполняются в таких документах.
 
 ИНСТРУКЦИИ:
-1. Посмотри на изображение документа и определи его тип
-2. Определи какие поля обычно заполняются в таком документе
+1. Посмотри на изображение документа и определи его тип (договор, заявление, доверенность, иск, претензия и т.д.)
+2. Определи какие поля обычно заполняются в документах такого типа
 3. Для каждого поля укажи: название, тип, обязательно ли оно, описание
 
 ФОРМАТ ОТВЕТА (ТОЛЬКО JSON):
 {
+  "document_type": "тип документа",
   "fields": [
     {
       "name": "field_name",
@@ -115,9 +101,11 @@ const DocumentFilling = () => {
 }
 
 Примеры полей для разных документов:
-- Договор: контрагент, сумма, дата, подписи
-- Заявление: ФИО, адрес, дата, цель
-- Счет: получатель, сумма, назначение`
+- Договор: продавец, покупатель, предмет договора, цена, дата, подписи
+- Исковое заявление: истец, ответчик, предмет иска, требования, дата
+- Доверенность: доверитель, доверенное лицо, полномочия, срок действия
+- Трудовой договор: работник, работодатель, должность, оклад, дата заключения
+- Претензия: заявитель, получатель, предмет претензии, требования, срок ответа`
             },
             {
               role: 'user',
@@ -144,7 +132,10 @@ const DocumentFilling = () => {
       setShowFieldInput(true);
       setCurrentFieldIndex(0);
 
-      console.log('✅ Поля документа определены:', parsed.fields);
+      console.log('✅ Документ проанализирован:', {
+        type: parsed.document_type,
+        fields: parsed.fields?.length || 0
+      });
 
     } catch (error) {
       console.error('❌ Ошибка анализа документа:', error);
@@ -152,7 +143,7 @@ const DocumentFilling = () => {
     } finally {
       setIsAutoFilling(false);
     }
-  }, [selectedTemplateForScan]);
+  }, []);
 
   // Функция обновления значения поля
   const updateFieldValue = useCallback((fieldName: string, value: string) => {
@@ -181,7 +172,7 @@ const DocumentFilling = () => {
 
   // Отправка в Nana Banana Pro
   const sendToNanaBanana = useCallback(async () => {
-    if (!selectedTemplateForScan || !scannedImageData || documentFields.length === 0) {
+    if (!scannedImageData || documentFields.length === 0) {
       console.error('❌ Недостаточно данных для отправки в Nana Banana Pro');
       return;
     }
@@ -246,7 +237,7 @@ const DocumentFilling = () => {
       setIsSendingToNanaBanana(false);
       setScanResult('Ошибка заполнения документа. Попробуйте еще раз.');
     }
-  }, [selectedTemplateForScan, scannedImageData, documentFields, fieldValues]);
+  }, [scannedImageData, documentFields, fieldValues]);
 
   // Функции работы с камерой
   const startCamera = useCallback(async () => {
@@ -348,82 +339,95 @@ const DocumentFilling = () => {
               Заполнение документов через Nana Banana Pro
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Сфотографируйте документ, и AI заполнит его от руки. Выберите тип документа и начните сканирование.
+              Сфотографируйте любой документ, и AI заполнит его от руки с помощью рукописного ввода.
             </p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
-            {/* Templates Section */}
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground mb-6 text-center">
-                  Выберите тип документа для сканирования
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allTemplates.map((template, index) => (
-                    <Card
-                      key={index}
-                      className="border-border/50 hover:shadow-elegant transition-smooth group cursor-pointer"
-                      onClick={() => handleScanDocument(template.name)}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-5 w-5 text-primary" />
-                              <h3 className="font-semibold text-foreground group-hover:text-primary transition-smooth">
-                                {template.name}
-                              </h3>
+          <div className="max-w-2xl mx-auto">
+            {/* Single Scan Section */}
+            <div className="space-y-8">
+              <Card className="border-border/50 hover:shadow-elegant transition-smooth">
+                <CardContent className="p-8 text-center">
+                  <div className="flex justify-center mb-6">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Scan className="h-10 w-10" />
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {template.description}
-                            </p>
-                          </div>
+                </div>
+
+                  <h2 className="text-2xl font-bold text-foreground mb-4">
+                    Сканирование документа
+                  </h2>
+
+                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                    Сфотографируйте или загрузите изображение любого документа.
+                    AI автоматически распознает тип документа и заполнит его от руки.
+                  </p>
+
+                        <div className="space-y-4">
                             <Button
-                              size="sm"
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              handleScanDocument(template.name);
-                            }}
-                          >
-                            <Scan className="h-4 w-4 mr-2" />
-                                Сканировать
-                              </Button>
+                      size="lg"
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-6 text-lg"
+                      onClick={startUniversalScan}
+                    >
+                      <Camera className="h-6 w-6 mr-3" />
+                      Начать сканирование
+                            </Button>
+
+                    <div className="text-sm text-muted-foreground">
+                      Поддерживаются: договоры, исковые заявления, доверенности, претензии и другие документы
+                                </div>
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
-                        </div>
-                        </div>
+
+              <Card className="border-border/50 bg-muted/30">
+                    <CardContent className="p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 flex-shrink-0 mt-0.5">
+                      <FileText className="h-4 w-4" />
                       </div>
-                        </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-foreground mb-2">
+                    Как это работает?
+                  </h3>
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        <li>• Сфотографируйте или загрузите изображение документа</li>
+                        <li>• AI автоматически распознает поля для заполнения</li>
+                        <li>• Введите необходимые данные в интерактивной форме</li>
+                        <li>• Получите документ, заполненный от руки через Nana Banana Pro</li>
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
       </main>
 
       {/* Nana Banana Pro модальное окно */}
       {showScanFill && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowScanFill(false)}>
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b flex justify-between items-start">
-                        <div className="flex-1">
+              <div className="p-6 border-b flex justify-between items-start">
+                <div className="flex-1">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Scan className="h-5 w-5" />
-                  Заполнение документа через Nana Banana Pro: {selectedTemplateForScan?.name}
+                  Заполнение документа через Nana Banana Pro
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                   Сфотографируйте или загрузите изображение документа для интеллектуального заполнения от руки
-                          </p>
-                        </div>
-                            <Button
-                variant="ghost"
-                              size="sm"
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
                 onClick={() => setShowScanFill(false)}
-                className="h-8 w-8 p-0"
-                            >
-                <X className="h-4 w-4" />
-                            </Button>
-                          </div>
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
 
             <div className="flex-1 overflow-y-auto p-6">
               {/* Интерфейс ввода полей */}
@@ -450,17 +454,17 @@ const DocumentFilling = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder={`Введите ${documentFields[currentFieldIndex].label.toLowerCase()}`}
                           />
-                </div>
+                    </div>
 
-                        <div className="flex gap-2">
+                  <div className="flex gap-2">
                   <Button
                             onClick={prevField}
                             disabled={currentFieldIndex === 0}
-                    variant="outline"
+                      variant="outline"
                   >
                             Назад
-                  </Button>
-                  <Button
+                    </Button>
+                    <Button
                             onClick={nextField}
                             disabled={!fieldValues[documentFields[currentFieldIndex].name]?.trim()}
                             className="flex-1"
@@ -483,7 +487,7 @@ const DocumentFilling = () => {
                       <div className="flex justify-between text-xs text-gray-600 mb-1">
                         <span>Прогресс заполнения</span>
                         <span>{Math.round(((currentFieldIndex + 1) / documentFields.length) * 100)}%</span>
-              </div>
+                    </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
@@ -491,9 +495,9 @@ const DocumentFilling = () => {
                         ></div>
                   </div>
                     </div>
-                  </div>
                 </div>
-              )}
+              </div>
+            )}
 
               {/* Результат от Nana Banana Pro */}
               {nanaBananaResult && (
@@ -521,7 +525,7 @@ const DocumentFilling = () => {
                       }}>
                         <Download className="h-4 w-4 mr-2" />
                         Скачать результат
-                    </Button>
+                </Button>
                       <Button variant="outline" onClick={() => {
                         setNanaBananaResult(null);
                         setShowScanFill(false);
