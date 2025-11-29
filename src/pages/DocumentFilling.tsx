@@ -1730,6 +1730,35 @@ ${documentAnalysis}
     }
   }, [stopCamera]);
 
+  // Специальная функция захвата для Nana Banana Pro
+  const captureForNanaBanana = useCallback(() => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+
+        // Получаем изображение в формате base64
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
+        setCapturedImage(imageData);
+
+        // Автоматически запускаем анализ для Nana Banana Pro
+        setTimeout(() => {
+          processScannedImage(imageData);
+        }, 500);
+
+        // Останавливаем камеру
+        stopCamera();
+        setShowCamera(false);
+      }
+    }
+  }, [stopCamera, processScannedImage]);
+
   // Постобработка изображения
   const processImage = useCallback(async (imageData: string) => {
     setIsProcessingImage(true);
@@ -2866,7 +2895,7 @@ ${documentAnalysis}
 
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4">
               <Button
-                onClick={captureImage}
+                onClick={showScanFill ? captureForNanaBanana : capturePhoto}
                 disabled={isScanning}
                 size="lg"
                 className="rounded-full w-16 h-16 flex items-center justify-center"
