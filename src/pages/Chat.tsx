@@ -994,14 +994,75 @@ ${previousResponses[2] || 'Ошибка генерации'}
   const handleVoiceTranscript = (transcript: string) => {
     console.log('Voice transcript received:', transcript);
     if (transcript.trim()) {
-      setMessage(transcript.trim());
-      // Автоматически отправляем голосовое сообщение через 1 секунду
-      setTimeout(() => {
-        if (transcript.trim() === message.trim() && !isLoading) {
-          console.log('Auto-sending voice message:', transcript);
-          handleSendMessage();
-        }
-      }, 1000);
+      // Автоматически отправляем голосовое сообщение сразу после распознавания
+      console.log('Auto-sending voice message:', transcript);
+      sendVoiceMessage(transcript.trim());
+    }
+  };
+
+  // Функция для отправки голосового сообщения
+  const sendVoiceMessage = async (transcript: string) => {
+    if (!transcript.trim() || isLoading || isStreaming) return;
+
+    console.log('sendVoiceMessage: Начинаем отправку голосового сообщения:', transcript);
+
+    const userMessage: ChatMessageType = {
+      id: Date.now().toString(),
+      content: transcript.trim(),
+      role: 'user',
+      timestamp: new Date()
+    };
+
+    console.log('sendVoiceMessage: Создано голосовое сообщение:', userMessage);
+
+    // Добавляем сообщение в чат синхронно
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setIsLoading(true);
+
+    try {
+      // Запускаем процесс размышлений LLM
+      await simulateReasoning(transcript.trim());
+
+      // Отправляем сообщение в AI
+      const aiResponse = await sendStreamingMessageToAI(transcript.trim(), [], updatedMessages);
+      console.log('sendVoiceMessage: Получен ответ от AI:', aiResponse);
+
+      // Применяем постобработку
+      const processedResponse = quickProcess(aiResponse);
+      const finalResponse = processedResponse.markdown;
+
+      const assistantMessage: ChatMessageType = {
+        id: (Date.now() + 1).toString(),
+        content: finalResponse,
+        role: 'assistant',
+        timestamp: new Date()
+      };
+
+      console.log('sendVoiceMessage: Создано сообщение ассистента:', assistantMessage);
+
+      setMessages(prev => {
+        console.log('sendVoiceMessage: Обновляем сообщения, текущее количество:', prev.length);
+        const newMessages = [...prev, assistantMessage];
+        console.log('sendVoiceMessage: Новое количество сообщений:', newMessages.length);
+        return newMessages;
+      });
+
+      console.log('sendVoiceMessage: Завершено успешно');
+    } catch (error) {
+      console.error('sendVoiceMessage: Ошибка:', error);
+      const errorMessage: ChatMessageType = {
+        id: (Date.now() + 1).toString(),
+        content: 'Произошла ошибка при обработке голосового сообщения. Попробуйте еще раз.',
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+      setReasoningText('');
+      setStreamingMessage('');
+      setIsStreaming(false);
     }
   };
 

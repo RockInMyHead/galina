@@ -48,6 +48,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setIsLoading(false)
                 return
               }
+            } else {
+              // Если ответ не OK (401, 403, 500 и т.д.), очищаем сессию
+              console.warn('Token validation failed, status:', response.status)
+              localStorage.removeItem('galina-token')
+              localStorage.removeItem('galina-user')
             }
           } catch (apiError) {
             console.warn('Token validation failed, clearing session:', apiError)
@@ -145,8 +150,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('galina-token', data.token)
         return true
       } else {
-        const errorData = await response.json().catch(() => ({}))
-        console.error('Registration failed:', errorData.error)
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Registration failed:', response.status, errorData)
         return false
       }
     } catch (error) {

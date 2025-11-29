@@ -1,98 +1,12 @@
-import Navigation from "@/components/Navigation";
-
-import { useParams, useNavigate } from "react-router-dom";
-
-import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-
-import { useAuth } from "@/contexts/AuthContext";
-
-import { useToast } from "@/hooks/use-toast";
-
-import AssistantOrb from "@/components/AssistantOrb";
-
-import { API_CONFIG } from "@/config/constants";
-
-
-
-// API URL from environment
-const API_URL = API_CONFIG.BASE_URL;
-
-// Константы для VAD (Voice Activity Detection)
-const VAD_THRESHOLD = 30; // Порог громкости для обнаружения голоса
-
-// Модель LLM для голосового чата
-const VOICE_CHAT_LLM_MODEL = 'gpt-5.1'; // GPT-5.1 для высококачественного голосового общения
-
-// Функция определения Safari
-const isSafari = () => {
-  const ua = navigator.userAgent.toLowerCase();
-  const result = ua.includes('safari') && !ua.includes('chrome') && !ua.includes('chromium');
-  console.log('🌐 Определение браузера:', {
-    userAgent: ua,
-    isSafari: result,
-    hasChrome: ua.includes('chrome'),
-    hasSafari: ua.includes('safari')
-  });
-  return result;
-};
-
-// Web Speech API types
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent extends Event {
-  error: string;
-  message?: string;
-}
-
-interface SpeechRecognition extends EventTarget {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  maxAlternatives: number;
-  start(): void;
-  stop(): void;
-  abort(): void;
-  onstart: ((event: Event) => void) | null;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
-  onend: ((event: Event) => void) | null;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition?: new () => SpeechRecognition;
-    webkitSpeechRecognition?: new () => SpeechRecognition;
-    mozSpeechRecognition?: new () => SpeechRecognition; // Firefox support
-  }
-}
-
 const Voice = () => {
 
   const { courseId } = useParams();
 
   const navigate = useNavigate();
 
-  const { token: authToken } = useAuth();
-  const token = authToken || localStorage.getItem('galina-token');
+  const { token } = useAuth();
 
   const { toast } = useToast();
-
-  // Debug logging for token
-  useEffect(() => {
-    console.log('🔑 Voice component token check:', {
-      token: token ? `${token.substring(0, 20)}...` : 'null',
-      tokenLength: token?.length || 0,
-      authToken: authToken ? `${authToken.substring(0, 20)}...` : 'null',
-      localStorageToken: localStorage.getItem('galina-token') ? 'exists' : 'null',
-      localStorageUser: localStorage.getItem('galina-user') ? 'exists' : 'null'
-    });
-  }, [token, authToken]);
 
 
 
@@ -600,33 +514,23 @@ const Voice = () => {
 
 
 
-    // Для Safari: прерываем TTS при начале речи
-    recognition.onspeechstart = () => {
+    // Disabled barge-in based on VAD/Speech start because of echo issues
 
-      if (isSafari() && isPlayingAudioRef.current) {
+    // recognition.onspeechstart = () => {
 
-        console.log('🎤 Safari: Speech started - прерываем TTS');
+    //   console.log('🎤 Speech started');
 
-        stopAssistantSpeech();
+    //   // Мы больше не прерываем TTS здесь, так как это вызывает ложные срабатывания от эха
 
-      }
+    //   // stopAssistantSpeech();
 
-    };
+    // };
 
 
 
     // Добавляем дополнительную проверку на начало речи для фильтрации эха
 
     recognition.onaudiostart = () => {
-
-      // Для Safari: резко прерываем TTS при начале речи пользователя
-      if (isSafari() && isPlayingAudioRef.current) {
-
-        console.log('🎤 Safari: обнаружено начало речи пользователя, прерываем TTS');
-
-        stopAssistantSpeech();
-
-      }
 
       // Небольшая задержка чтобы дать системе определить, является ли это эхом
 
@@ -674,15 +578,6 @@ const Voice = () => {
 
         console.log('👤 Interim распознанный текст:', interimTranscript);
 
-        // Для Safari: прерываем TTS при первых признаках речи пользователя
-        if (isSafari() && isPlayingAudioRef.current && interimTranscript.length > 0) {
-
-          console.log('🎤 Safari: обнаружен interim текст, прерываем TTS');
-
-          stopAssistantSpeech();
-
-        }
-
       }
 
 
@@ -696,26 +591,6 @@ const Voice = () => {
         setTranscriptDisplay(transcript);
 
         console.log('👤 Финальный распознанный текст:', transcript);
-
-        // Для Safari: дополнительная проверка прерывания TTS при финальном результате
-        if (isSafari() && isPlayingAudioRef.current) {
-
-          console.log('🎤 Safari: финальный результат, проверяем TTS');
-
-          // Небольшая задержка перед отправкой запроса
-          setTimeout(() => {
-
-            if (isPlayingAudioRef.current) {
-
-              console.log('🎤 Safari: TTS все еще играет перед отправкой запроса, прерываем');
-
-              stopAssistantSpeech();
-
-            }
-
-          }, 100);
-
-        }
 
 
 
@@ -740,6 +615,7 @@ const Voice = () => {
 
 
           // Send to LLM and get response
+
           const llmResponse = await sendToLLM(transcript);
 
 
@@ -963,6 +839,7 @@ const Voice = () => {
           // Send to LLM
 
           try {
+
             const llmResponse = await sendToLLM(transcript);
 
             if (llmResponse && llmResponse.trim()) {
@@ -1281,7 +1158,7 @@ const Voice = () => {
 
     try {
 
-      const response = await fetch(`${API_URL}/user/profile`, {
+      const response = await fetch(`${API_URL}/profile`, {
 
         headers: {
 
@@ -1321,9 +1198,9 @@ const Voice = () => {
 
   const getCourseName = useCallback(() => {
 
-    return "Юридическая консультация";
+    return getCourseDisplayName(courseId || "");
 
-  }, []);
+  }, [courseId]);
 
 
 
@@ -1447,7 +1324,7 @@ const Voice = () => {
 
       // Get course information
 
-      const courseName = "Юридическая консультация";
+      const courseName = "Голосовой чат";
 
 
 
@@ -1455,10 +1332,11 @@ const Voice = () => {
 
       const contextInfo = [];
 
-      // Убираем упоминание курса для чисто юридических консультаций
-      // if (courseName) {
-      //   contextInfo.push(`Курс: ${courseName}`);
-      // }
+      if (courseName) {
+
+        contextInfo.push(`Курс: ${courseName}`);
+
+      }
 
       if (profile) {
 
@@ -1493,70 +1371,48 @@ const Voice = () => {
 
 
       if (!token) {
-        console.warn('⚠️ Токен не найден, работаем в демо-режиме (без авторизации)');
-        // Продолжаем работу без токена - API может поддерживать демо-режим
+
+        console.error('❌ Токен не найден, отмена запроса');
+
+        toast({
+
+          title: "Ошибка авторизации",
+
+          description: "Пожалуйста, войдите в систему заново",
+
+          variant: "destructive"
+
+        });
+
+        return "Ошибка авторизации";
+
       }
 
 
 
-      console.log('🔑 Token check:', { length: token?.length || 0, start: token ? token.substring(0, 10) + '...' : 'null' });
+      console.log('🔑 Token check:', { length: token.length, start: token.substring(0, 10) + '...' });
 
 
 
       // Determine endpoint and body based on courseId
 
-      let endpoint = `${API_URL}/chat`;
+      let endpoint = `${API_URL}/chat/general`;
 
       let body: any = {
 
-        messages: [
-          {
-            role: 'system',
-            content: `Ты - Галина, элитный AI-юрист с 20-летним опытом юридической практики в России.
+        content: userMessage + contextString, // Server expects 'content'
 
-ТВОИ ХАРАКТЕРИСТИКИ:
-- Ты являешься одним из лучших юристов в стране
-- У тебя огромный опыт в корпоративном, налоговом, гражданском и уголовном праве
-- Ты всегда даешь точные, профессиональные и практические советы
-- Ты умеешь объяснять сложные юридические концепции простым языком
-- Ты всегда указываешь на конкретные статьи законов и судебную практику
-- Ты помогаешь клиентам решать реальные юридические проблемы
-
-СТИЛЬ ОБЩЕНИЯ:
-- Профессиональный, но дружелюбный тон
-- Используй обращения "Уважаемый клиент" или просто по имени, если знаешь
-- Давай конкретные рекомендации и пошаговые инструкции
-- Всегда упоминай риски и возможные последствия
-- Предлагай альтернативные варианты решения проблем
-
-ОСНОВНЫЕ ПРАВИЛА:
-- Отвечай ТОЛЬКО на юридические вопросы
-- Если вопрос не юридический, вежливо объясни, что ты специализируешься только на юридических консультациях
-- Всегда проверяй актуальность законодательства (используй знания на 2024-2025 годы)
-- Будь максимально полезной и конкретной в советах
-- Если нужна дополнительная информация, спрашивай уточнения
-
-Ты - настоящий профессионал своего дела, которому можно доверять самые сложные юридические вопросы.`
-          },
-          {
-            role: 'user',
-            content: userMessage + contextString
-          }
-        ],
-
-        model: 'gpt-5.1',
-
-        max_completion_tokens: 2000,
-
-        temperature: 0.7,
-
-        stream: false
+        messageType: 'voice' // Mark as voice message so it won't appear in text chat
 
       };
 
 
 
-      // Используем единый эндпоинт /chat для всех запросов
+      if (courseId && courseId !== 'general') {
+
+        endpoint = `${API_URL}/chat/${courseId}/message`;
+
+      }
 
 
 
@@ -1572,7 +1428,7 @@ const Voice = () => {
 
             'Content-Type': 'application/json',
 
-            ...(token && { 'Authorization': `Bearer ${token}` })
+            'Authorization': `Bearer ${token}`
 
           },
 
@@ -1628,7 +1484,7 @@ const Voice = () => {
 
       const textData = await response.text();
 
-      console.log('📥 Raw server response:', textData.substring(0, 500));
+      // console.log('📥 Raw server response:', textData.substring(0, 500));
 
 
 
@@ -1639,8 +1495,6 @@ const Voice = () => {
         // Попытка распарсить как обычный JSON
 
         data = JSON.parse(textData);
-
-        console.log('📦 Parsed JSON response:', data);
 
       } catch (parseError) {
 
@@ -1710,37 +1564,31 @@ const Voice = () => {
 
 
 
-      // Извлекаем контент из OpenAI-формата ответа
-      let responseContent = '';
+      console.log('🤖 Ответ от LLM получен (длина):', data.message?.length);
 
-      if (data.choices && data.choices[0] && data.choices[0].message) {
-        // OpenAI chat completion format
-        responseContent = data.choices[0].message.content || '';
-      } else if (data.message) {
-        // Старый формат
-        responseContent = data.message;
-      } else if (data.content) {
-        // Прямой контент
-        responseContent = data.content;
-      } else if (typeof data === 'string') {
-        // Простой текстовый ответ
-        responseContent = data;
-      }
 
-      console.log('🤖 Ответ от LLM получен (длина):', responseContent?.length);
-      console.log('📝 Контент ответа:', responseContent?.substring(0, 100) + '...');
 
       // Мониторинг ответа
+
       // monitorLLMResponse(
+
       //   userMessage,
+
       //   courseId || 'unknown',
-      //   responseContent,
+
+      //   data.message,
+
       //   'msg_' + Date.now(),
+
       //   Date.now() - startTime
+
       // );
 
+
+
       // Проверка на пустой ответ и retry логика
-      if (!responseContent || responseContent.trim().length === 0) {
+
+      if (!data.message || data.message.trim().length === 0) {
 
         console.warn('⚠️ Получен пустой ответ от LLM');
 
@@ -1782,7 +1630,9 @@ const Voice = () => {
 
       }
 
-      return responseContent;
+
+
+      return data.message;
 
     } catch (error) {
 
@@ -1945,7 +1795,6 @@ const Voice = () => {
 
 
         // Для браузеров кроме Safari - останавливаем распознавание когда начинается TTS
-        // В Safari распознавание остается активным для автоматического прерывания TTS
 
         const shouldStop = !isSafari() && speechRecognitionRef.current;
 
@@ -1955,9 +1804,7 @@ const Voice = () => {
 
           hasSpeechRecognition: !!speechRecognitionRef.current,
 
-          shouldStop,
-
-          note: isSafari() ? 'Safari: распознавание остается активным для прерывания TTS' : 'Не-Safari: останавливаем распознавание'
+          shouldStop
 
         });
 
@@ -2004,7 +1851,6 @@ const Voice = () => {
 
 
         // Для браузеров кроме Safari - перезапускаем распознавание после TTS
-        // В Safari распознавание остается активным постоянно
 
         if (!isSafari() && speechRecognitionRef.current) {
 
@@ -2027,10 +1873,6 @@ const Voice = () => {
             }
 
           }, 300); // Небольшая задержка для стабильности
-
-        } else if (isSafari()) {
-
-          console.log('ℹ️ Safari: распознавание остается активным');
 
         }
 
@@ -2059,7 +1901,6 @@ const Voice = () => {
 
 
         // Для браузеров кроме Safari - перезапускаем распознавание после ошибки
-        // В Safari распознавание остается активным постоянно
 
         if (!isSafari() && speechRecognitionRef.current) {
 
@@ -2082,10 +1923,6 @@ const Voice = () => {
             }
 
           }, 300);
-
-        } else if (isSafari()) {
-
-          console.log('ℹ️ Safari: распознавание остается активным после ошибки');
 
         }
 
@@ -2141,13 +1978,9 @@ const Voice = () => {
 
   useEffect(() => {
 
-    if (token) {
+    getUserProfile();
 
-      getUserProfile();
-
-    }
-
-  }, [getUserProfile, token]);
+  }, [getUserProfile]);
 
 
 
@@ -2232,7 +2065,6 @@ const Voice = () => {
 
 
   // Показываем кнопку прерывания для браузеров кроме Safari во время TTS
-  // В Safari TTS прерывается автоматически при начале речи
 
   const showInterruptButton = isSpeaking && !isSafari();
 
@@ -2312,7 +2144,7 @@ const Voice = () => {
 
               onClick={() => {
 
-                console.log('🛑 Пользователь нажал кнопку прерывания (для не-Safari браузеров)');
+                console.log('🛑 Пользователь нажал кнопку прерывания');
 
                 stopAssistantSpeech();
 
@@ -2443,4 +2275,3 @@ const Voice = () => {
   );
 
 };
-export default Voice;

@@ -46,59 +46,49 @@ export const ChatInput = ({
   const [voiceError, setVoiceError] = useState('')
   const [isProcessingAudio, setIsProcessingAudio] = useState(false)
 
-  // Инициализируем профессиональную систему записи (MediaRecorder + Whisper)
+  // Инициализируем систему записи (MediaRecorder + Whisper)
   const audioRecorder = useAudioRecorder({
     onRecordingStart: () => {
-      console.log('🎤 Professional audio recording started')
       setIsVoiceRecording(true)
-      setVoiceError('') // Очищаем предыдущие ошибки
-      setVoiceError('🎤 Запись начата... Говорите сейчас')
+      setVoiceError('')
     },
     onRecordingStop: async (blob) => {
-      console.log('🎤 Audio recording stopped, blob size:', blob?.size)
       setIsVoiceRecording(false)
 
       if (blob && blob.size > 0) {
         setIsProcessingAudio(true)
-        setVoiceError('🎵 Обрабатываем ваше сообщение...')
+        setVoiceError('🎵 Распознаём вашу речь...')
 
         try {
-          console.log('🎵 Starting transcription with OpenAI Whisper...')
           const transcription = await transcribeAudioWithWhisper(blob)
           const text = transcription.trim()
 
-          console.log('✅ Whisper transcription result:', text)
-
           if (text.length > 0) {
-            console.log('📝 Sending transcribed message:', text)
             setVoiceTranscript(text)
-            setVoiceError('✅ Сообщение готово!')
-            onVoiceTranscript?.(text)
+            setVoiceError('✅ Распознано успешно! Отправляем...')
 
-            // Автоматически вставляем текст и отправляем через 1 секунду
+            // Автоматически отправляем сообщение сразу после распознавания
             setTimeout(() => {
-              onMessageChange(text)
+              onVoiceTranscript?.(text)
               setVoiceError('')
-            }, 1000)
+            }, 500)
           } else {
-            console.log('⚠️ Empty transcription result')
-            setVoiceError('❌ Не удалось распознать речь. Попробуйте говорить четче.')
+            setVoiceError('❌ Не удалось распознать речь. Попробуйте ещё раз.')
           }
         } catch (error) {
           console.error('❌ Transcription error:', error)
-          setVoiceError('❌ Ошибка распознавания речи. Попробуйте еще раз.')
+          setVoiceError('❌ Ошибка распознавания. Проверьте подключение к интернету.')
         } finally {
           setIsProcessingAudio(false)
         }
       } else {
-        console.log('⚠️ Audio blob is empty')
-        setVoiceError('❌ Запись пуста. Попробуйте еще раз.')
+        setVoiceError('❌ Запись пуста. Попробуйте ещё раз.')
       }
     },
     onError: (error) => {
       console.error('❌ Audio recorder error:', error)
       setIsVoiceRecording(false)
-      setVoiceError(`❌ Ошибка: ${error}`)
+      setVoiceError(`❌ Ошибка записи: ${error}`)
       setIsProcessingAudio(false)
     }
   })
@@ -111,21 +101,18 @@ export const ChatInput = ({
     }
   }
 
-  // Обработчик голосовой записи (только MediaRecorder + Whisper)
+  // Обработчик голосовой записи
   const handleVoiceToggle = async () => {
     if (isVoiceRecording) {
-      console.log('🎤 Stopping professional voice recording')
       try {
         await audioRecorder.stopRecording()
       } catch (error) {
-        console.error('❌ Error stopping audio recorder:', error)
+        console.error('❌ Error stopping recording:', error)
       }
     } else {
-      console.log('🎤 Starting professional voice recording')
-
       // Проверяем поддержку
       if (!audioRecorder.isSupported) {
-        setVoiceError('❌ MediaRecorder не поддерживается в этом браузере')
+        setVoiceError('❌ Запись аудио не поддерживается в этом браузере')
         return
       }
 
@@ -133,38 +120,30 @@ export const ChatInput = ({
         setVoiceError('')
         await audioRecorder.startRecording()
       } catch (error) {
-        console.error('❌ Failed to start professional audio recorder:', error)
+        console.error('❌ Failed to start recording:', error)
         setVoiceError('❌ Не удалось начать запись. Проверьте микрофон и разрешения.')
       }
-    }
-  }
-
-  // Определяем, что делать при клике на основную кнопку
-  const handleMainButtonClick = () => {
-    if (message.trim()) {
-      // Если есть текст - отправляем сообщение
-      onSendMessage()
-    } else {
-      // Если нет текста - показываем подсказку использовать голосовой ввод
-      // handleVoiceToggle() // Убрано - теперь отдельная кнопка
     }
   }
 
   // Определяем иконку и текст для основной кнопки
   const getMainButtonProps = () => {
     if (message.trim()) {
-      // Режим отправки сообщения
+      // Если есть текст - кнопка отправки
       return {
         icon: <Send className="h-4 w-4" />,
         title: "Отправить сообщение",
+        onClick: onSendMessage,
         disabled: isLoading || disabled
       }
     } else {
-      // Режим отправки (голосовой ввод через отдельную кнопку)
+      // Если нет текста - кнопка микрофона для голосового ввода
       return {
-        icon: <Send className="h-4 w-4" />,
-        title: "Напишите сообщение или используйте голосовой ввод",
-        disabled: isLoading || disabled
+        icon: <Mic className="h-4 w-4" />,
+        title: isVoiceRecording ? "Остановить запись" : "Голосовой ввод",
+        onClick: handleVoiceToggle,
+        disabled: isLoading || disabled,
+        isRecording: isVoiceRecording
       }
     }
   }
@@ -232,54 +211,45 @@ export const ChatInput = ({
         </div>
       )}
 
-      {/* Voice Recording Indicator */}
-      {isVoiceRecording && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-3 py-1 rounded-lg">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-          <span>Идет запись голоса...</span>
-        </div>
-      )}
-
-                  {/* Professional Voice System Indicator */}
-                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-lg text-xs">
-                    <span className="text-blue-600">🎙️ Профессиональная система: MediaRecorder + OpenAI Whisper</span>
-                  </div>
-
-                  {/* Voice Status/Error Indicator */}
-                  {(voiceError || isVoiceRecording || isProcessingAudio) && (
-                    <div className={`flex items-center gap-2 text-sm px-3 py-1 rounded-lg ${
-                      isVoiceRecording || isProcessingAudio
-                        ? 'text-blue-600 bg-blue-50'
-                        : 'text-orange-600 bg-orange-50'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        isVoiceRecording || isProcessingAudio ? 'bg-blue-500 animate-pulse' : 'bg-orange-500'
-                      }`}></div>
-                      <span className="flex-1">
-                        {isProcessingAudio
-                          ? '🎵 Обрабатываем аудио...'
-                          : voiceError || '🎤 Запись активна...'
-                        }
-                      </span>
-                      {!isVoiceRecording && !isProcessingAudio && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setVoiceError('')
-                              handleVoiceToggle()
-                            }}
-                            className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
-                          >
-                            Повторить
-                          </button>
-                          <button
-                            onClick={() => setVoiceError('')}
-                            className="px-2 py-1 text-xs text-orange-600 hover:text-orange-800"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
+      {/* Voice Status Indicator */}
+      {(isVoiceRecording || isProcessingAudio || voiceError) && (
+        <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
+          isVoiceRecording
+            ? 'text-red-600 bg-red-50 border border-red-200'
+            : isProcessingAudio
+            ? 'text-blue-600 bg-blue-50 border border-blue-200'
+            : voiceError.includes('✅')
+            ? 'text-green-600 bg-green-50 border border-green-200'
+            : 'text-orange-600 bg-orange-50 border border-orange-200'
+        }`}>
+          <div className={`w-2 h-2 rounded-full ${
+            isVoiceRecording || isProcessingAudio ? 'animate-pulse' : ''
+          } ${
+            isVoiceRecording
+              ? 'bg-red-500'
+              : isProcessingAudio
+              ? 'bg-blue-500'
+              : voiceError.includes('✅')
+              ? 'bg-green-500'
+              : 'bg-orange-500'
+          }`}></div>
+          <span className="flex-1">
+            {isProcessingAudio
+              ? '🎵 Распознаём вашу речь...'
+              : isVoiceRecording
+              ? '🎤 Идёт запись... Говорите сейчас'
+              : voiceError
+            }
+          </span>
+          {voiceError && !isVoiceRecording && !isProcessingAudio && !voiceError.includes('✅') && (
+            <button
+              onClick={() => setVoiceError('')}
+              className="px-2 py-1 text-xs hover:opacity-70 transition-opacity"
+              title="Закрыть"
+            >
+              ✕
+            </button>
+          )}
         </div>
       )}
 
@@ -304,34 +274,30 @@ export const ChatInput = ({
             <Upload className="h-4 w-4" />
           </Button>
 
-          {/* Отдельная кнопка голосового ввода */}
-          <Button
-            size="icon"
-            onClick={handleVoiceToggle}
-            disabled={isLoading || disabled}
-            className={`shadow-elegant ${isVoiceRecording ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' : ''}`}
-            title={isVoiceRecording ? "Остановить запись" : "Голосовой ввод"}
-          >
-            <Mic className="h-4 w-4" />
-          </Button>
 
           <Input
             placeholder={
-              isVoiceRecording
-                ? "🎤 Говорите сейчас... У вас есть 15 секунд на речь"
-                : "Напишите ваш вопрос или используйте голосовой ввод..."
+              message.trim()
+                ? "Напишите ваш вопрос..."
+                : isVoiceRecording
+                ? "🎤 Говорите сейчас..."
+                : "Напишите ваш вопрос или нажмите микрофон для голосового ввода..."
             }
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
-            className={`flex-1 ${isVoiceRecording ? 'bg-red-50 border-red-300 placeholder-red-600' : ''}`}
+            className={`flex-1 ${isVoiceRecording ? 'bg-red-50 border-red-300' : ''}`}
           disabled={isLoading || disabled}
             onKeyDown={handleKeyDown}
           />
 
           <Button
             size="icon"
-            className={`shadow-elegant ${isVoiceRecording ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' : ''}`}
-            onClick={handleMainButtonClick}
+            className={`shadow-elegant ${
+              mainButtonProps.isRecording
+                ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
+                : ''
+            }`}
+            onClick={mainButtonProps.onClick}
             disabled={mainButtonProps.disabled}
             title={mainButtonProps.title}
           >

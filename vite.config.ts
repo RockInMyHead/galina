@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
     // Все запросы к /api/* будут проксироваться на localhost:3003 без префикса /api
     proxy: mode === 'development' ? {
       '/api': {
-        target: 'http://localhost:3005',
+        target: 'http://localhost:3003',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''), // Убираем /api префикс

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { balanceStorage } from '@/utils/storageUtils'
 import { API_CONFIG } from '@/config/constants'
 import { syncService } from '@/utils/syncService'
+import { useAuth } from '@/contexts/AuthContext'
 
 /**
  * Hook for managing user balance with API sync
@@ -10,6 +11,7 @@ export const useBalance = () => {
   const [balance, setBalance] = useState(() => balanceStorage.get())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { token } = useAuth()
 
   // Fetch balance from API
   const fetchBalance = useCallback(async () => {
@@ -17,7 +19,16 @@ export const useBalance = () => {
       setIsLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`)
+      if (!token) {
+        throw new Error('No authentication token')
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
       if (!response.ok) {
         throw new Error(`Failed to fetch balance: ${response.status}`)
       }
@@ -49,9 +60,14 @@ export const useBalance = () => {
       setIsLoading(true)
       setError(null)
 
+      if (!token) {
+        throw new Error('No authentication token')
+      }
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -95,9 +111,14 @@ export const useBalance = () => {
       setIsLoading(true)
       setError(null)
 
+      if (!token) {
+        throw new Error('No authentication token')
+      }
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -148,9 +169,14 @@ export const useBalance = () => {
       setIsLoading(true)
       setError(null)
 
+      if (!token) {
+        throw new Error('No authentication token')
+      }
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

@@ -47,6 +47,9 @@ coverage/
 test_*.txt
 template_test.txt
 
+# Vocalis temporary directory
+vocalis-temp/
+
 # Database
 *.db
 *.sqlite

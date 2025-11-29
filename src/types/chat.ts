@@ -16,6 +16,9 @@ export interface ChatMessage {
     data: string; // base64
     type: string;
   };
+  audioUrl?: string;  // URL аудио сообщения
+  audioDuration?: number;  // Длительность аудио в секундах
+  isAudioMessage?: boolean;  // Флаг, что это аудио сообщение
 }
 
 export interface FilePreview {

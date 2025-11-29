@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 import { useBalance } from "@/hooks/useBalance";
 import { useAuth } from "@/contexts/AuthContext";
-import { BALANCE_CONFIG } from "@/config/constants";
+import { BALANCE_CONFIG, API_CONFIG } from "@/config/constants";
 
 interface UserProfile {
   id: string;
@@ -39,7 +39,7 @@ const Dashboard = () => {
         return;
       }
 
-      const response = await fetch('http://localhost:3003/user/profile', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
