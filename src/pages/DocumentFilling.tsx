@@ -100,6 +100,36 @@ const DocumentFilling = () => {
       reader.readAsDataURL(file);
   };
 
+  // Функция извлечения текста из PDF
+  const extractTextFromPdf = useCallback(async (pdfData: string): Promise<string> => {
+    try {
+      console.log('📝 Извлекаем текст из PDF...');
+
+      const base64Data = pdfData.replace(/^data:application\/pdf;base64,/, '');
+      const pdfBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+      const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+      let fullText = '';
+
+      // Извлекаем текст из первых 3 страниц
+      const maxPages = Math.min(3, pdf.numPages);
+
+      for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+
+      console.log('📝 Извлечен текст из PDF (первые 200 символов):', fullText.substring(0, 200));
+      return fullText.trim();
+
+    } catch (error) {
+      console.error('❌ Ошибка извлечения текста из PDF:', error);
+      return '';
+    }
+  }, []);
+
   // Функция конвертации PDF в изображения
   const convertPdfToImages = useCallback(async (pdfData: string): Promise<string[]> => {
     try {
@@ -169,19 +199,27 @@ const DocumentFilling = () => {
 
     let imageToAnalyze = imageData;
 
-    // Если это PDF, конвертируем в изображение
+    // Если это PDF, извлекаем текст и конвертируем в изображение
+    let extractedText = '';
     if (imageData.startsWith('data:application/pdf')) {
-      console.log('📄 Обнаружен PDF файл, конвертируем...');
+      console.log('📄 Обнаружен PDF файл, извлекаем текст и конвертируем...');
+
       try {
+        // Сначала извлекаем текст
+        extractedText = await extractTextFromPdf(imageData);
+        console.log('📝 Текст извлечен, длина:', extractedText.length);
+
+        // Затем конвертируем в изображение
         const pdfImages = await convertPdfToImages(imageData);
         if (pdfImages.length === 0) {
           throw new Error('PDF_CONVERSION_NO_IMAGES');
         }
         imageToAnalyze = pdfImages[0]; // Используем первое изображение для анализа
         console.log('📸 PDF конвертирован в изображение для анализа');
+
       } catch (error) {
-        console.error('❌ Ошибка конвертации PDF:', error);
-        setScanResult('Ошибка обработки PDF файла. Попробуйте загрузить изображение.');
+        console.error('❌ Ошибка обработки PDF:', error);
+        setScanResult('Ошибка обработки PDF файла. Попробуйте загрузить изображение в формате JPG или PNG.');
         setIsAutoFilling(false);
         return;
       }
@@ -302,16 +340,25 @@ const DocumentFilling = () => {
                     },
             {
               role: 'user',
-              content: `Это изображение юридического документа (может быть отсканировано или конвертировано из PDF). Проанализируй изображение и определи ВСЕ поля, которые нужно заполнить в этом документе.
+              content: `Проанализируй этот документ и определи ВСЕ поля, которые нужно заполнить.
 
-ВАЖНО: 
-- Сконцентрируйся на видимом тексте и структуре документа
-- Найди все пустые поля, линии для заполнения, места с [___] или пробелы
-- Игнорируй уже заполненный текст, фокусируйся на незаполненных областях
-- Если видишь шаблон документа, определи какие поля должны быть заполнены
+ИНФОРМАЦИЯ О ДОКУМЕНТЕ:
+${extractedText ? `Извлеченный текст из PDF: "${extractedText.substring(0, 500)}..."` : 'Это изображение документа (фото или скан)'}
 
-Изображение документа: ${imageData.substring(0, 200)}...`
-            }
+ВАЖНЫЕ ИНСТРУКЦИИ:
+1. Найди ВСЕ места, требующие заполнения: пустые поля, [___], пробелы после двоеточий
+2. Определи тип документа по содержимому и структуре
+3. Создай поля ТОЛЬКО для незаполненных областей
+4. Используй извлеченный текст для понимания контекста документа
+
+ПРИМЕРЫ ПОЛЕЙ ДЛЯ РАЗНЫХ ДОКУМЕНТОВ:
+- Договоры: ФИО сторон, адреса, суммы, даты, подписи
+- Исковые заявления: наименование суда, истец/ответчик, цена иска
+- Трудовые договоры: ФИО работника, должность, оклад, дата
+- Доверенности: доверитель, доверенное лицо, полномочия, срок
+
+Изображение документа: ${imageData.substring(0, 300)}...`
+                    }
                   ],
                   model: 'gpt-5.1',
           reasoning: 'high',
@@ -327,13 +374,27 @@ const DocumentFilling = () => {
       const data = await response.json();
       const content = data.choices[0]?.message?.content || '';
 
+      // Логируем полный ответ AI для отладки
+      console.log('🔍 Полный ответ AI:', content);
+      console.log('📊 Длина ответа:', content.length);
+
       // Парсим JSON ответ
-      const parsed = JSON.parse(content);
+      let parsed;
+      try {
+        parsed = JSON.parse(content);
+      } catch (parseError) {
+        console.error('❌ Ошибка парсинга JSON ответа AI:', parseError);
+        console.log('📄 Сырой ответ AI:', content);
+        setScanResult('Ошибка обработки ответа от системы анализа. Попробуйте загрузить документ еще раз.');
+        setIsAutoFilling(false);
+        return;
+      }
 
       // Проверяем, удалось ли определить поля
       if (!parsed.fields || parsed.fields.length === 0) {
         console.warn('⚠️ AI не смог определить поля документа');
-        setScanResult('Не удалось автоматически определить поля документа. Попробуйте загрузить изображение лучшего качества или используйте другой файл.');
+        console.log('📋 Ответ AI без полей:', parsed);
+        setScanResult('Не удалось автоматически определить поля документа. Возможно, документ не содержит шаблонных полей для заполнения, или изображение недостаточно четкое.');
         setIsAutoFilling(false);
         return;
       }
@@ -529,11 +590,11 @@ const DocumentFilling = () => {
 
         // Останавливаем камеру
         stopCamera();
-        setShowCamera(false);
+      setShowCamera(false);
         setIsScanning(false);
       } else {
-        setIsScanning(false);
-      }
+      setIsScanning(false);
+    }
     }
   }, [stopCamera, processScannedImage]);
 
