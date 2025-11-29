@@ -51,7 +51,42 @@ const DocumentFilling = () => {
     setShowScanFill(true);
   }, []);
 
-  // Функция для обработки загруженного файла
+  // Функция для обработки загруженного файла с главной страницы
+  const handleMainFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Проверяем тип файла
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Поддерживаются только изображения (JPEG, PNG, WebP) и PDF файлы');
+      return;
+    }
+
+    // Проверяем размер файла (макс 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Файл слишком большой. Максимальный размер: 10MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const fileData = e.target?.result as string;
+      setCapturedImage(fileData);
+
+      // Автоматически запускаем процесс анализа
+      startUniversalScan();
+      setTimeout(() => {
+        processScannedImage(fileData);
+      }, 500);
+    };
+    reader.readAsDataURL(file);
+
+    // Очищаем input
+    event.target.value = '';
+  };
+
+  // Функция для обработки загруженного файла в модальном окне
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -64,10 +99,90 @@ const DocumentFilling = () => {
     reader.readAsDataURL(file);
   };
 
+  // Функция конвертации PDF в изображения
+  const convertPdfToImages = useCallback(async (pdfData: string): Promise<string[]> => {
+    try {
+      console.log('📄 Конвертируем PDF в изображения...');
+
+      // Убираем префикс data:application/pdf;base64, если он есть
+      const base64Data = pdfData.replace(/^data:application\/pdf;base64,/, '');
+
+      // Конвертируем base64 в Uint8Array
+      const pdfBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+
+      // Загружаем PDF документ
+      const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+      console.log(`📄 PDF загружен, страниц: ${pdf.numPages}`);
+
+      const images: string[] = [];
+
+      // Конвертируем первую страницу (для анализа)
+      const pageNum = 1;
+      console.log(`📄 Конвертируем страницу ${pageNum}...`);
+
+      const page = await pdf.getPage(pageNum);
+
+      // Создаем canvas для рендеринга страницы
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        console.error('❌ Не удалось создать canvas context');
+        throw new Error('CANVAS_CONTEXT_FAILED');
+      }
+
+      // Устанавливаем размер canvas (масштаб 2x для лучшего качества)
+      const scale = 2;
+      const viewport = page.getViewport({ scale });
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      // Рендерим страницу на canvas
+      const renderContext = {
+        canvasContext: context,
+        viewport,
+      };
+
+      await page.render(renderContext).promise;
+
+      // Конвертируем canvas в base64 изображение
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      images.push(imageData);
+
+      console.log(`✅ PDF конвертирован в изображение`);
+      return images;
+
+    } catch (error) {
+      console.error('❌ Ошибка конвертации PDF:', error);
+      throw new Error('PDF_CONVERSION_FAILED');
+    }
+  }, []);
+
   // Функция обработки отсканированного изображения
   const processScannedImage = useCallback(async (imageData: string) => {
     setIsAutoFilling(true);
-    setScannedImageData(imageData);
+
+    let imageToAnalyze = imageData;
+
+    // Если это PDF, конвертируем в изображение
+    if (imageData.startsWith('data:application/pdf')) {
+      console.log('📄 Обнаружен PDF файл, конвертируем...');
+      try {
+        const pdfImages = await convertPdfToImages(imageData);
+        if (pdfImages.length === 0) {
+          throw new Error('PDF_CONVERSION_NO_IMAGES');
+        }
+        imageToAnalyze = pdfImages[0]; // Используем первое изображение для анализа
+        console.log('📸 PDF конвертирован в изображение для анализа');
+      } catch (error) {
+        console.error('❌ Ошибка конвертации PDF:', error);
+        setScanResult('Ошибка обработки PDF файла. Попробуйте загрузить изображение.');
+        setIsAutoFilling(false);
+        return;
+      }
+    }
+
+    setScannedImageData(imageToAnalyze);
     console.log('🤖 Начинаем анализ изображения через LLM...');
 
     try {
@@ -363,20 +478,41 @@ const DocumentFilling = () => {
                     AI автоматически распознает тип документа и заполнит его от руки.
                   </p>
 
-                        <div className="space-y-4">
-                            <Button
-                      size="lg"
-                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-6 text-lg"
-                      onClick={startUniversalScan}
-                    >
-                      <Camera className="h-6 w-6 mr-3" />
-                      Начать сканирование
-                            </Button>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        size="lg"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground py-4"
+                        onClick={startUniversalScan}
+                      >
+                        <Camera className="h-5 w-5 mr-2" />
+                        Сфотографировать
+                      </Button>
 
-                    <div className="text-sm text-muted-foreground">
-                      Поддерживаются: договоры, исковые заявления, доверенности, претензии и другие документы
-                                </div>
-                        </div>
+                      <Button
+                        size="lg"
+                        variant="outline"
+                        className="py-4"
+                        onClick={() => document.getElementById('main-file-input')?.click()}
+                      >
+                        <Upload className="h-5 w-5 mr-2" />
+                        Загрузить файл
+                      </Button>
+                    </div>
+
+                    {/* Скрытый input для загрузки файлов */}
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleMainFileSelect}
+                      className="hidden"
+                      id="main-file-input"
+                    />
+
+                    <div className="text-sm text-muted-foreground text-center">
+                      Поддерживаются: фото и PDF документы (договоры, исковые заявления, доверенности, претензии и др.)
+                    </div>
+                  </div>
                       </CardContent>
                     </Card>
 
@@ -391,9 +527,9 @@ const DocumentFilling = () => {
                     Как это работает?
                   </h3>
                       <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Сфотографируйте или загрузите изображение документа</li>
-                        <li>• AI автоматически распознает поля для заполнения</li>
-                        <li>• Введите необходимые данные в интерактивной форме</li>
+                        <li>• Сфотографируйте документ камерой или загрузите фото/PDF файл</li>
+                        <li>• AI автоматически распознает тип документа и поля для заполнения</li>
+                        <li>• Заполните необходимые данные в интерактивной форме</li>
                         <li>• Получите документ, заполненный от руки через Nana Banana Pro</li>
                       </ul>
                     </div>
