@@ -61,9 +61,6 @@ const DocumentFilling = () => {
   const [isSendingToNanaBanana, setIsSendingToNanaBanana] = useState(false);
   const [nanaBananaResult, setNanaBananaResult] = useState<string | null>(null);
   const [scannedImageData, setScannedImageData] = useState<string | null>(null);
-  const [selectedTemplateForScan, setSelectedTemplateForScan] = useState<typeof DOCUMENT_TEMPLATES[0] | null>(null);
-  const [scanResult, setScanResult] = useState<string>('');
-  const [isAutoFilling, setIsAutoFilling] = useState(false);
 
   // Новые состояния для прикрепления файлов в чате
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -845,111 +842,6 @@ ${Object.entries(fieldValues).map(([key, value]) => `${key}: ${value}`).join('\n
       console.error('❌ Ошибка отправки в Nana Banana Pro:', error);
       setIsSendingToNanaBanana(false);
       setScanResult('Ошибка заполнения документа. Попробуйте еще раз.');
-    }
-  };
-      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
-              content: `Ты - эксперт по распознаванию текста из изображений юридических документов. Твоя задача - извлечь всю текстовую информацию из предоставленного изображения документа.
-
-ИНСТРУКЦИИ:
-1. Распознай весь видимый текст на изображении
-2. Сохрани структуру документа (заголовки, поля, значения)
-3. Извлеки конкретные данные: имена, даты, суммы, адреса, номера документов
-4. Будь максимально точным в распознавании
-5. Если текст неясный, укажи это в скобках [неразборчиво]
-
-ФОРМАТ ОТВЕТА:
-Распознанный текст документа с сохранением структуры.`
-            },
-            {
-              role: 'user',
-              content: `Распознай текст из этого изображения юридического документа: [Изображение: ${imageData.substring(0, 100)}...]`
-            }
-          ],
-          model: 'gpt-5.1',
-          reasoning: 'medium',
-          max_completion_tokens: 1500,
-          temperature: 0.1,
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OCR failed: ${response.status}`);
-      }
-
-      const ocrResult = await response.json();
-      const recognizedText = ocrResult.choices[0]?.message?.content || '';
-
-      console.log('📝 Распознанный текст:', `${recognizedText.substring(0, 200)  }...`);
-
-      // Теперь используем распознанный текст для автоматического заполнения шаблона
-      const fillResponse = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
-              content: `Ты - эксперт по автоматическому заполнению юридических документов. Ты получил распознанный текст из отсканированного документа и должен автоматически заполнить шаблон на основе извлеченных данных.
-
-ЗАДАЧА: Заполнить шаблон "${selectedTemplateForScan.name}" используя данные из распознанного текста.
-
-ИНСТРУКЦИИ:
-1. Проанализируй распознанный текст и выдели ключевые данные
-2. Найди соответствия между данными и полями шаблона
-3. Автоматически заполни все возможные поля
-4. Для полей без данных используй логичные значения или оставь плейсхолдеры
-5. Сохрани правильное форматирование документа
-
-ФОРМАТ ОТВЕТА:
-ГОТОВО
-
-[Полностью заполненный документ]`
-            },
-            {
-              role: 'user',
-              content: `Распознанный текст из документа:\n${recognizedText}\n\nЗаполни шаблон ${selectedTemplateForScan.name} на основе этих данных.`
-            }
-          ],
-          model: 'gpt-5.1',
-          reasoning: 'medium',
-          max_completion_tokens: 2000,
-          temperature: 0.3,
-        })
-      });
-
-      if (!fillResponse.ok) {
-        throw new Error(`Auto-fill failed: ${fillResponse.status}`);
-      }
-
-      const fillData = await fillResponse.json();
-      const filledDocument = fillData.choices[0]?.message?.content || '';
-
-      // Извлекаем готовый документ
-      const documentMatch = filledDocument.match(/ГОТОВО[\s\S]*?([\s\S]+)/) ||
-                           filledDocument.match(/документ[\s\S]*?([\s\S]+)/) ||
-                           filledDocument;
-
-      const finalDocument = typeof documentMatch === 'string' ? documentMatch :
-                           documentMatch[1] || filledDocument;
-
-      setScanResult(finalDocument);
-      console.log('✅ Автоматическое заполнение завершено');
-
-    } catch (error) {
-      console.error('❌ Ошибка автоматического заполнения:', error);
-      setScanResult('Произошла ошибка при автоматическом заполнении. Попробуйте еще раз или используйте ручное заполнение.');
-    } finally {
-      setIsAutoFilling(false);
     }
   };
 
