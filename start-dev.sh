@@ -63,7 +63,7 @@ fi
 
 # Запустить frontend сервер
 echo "🌐 Запускаем frontend сервер на порту 3001..."
-npm run dev -- --port 3001 --host 0.0.0.0 &
+NODE_ENV=development npm run dev -- --port 3001 --host 0.0.0.0 &
 FRONTEND_PID=$!
 
 # Подождать немного

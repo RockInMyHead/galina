@@ -1,22 +1,34 @@
 // API Configuration
 const getAPIBaseURL = (): string => {
+  console.log('🔧 API URL Configuration:', {
+    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+    DEV: import.meta.env.DEV,
+    PROD: import.meta.env.PROD,
+    MODE: import.meta.env.MODE,
+    NODE_ENV: process.env.NODE_ENV
+  });
+
   // Use environment variable if available (highest priority)
   if (import.meta.env.VITE_API_BASE_URL) {
+    console.log('✅ Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
     return import.meta.env.VITE_API_BASE_URL;
   }
 
   // Development: Use /api prefix to work with Vite proxy
   if (import.meta.env.DEV) {
+    console.log('✅ Development mode: using /api (will be proxied to localhost:3003)');
     return '/api'; // Vite proxy will forward to localhost:3003
   }
 
   // Production: Use standard URL to lawyer.windexs.ru (port 80/443)
   if (import.meta.env.PROD) {
+    console.log('⚠️ Production mode: using https://lawyer.windexs.ru/api');
     // Use standard ports without explicit port specification
     return 'https://lawyer.windexs.ru/api';
   }
 
   // Fallback
+  console.log('⚠️ Fallback: using /api');
   return '/api';
 };
 
