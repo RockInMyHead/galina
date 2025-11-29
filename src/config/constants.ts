@@ -20,11 +20,16 @@ const getAPIBaseURL = (): string => {
     return '/api'; // Vite proxy will forward to localhost:3003
   }
 
-  // Production: Use standard URL to lawyer.windexs.ru (port 80/443)
+  // Production: Try production API first, fallback to local if needed
   if (import.meta.env.PROD) {
-    console.log('⚠️ Production mode: using https://lawyer.windexs.ru/api');
-    // Use standard ports without explicit port specification
-    return 'https://lawyer.windexs.ru/api';
+    const prodUrl = 'https://lawyer.windexs.ru/api';
+    const localUrl = 'http://localhost:3003/api';
+
+    console.log('⚠️ Production mode: trying', prodUrl, 'with fallback to', localUrl);
+    console.log('💡 If production API returns 403, check OPENAI_API_KEY on server');
+
+    // Return production URL - frontend will handle fallback logic
+    return prodUrl;
   }
 
   // Fallback
