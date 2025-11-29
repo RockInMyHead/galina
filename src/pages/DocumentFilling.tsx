@@ -485,72 +485,85 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
     }
   }, [currentFieldIndex]);
 
-  // Отправка в Nana Banana Pro
+  // Отправка в Google AI Studio (Gemini)
   const sendToNanaBanana = useCallback(async () => {
     if (!scannedImageData || documentFields.length === 0) {
-      console.error('❌ Недостаточно данных для отправки в Nana Banana Pro');
+      console.error('❌ Недостаточно данных для отправки в Google AI Studio');
       return;
     }
 
     setIsSendingToNanaBanana(true);
-    console.log('🎨 Отправляем данные в Nana Banana Pro (через LLM)...');
+    console.log('🎨 Отправляем данные в Google AI Studio (Gemini)...');
 
     try {
       const filledFieldsPrompt = documentFields.map(field =>
         `${field.label}: ${fieldValues[field.name] || '[НЕ ЗАПОЛНЕНО]'}`
       ).join('\n');
 
-          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+      // Подготавливаем изображение для Gemini API (убираем data:image/jpeg;base64, префикс)
+      const imageDataForGemini = scannedImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyC6hXULlNleQKFlwip_MVw1HnMa-ys81ZM', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              messages: [
+          contents: [{
+            parts: [
         {
-          role: 'system',
-              content: `Ты - продвинутый AI-ассистент, имитирующий работу сервиса Nana Banana Pro. Твоя задача - взять изображение юридического документа, список полей с их значениями и "заполнить" документ от руки, имитируя рукописный ввод.
+                text: `Ты - профессиональный помощник по заполнению юридических документов. Твоя задача - взять изображение пустого документа и данные для заполнения, и создать полностью заполненный документ.
 
 ИНСТРУКЦИИ:
-1. Представь, что ты получаешь изображение документа и данные для заполнения.
-2. "Заполни" документ, вставляя предоставленные значения в соответствующие места, как если бы это было сделано от руки.
-3. Сохрани оригинальный формат документа, но с добавленными "рукописными" данными.
-4. Используй стиль, который имитирует рукописный ввод (например, курсив, или просто вставь текст в нужные места).
-5. Если поле не заполнено, оставь его пустым или укажи [НЕ ЗАПОЛНЕНО].
+1. Посмотри на изображение документа и найди места для заполнения (пустые поля, линии, пробелы)
+2. Используй предоставленные данные для заполнения соответствующих полей
+3. Создай документ, где все поля заполнены нужными значениями
+4. Представь результат как полностью готовый документ с заполненными полями
 
-ФОРМАТ ОТВЕТА:
-[Полностью заполненный документ с имитацией рукописного ввода]`
-        },
-        {
-          role: 'user',
-              content: `Вот изображение документа (base64): ${scannedImageData.substring(0, 100)}...\n\nИ вот данные для заполнения:\n${filledFieldsPrompt}\n\nЗаполни документ от руки.`
-        }
-              ],
-              model: 'gpt-5.1',
-          reasoning: 'high',
-          max_completion_tokens: 3000,
-          temperature: 0.5,
+ВАЖНЫЕ ТРЕБОВАНИЯ:
+- Заполни ТОЛЬКО те поля, которые есть в предоставленных данных
+- Если поле не заполнено ([НЕ ЗАПОЛНЕНО]), оставь его пустым в документе
+- Сохрани структуру и формат оригинального документа
+- Верни результат в читаемом текстовом формате
+
+ДАННЫЕ ДЛЯ ЗАПОЛНЕНИЯ:
+${filledFieldsPrompt}
+
+Верни полностью заполненный документ в текстовом формате.`
+              },
+              {
+                inline_data: {
+                  mime_type: scannedImageData.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+                  data: imageDataForGemini
+                }
+              }
+            ]
+          }]
             })
           });
 
       if (!response.ok) {
-        throw new Error(`Nana Banana Pro simulation failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ Ошибка Google AI Studio API:', response.status, errorText);
+        throw new Error(`Google AI Studio API error: ${response.status} - ${errorText}`);
       }
 
-      const nanaBananaData = await response.json();
-      const resultDocument = nanaBananaData.choices[0]?.message?.content || '';
+      const geminiData = await response.json();
+      console.log('📥 Ответ от Google AI Studio:', geminiData);
+
+      const resultDocument = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Не удалось получить результат от Google AI Studio';
 
       setNanaBananaResult(resultDocument);
       setScanResult(resultDocument);
       setIsSendingToNanaBanana(false);
       setShowFieldInput(false);
 
-      console.log('✅ Документ заполнен через Nana Banana Pro');
+      console.log('✅ Документ заполнен через Google AI Studio (Gemini)');
 
               } catch (error) {
-      console.error('❌ Ошибка отправки в Nana Banana Pro:', error);
+      console.error('❌ Ошибка отправки в Google AI Studio:', error);
       setIsSendingToNanaBanana(false);
-      setScanResult('Ошибка заполнения документа. Попробуйте еще раз.');
+      setScanResult(`Ошибка заполнения документа: ${error.message}. Попробуйте еще раз.`);
     }
   }, [scannedImageData, documentFields, fieldValues]);
 
