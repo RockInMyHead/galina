@@ -360,9 +360,9 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
 Изображение документа: ${imageData.substring(0, 300)}...`
                     }
                   ],
-                  model: 'gpt-5.1',
+                  model: 'gpt-4o-mini', // Используем более доступную модель
           reasoning: 'high',
-          max_completion_tokens: 2000,
+          max_tokens: 2000,
                   temperature: 0.3,
                 })
               });
@@ -372,7 +372,25 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       }
 
       const data = await response.json();
-      const content = data.choices[0]?.message?.content || '';
+
+      // Проверяем структуру ответа
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('❌ Некорректная структура ответа AI:', data);
+        setScanResult('Ошибка в ответе системы анализа. Проверьте подключение к интернету и попробуйте еще раз.');
+        setIsAutoFilling(false);
+        return;
+      }
+
+      const content = data.choices[0].message.content || '';
+
+      // Проверяем, что ответ не пустой
+      if (!content || content.trim().length === 0) {
+        console.error('❌ AI вернул пустой ответ');
+        console.log('📋 Данные ответа AI:', data);
+        setScanResult('Система анализа не смогла обработать документ. Возможно, файл поврежден или содержит неподдерживаемый формат. Попробуйте другое изображение.');
+        setIsAutoFilling(false);
+        return;
+      }
 
       // Логируем полный ответ AI для отладки
       console.log('🔍 Полный ответ AI:', content);
@@ -385,7 +403,13 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       } catch (parseError) {
         console.error('❌ Ошибка парсинга JSON ответа AI:', parseError);
         console.log('📄 Сырой ответ AI:', content);
-        setScanResult('Ошибка обработки ответа от системы анализа. Попробуйте загрузить документ еще раз.');
+
+        // Пробуем fallback - показать пользователю сырой ответ
+        if (content.includes('{') || content.includes('[')) {
+          setScanResult(`Ответ системы анализа содержит ошибку формата. Попробуйте загрузить документ еще раз. Детали: ${parseError.message}`);
+        } else {
+          setScanResult('Система анализа вернула некорректный ответ. Возможно, проблема с подключением к сервису ИИ.');
+        }
         setIsAutoFilling(false);
         return;
       }
@@ -415,7 +439,7 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       // Показываем более понятное сообщение об ошибке
       if (error.message?.includes('JSON')) {
         setScanResult('Ошибка обработки ответа от AI. Попробуйте загрузить документ еще раз.');
-      } else {
+          } else {
         setScanResult('Не удалось проанализировать документ. Убедитесь, что изображение четкое и содержит текст документа.');
       }
     } finally {
