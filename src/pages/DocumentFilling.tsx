@@ -260,7 +260,7 @@ const DocumentFilling = () => {
 - Указывай required=true только для полей, отмеченных как обязательные (*)
 - Если не уверен в типе документа, укажи наиболее вероятный тип
 
-ФОРМАТ ОТВЕТА (ТОЛЬКО JSON):
+ФОРМАТ ОТВЕТА (ТОЛЬКО чистый JSON, без markdown обертки):
 {
   "document_type": "Точный тип документа на основе анализа (договор, иск, доверенность, заявление и т.д.)",
   "fields": [
@@ -272,6 +272,8 @@ const DocumentFilling = () => {
     }
   ]
 }
+
+ВАЖНО: Верни ТОЛЬКО JSON без каких-либо дополнительных текстов, кавычек или markdown форматирования!
 
 ПРИМЕРЫ АНАЛИЗА ДОКУМЕНТОВ:
 
@@ -392,14 +394,25 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
         return;
       }
 
+      // Очищаем ответ от markdown форматирования (```json ... ```)
+      let cleanContent = content.trim();
+
+      // Убираем markdown обертку ```json ... ```
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
       // Логируем полный ответ AI для отладки
       console.log('🔍 Полный ответ AI:', content);
+      console.log('🧹 Очищенный контент:', cleanContent);
       console.log('📊 Длина ответа:', content.length);
 
       // Парсим JSON ответ
       let parsed;
       try {
-        parsed = JSON.parse(content);
+        parsed = JSON.parse(cleanContent);
       } catch (parseError) {
         console.error('❌ Ошибка парсинга JSON ответа AI:', parseError);
         console.log('📄 Сырой ответ AI:', content);
