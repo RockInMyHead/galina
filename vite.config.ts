@@ -26,23 +26,16 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/api/, ''), // Убираем /api префикс
-      },
-      // Прокси для внешних запросов через прокси-сервер 185.68.187.20:8000
-      '/proxy': {
-        target: 'http://185.68.187.20:8000',
-        changeOrigin: true,
-        secure: false,
-        rewrite: (path) => path.replace(/^\/proxy/, ''),
         configure: (proxy, options) => {
+          // Логирование для отладки
           proxy.on('error', (err, req, res) => {
-            console.log('Proxy error:', err);
+            console.log('API Proxy error:', err);
           });
           proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.setHeader('Proxy-Authorization', `Basic ${  Buffer.from('rBD9e6:jZdUnJ').toString('base64')}`);
-            console.log('Proxy request:', req.method, req.url);
+            console.log('API Proxy request:', req.method, req.url);
           });
           proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('Proxy response:', proxyRes.statusCode, req.url);
+            console.log('API Proxy response:', proxyRes.statusCode, req.url);
           });
         },
       },
