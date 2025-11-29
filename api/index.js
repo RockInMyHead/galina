@@ -9,7 +9,14 @@ const WebSocket = require('ws');
 require('dotenv').config({ path: './.env' });
 
 // Configure proxy agent for external requests
-const proxyUrl = 'http://rBD9e6:jZdUnJ@185.68.187.20:8000';
+const proxyHost = process.env.PROXY_HOST || '185.68.187.20';
+const proxyPort = process.env.PROXY_PORT || '8000';
+const proxyUsername = process.env.PROXY_USERNAME || 'rBD9e6';
+const proxyPassword = process.env.PROXY_PASSWORD || 'jZdUnJ';
+
+const proxyUrl = `http://${proxyUsername}:${proxyPassword}@${proxyHost}:${proxyPort}`;
+console.log('🌐 Прокси настроен:', proxyUrl.replace(proxyPassword, '***'));
+
 const proxyAgent = new HttpsProxyAgent(proxyUrl);
 
 // Helper function for fetch with proxy
