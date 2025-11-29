@@ -7,6 +7,11 @@ const { PrismaClient } = require('@prisma/client');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const WebSocket = require('ws');
 require('dotenv').config({ path: './.env' });
+console.log('🔧 Environment variables loaded:', {
+  DATABASE_URL: process.env.DATABASE_URL ? '✓ Set' : '✗ Missing',
+  JWT_SECRET: process.env.JWT_SECRET ? '✓ Set' : '✗ Missing',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ? '✓ Set' : '✗ Missing'
+});
 
 // Configure proxy agent for external requests
 const proxyHost = process.env.PROXY_HOST || '185.68.187.20';

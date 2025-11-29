@@ -194,15 +194,15 @@ const DocumentFilling = () => {
         `${field.label}: ${fieldValues[field.name] || '[НЕ ЗАПОЛНЕНО]'}`
       ).join('\n');
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
+          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'system',
               content: `Ты - продвинутый AI-ассистент, имитирующий работу сервиса Nana Banana Pro. Твоя задача - взять изображение юридического документа, список полей с их значениями и "заполнить" документ от руки, имитируя рукописный ввод.
 
 ИНСТРУКЦИИ:
@@ -214,18 +214,18 @@ const DocumentFilling = () => {
 
 ФОРМАТ ОТВЕТА:
 [Полностью заполненный документ с имитацией рукописного ввода]`
-            },
-            {
-              role: 'user',
+                },
+                {
+                  role: 'user',
               content: `Вот изображение документа (base64): ${scannedImageData.substring(0, 100)}...\n\nИ вот данные для заполнения:\n${filledFieldsPrompt}\n\nЗаполни документ от руки.`
-            }
-          ],
-          model: 'gpt-5.1',
+                }
+              ],
+              model: 'gpt-5.1',
           reasoning: 'high',
           max_completion_tokens: 3000,
           temperature: 0.5,
-        })
-      });
+            })
+          });
 
       if (!response.ok) {
         throw new Error(`Nana Banana Pro simulation failed: ${response.status}`);
@@ -241,7 +241,7 @@ const DocumentFilling = () => {
 
       console.log('✅ Документ заполнен через Nana Banana Pro');
 
-    } catch (error) {
+              } catch (error) {
       console.error('❌ Ошибка отправки в Nana Banana Pro:', error);
       setIsSendingToNanaBanana(false);
       setScanResult('Ошибка заполнения документа. Попробуйте еще раз.');
@@ -328,13 +328,13 @@ const DocumentFilling = () => {
     }
     return () => {
       stopCamera();
-    };
+  };
   }, [showCamera, startCamera, stopCamera]);
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/20">
       <Header />
-
+      
       <main className="flex-1">
         <div className="container mx-auto px-4 py-12">
           {/* Header Section */}
@@ -379,26 +379,26 @@ const DocumentFilling = () => {
                               {template.description}
                             </p>
                           </div>
-                          <Button
-                            size="sm"
+                            <Button
+                              size="sm"
                             className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
+                              onClick={(e) => {
+                                e.stopPropagation();
                               handleScanDocument(template.name);
                             }}
                           >
                             <Scan className="h-4 w-4 mr-2" />
-                            Сканировать
-                          </Button>
+                                Сканировать
+                              </Button>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
+                        </div>
+                        </div>
+                      </div>
+                        </div>
       </main>
 
       {/* Nana Banana Pro модальное окно */}
@@ -406,24 +406,24 @@ const DocumentFilling = () => {
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowScanFill(false)}>
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-6 border-b flex justify-between items-start">
-              <div className="flex-1">
+                        <div className="flex-1">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Scan className="h-5 w-5" />
                   Заполнение документа через Nana Banana Pro: {selectedTemplateForScan?.name}
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">
                   Сфотографируйте или загрузите изображение документа для интеллектуального заполнения от руки
-                </p>
-              </div>
-              <Button
+                          </p>
+                        </div>
+                            <Button
                 variant="ghost"
-                size="sm"
+                              size="sm"
                 onClick={() => setShowScanFill(false)}
                 className="h-8 w-8 p-0"
-              >
+                            >
                 <X className="h-4 w-4" />
-              </Button>
-            </div>
+                            </Button>
+                          </div>
 
             <div className="flex-1 overflow-y-auto p-6">
               {/* Интерфейс ввода полей */}
@@ -433,11 +433,11 @@ const DocumentFilling = () => {
                     <h3 className="font-medium text-blue-900 mb-3 flex items-center gap-2">
                       <FileText className="h-5 w-5" />
                       Заполнение полей документа ({currentFieldIndex + 1}/{documentFields.length})
-                    </h3>
+                      </h3>
 
                     {documentFields[currentFieldIndex] && (
-                      <div className="space-y-4">
-                        <div>
+                  <div className="space-y-4">
+                    <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             {documentFields[currentFieldIndex].label}
                             {documentFields[currentFieldIndex].required && <span className="text-red-500 ml-1">*</span>}
@@ -450,17 +450,17 @@ const DocumentFilling = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder={`Введите ${documentFields[currentFieldIndex].label.toLowerCase()}`}
                           />
-                        </div>
+                </div>
 
                         <div className="flex gap-2">
-                          <Button
+                  <Button
                             onClick={prevField}
                             disabled={currentFieldIndex === 0}
-                            variant="outline"
-                          >
+                    variant="outline"
+                  >
                             Назад
-                          </Button>
-                          <Button
+                  </Button>
+                  <Button
                             onClick={nextField}
                             disabled={!fieldValues[documentFields[currentFieldIndex].name]?.trim()}
                             className="flex-1"
@@ -469,27 +469,27 @@ const DocumentFilling = () => {
                               <>
                                 <Upload className="h-4 w-4 mr-2" />
                                 Отправить в Nana Banana Pro
-                              </>
-                            ) : (
+                      </>
+                    ) : (
                               'Далее'
-                            )}
-                          </Button>
-                        </div>
-                      </div>
                     )}
+                  </Button>
+                </div>
+              </div>
+            )}
 
                     {/* Прогресс */}
                     <div className="mt-4">
                       <div className="flex justify-between text-xs text-gray-600 mb-1">
                         <span>Прогресс заполнения</span>
                         <span>{Math.round(((currentFieldIndex + 1) / documentFields.length) * 100)}%</span>
-                      </div>
+              </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${((currentFieldIndex + 1) / documentFields.length) * 100}%` }}
                         ></div>
-                      </div>
+                  </div>
                     </div>
                   </div>
                 </div>
@@ -500,12 +500,12 @@ const DocumentFilling = () => {
                 <div className="mb-6">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <h3 className="font-medium text-green-900 mb-3 flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5" />
+                    <CheckCircle2 className="h-5 w-5" />
                       Документ заполнен через Nana Banana Pro
                     </h3>
                     <div className="bg-white border rounded p-3 max-h-60 overflow-y-auto">
                       <pre className="text-sm whitespace-pre-wrap">{nanaBananaResult}</pre>
-                    </div>
+                  </div>
                     <div className="flex gap-2 mt-3">
                       <Button onClick={() => {
                         // Скачать результат
@@ -521,16 +521,16 @@ const DocumentFilling = () => {
                       }}>
                         <Download className="h-4 w-4 mr-2" />
                         Скачать результат
-                      </Button>
+                    </Button>
                       <Button variant="outline" onClick={() => {
                         setNanaBananaResult(null);
                         setShowScanFill(false);
                       }}>
-                        Закрыть
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                  Закрыть
+                </Button>
+              </div>
+            </div>
+          </div>
               )}
 
               {/* Кнопки сканирования */}
@@ -616,7 +616,7 @@ const DocumentFilling = () => {
                   </div>
                 </div>
               )}
-            </div>
+                  </div>
           </div>
         </div>
       )}
