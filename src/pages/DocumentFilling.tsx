@@ -36,6 +36,7 @@ const DocumentFilling = () => {
   // Камера и сканирование
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -91,12 +92,12 @@ const DocumentFilling = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
+      const reader = new FileReader();
     reader.onload = (e) => {
       const imageData = e.target?.result as string;
       setCapturedImage(imageData);
-    };
-    reader.readAsDataURL(file);
+      };
+      reader.readAsDataURL(file);
   };
 
   // Функция конвертации PDF в изображения
@@ -118,36 +119,36 @@ const DocumentFilling = () => {
 
       // Конвертируем первую страницу (для анализа)
       const pageNum = 1;
-      console.log(`📄 Конвертируем страницу ${pageNum}...`);
+        console.log(`📄 Конвертируем страницу ${pageNum}...`);
 
-      const page = await pdf.getPage(pageNum);
+        const page = await pdf.getPage(pageNum);
 
-      // Создаем canvas для рендеринга страницы
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+        // Создаем canvas для рендеринга страницы
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
 
-      if (!context) {
-        console.error('❌ Не удалось создать canvas context');
+        if (!context) {
+          console.error('❌ Не удалось создать canvas context');
         throw new Error('CANVAS_CONTEXT_FAILED');
-      }
+        }
 
-      // Устанавливаем размер canvas (масштаб 2x для лучшего качества)
-      const scale = 2;
-      const viewport = page.getViewport({ scale });
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
+        // Устанавливаем размер canvas (масштаб 2x для лучшего качества)
+        const scale = 2;
+        const viewport = page.getViewport({ scale });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
 
-      // Рендерим страницу на canvas
-      const renderContext = {
-        canvasContext: context,
-        viewport,
-      };
+        // Рендерим страницу на canvas
+        const renderContext = {
+          canvasContext: context,
+          viewport,
+        };
 
-      await page.render(renderContext).promise;
+        await page.render(renderContext).promise;
 
-      // Конвертируем canvas в base64 изображение
-      const imageData = canvas.toDataURL('image/jpeg', 0.8);
-      images.push(imageData);
+        // Конвертируем canvas в base64 изображение
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        images.push(imageData);
 
       console.log(`✅ PDF конвертирован в изображение`);
       return images;
@@ -186,15 +187,15 @@ const DocumentFilling = () => {
     console.log('🤖 Начинаем анализ изображения через LLM...');
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: 'system',
+          const response = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: 'system',
               content: `Ты - AI-ассистент для анализа юридических документов. Твоя задача - проанализировать изображение любого документа и определить поля, которые обычно заполняются в таких документах.
 
 ИНСТРУКЦИИ:
@@ -221,18 +222,18 @@ const DocumentFilling = () => {
 - Доверенность: доверитель, доверенное лицо, полномочия, срок действия
 - Трудовой договор: работник, работодатель, должность, оклад, дата заключения
 - Претензия: заявитель, получатель, предмет претензии, требования, срок ответа`
-            },
-            {
-              role: 'user',
+                    },
+                    {
+                      role: 'user',
               content: `Проанализируй этот документ и определи поля для заполнения. Изображение: ${imageData.substring(0, 100)}...`
-            }
-          ],
-          model: 'gpt-5.1',
+                    }
+                  ],
+                  model: 'gpt-5.1',
           reasoning: 'high',
           max_completion_tokens: 2000,
-          temperature: 0.3,
-        })
-      });
+                  temperature: 0.3,
+                })
+              });
 
       if (!response.ok) {
         throw new Error(`LLM analysis failed: ${response.status}`);
@@ -272,7 +273,7 @@ const DocumentFilling = () => {
   const nextField = useCallback(() => {
     if (currentFieldIndex < documentFields.length - 1) {
       setCurrentFieldIndex(prev => prev + 1);
-    } else {
+          } else {
       // Все поля заполнены, отправляем в Nana Banana Pro
       sendToNanaBanana();
     }
@@ -307,8 +308,8 @@ const DocumentFilling = () => {
             },
             body: JSON.stringify({
               messages: [
-                {
-                  role: 'system',
+        {
+          role: 'system',
               content: `Ты - продвинутый AI-ассистент, имитирующий работу сервиса Nana Banana Pro. Твоя задача - взять изображение юридического документа, список полей с их значениями и "заполнить" документ от руки, имитируя рукописный ввод.
 
 ИНСТРУКЦИИ:
@@ -320,11 +321,11 @@ const DocumentFilling = () => {
 
 ФОРМАТ ОТВЕТА:
 [Полностью заполненный документ с имитацией рукописного ввода]`
-                },
-                {
-                  role: 'user',
+        },
+        {
+          role: 'user',
               content: `Вот изображение документа (base64): ${scannedImageData.substring(0, 100)}...\n\nИ вот данные для заполнения:\n${filledFieldsPrompt}\n\nЗаполни документ от руки.`
-                }
+        }
               ],
               model: 'gpt-5.1',
           reasoning: 'high',
@@ -378,6 +379,7 @@ const DocumentFilling = () => {
 
   const capturePhoto = useCallback(() => {
     if (videoRef.current && canvasRef.current) {
+      setIsScanning(true);
       const canvas = canvasRef.current;
       const video = videoRef.current;
 
@@ -394,6 +396,9 @@ const DocumentFilling = () => {
 
         // Останавливаем камеру
         stopCamera();
+        setIsScanning(false);
+      } else {
+        setIsScanning(false);
       }
     }
   }, [stopCamera]);
@@ -401,6 +406,7 @@ const DocumentFilling = () => {
   // Специальная функция захвата для Nana Banana Pro
   const captureForNanaBanana = useCallback(() => {
     if (videoRef.current && canvasRef.current) {
+      setIsScanning(true);
       const canvas = canvasRef.current;
       const video = videoRef.current;
 
@@ -423,6 +429,9 @@ const DocumentFilling = () => {
         // Останавливаем камеру
         stopCamera();
         setShowCamera(false);
+        setIsScanning(false);
+      } else {
+        setIsScanning(false);
       }
     }
   }, [stopCamera, processScannedImage]);
@@ -467,7 +476,7 @@ const DocumentFilling = () => {
                     <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Scan className="h-10 w-10" />
                             </div>
-                </div>
+                          </div>
 
                   <h2 className="text-2xl font-bold text-foreground mb-4">
                     Сканирование документа
@@ -480,39 +489,39 @@ const DocumentFilling = () => {
 
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
+                            <Button
                         size="lg"
                         className="bg-primary hover:bg-primary/90 text-primary-foreground py-4"
                         onClick={startUniversalScan}
                       >
                         <Camera className="h-5 w-5 mr-2" />
                         Сфотографировать
-                      </Button>
+                            </Button>
 
-                      <Button
+                            <Button
                         size="lg"
-                        variant="outline"
+                                variant="outline"
                         className="py-4"
                         onClick={() => document.getElementById('main-file-input')?.click()}
                       >
                         <Upload className="h-5 w-5 mr-2" />
                         Загрузить файл
-                      </Button>
-                    </div>
+                              </Button>
+                </div>
 
                     {/* Скрытый input для загрузки файлов */}
-                    <input
-                      type="file"
+                  <input
+                    type="file"
                       accept="image/*,.pdf"
                       onChange={handleMainFileSelect}
-                      className="hidden"
+                    className="hidden"
                       id="main-file-input"
                     />
 
                     <div className="text-sm text-muted-foreground text-center">
                       Поддерживаются: фото и PDF документы (договоры, исковые заявления, доверенности, претензии и др.)
-                    </div>
-                  </div>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -547,10 +556,10 @@ const DocumentFilling = () => {
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b flex justify-between items-start">
                 <div className="flex-1">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Scan className="h-5 w-5" />
                   Заполнение документа через Nana Banana Pro
-                </h2>
+                  </h2>
                   <p className="text-sm text-gray-600 mt-1">
                   Сфотографируйте или загрузите изображение документа для интеллектуального заполнения от руки
                   </p>
