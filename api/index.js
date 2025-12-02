@@ -14,14 +14,10 @@ console.log('🔧 Environment variables loaded:', {
   STANDALONE_MODE: process.env.STANDALONE_MODE || 'false'
 });
 
-// Check for standalone mode (auto-detect for production or missing database)
-const IS_STANDALONE = process.env.STANDALONE_MODE === 'true' ||
-                      process.env.NODE_ENV === 'production' ||
-                      !process.env.DATABASE_URL;
-if (IS_STANDALONE) {
-  console.log('🏠 API running in standalone mode - no database required');
-  console.log('📝 Using mock responses for all endpoints');
-}
+// Standalone mode disabled - using real database
+const IS_STANDALONE = false;
+console.log('💾 API running with SQLite database');
+console.log('📊 Database URL:', process.env.DATABASE_URL);
 
 // Configure proxy agent for external requests
 const proxyHost = process.env.PROXY_HOST || '185.68.187.20';
@@ -650,31 +646,6 @@ app.post('/chat', async (req, res) => {
     console.log('=== New Chat Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
-    // Standalone mode: return mock response
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: returning mock chat response');
-      const mockResponse = {
-        id: 'chatcmpl-' + Date.now(),
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'gpt-5.1',
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'Здравствуйте! Я Галина, ваш AI-юрист. В демонстрационном режиме я могу предоставить общую информацию по юридическим вопросам. Для получения полноценной юридической консультации, пожалуйста, свяжитесь с командой Windexs.'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: {
-          prompt_tokens: 50,
-          completion_tokens: 100,
-          total_tokens: 150
-        }
-      };
-      return res.json(mockResponse);
-    }
-
     const { messages, model = 'gpt-5.1', max_completion_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
@@ -1281,18 +1252,6 @@ app.post('/chat', async (req, res) => {
 // Text to Speech endpoint
 app.post('/tts', async (req, res) => {
   try {
-    // Standalone mode: return mock audio
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: returning mock TTS audio');
-      // Return a small mock audio buffer (silence)
-      const mockAudio = Buffer.from([
-        0xFF, 0xFB, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-      ]);
-      res.setHeader('Content-Type', 'audio/mpeg');
-      return res.send(mockAudio);
-    }
-
     const { text, voice = 'alloy', model = 'tts-1' } = req.body;
 
     if (!text) {
@@ -1565,16 +1524,6 @@ app.get('/health', (req, res) => {
 
 // Middleware для проверки JWT токена
 const authenticateToken = (req, res, next) => {
-  // Standalone mode: skip authentication, create mock user
-  if (IS_STANDALONE) {
-    req.user = {
-      id: 'demo-user',
-      email: 'demo@galina.ai',
-      name: 'Demo User'
-    };
-    return next();
-  }
-
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -1597,19 +1546,6 @@ const authenticateToken = (req, res, next) => {
 app.post('/auth/register', async (req, res) => {
   try {
     console.log('🔐 Registration request:', { email: req.body.email, name: req.body.name });
-
-    // Standalone mode: return mock success
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: mock registration for', email);
-      return res.json({
-        user: {
-          id: 'demo-user-' + Date.now(),
-          email: email,
-          name: name || 'Demo User'
-        },
-        token: 'demo-jwt-token-' + Date.now()
-      });
-    }
 
     const { email, password, name } = req.body;
 
@@ -1678,19 +1614,6 @@ app.post('/auth/register', async (req, res) => {
 // Вход пользователя
 app.post('/auth/login', async (req, res) => {
   try {
-    // Standalone mode: return mock success
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: mock login for', req.body.email);
-      return res.json({
-        user: {
-          id: 'demo-user-' + Date.now(),
-          email: req.body.email,
-          name: 'Demo User'
-        },
-        token: 'demo-jwt-token-' + Date.now()
-      });
-    }
-
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -1850,30 +1773,6 @@ app.get('/user/profile/demo', async (req, res) => {
 
 app.get('/user/profile', authenticateToken, async (req, res) => {
   try {
-    // Standalone mode: return mock profile
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: returning mock profile');
-      return res.json({
-        user: {
-          id: 'demo-user',
-          email: 'demo@galina.ai',
-          name: 'Demo User',
-          createdAt: new Date().toISOString(),
-        },
-        balance: {
-          amount: 1500,
-          currency: 'RUB'
-        },
-        preferences: {
-          learning_style: 'visual',
-          difficulty_level: 'intermediate',
-          interests: ['юридические консультации', 'документы', 'права потребителя']
-        },
-        messages: [],
-        files: []
-      });
-    }
-
     const userId = req.user?.id;
 
     if (!userId) {
@@ -1913,12 +1812,6 @@ app.get('/user/profile', authenticateToken, async (req, res) => {
 // Получить баланс пользователя
 app.get('/user/balance', authenticateToken, async (req, res) => {
   try {
-    // Standalone mode: return mock balance
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: returning mock balance');
-      return res.json({ amount: 1500, currency: 'RUB' });
-    }
-
     const userId = req.user.id;
 
     const userBalance = await prisma.userBalance.findUnique({

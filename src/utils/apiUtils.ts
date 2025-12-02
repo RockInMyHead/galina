@@ -9,12 +9,6 @@ export const apiRequest = async <T = any>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   try {
-    // Check for standalone mode
-    if (API_CONFIG.BASE_URL === 'standalone') {
-      console.log('🏠 Standalone mode: mocking API request for', endpoint)
-      return mockApiResponse<T>(endpoint, options)
-    }
-
     const url = `${API_CONFIG.BASE_URL}${endpoint}`
     console.log('🔗 API Request:', url)
 

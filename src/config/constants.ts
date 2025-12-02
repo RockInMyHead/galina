@@ -20,13 +20,13 @@ const getAPIBaseURL = (): string => {
     return 'https://lawyer.windexs.ru'; // Direct connection to production API
   }
 
-  // Production: Standalone mode (no API dependencies)
+  // Production: Use production API with real database
   if (import.meta.env.PROD) {
-    console.log('🏠 Production mode: standalone operation (no API server required)');
-    console.log('🎯 All features work in demo mode without external dependencies');
+    const prodUrl = 'https://lawyer.windexs.ru/api';
+    console.log('🏭 Production mode: using real API with database at', prodUrl);
 
-    // Return special marker for standalone mode
-    return 'standalone';
+    // Return production URL for real database operations
+    return prodUrl;
   }
 
   // Fallback

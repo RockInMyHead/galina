@@ -21,9 +21,6 @@ import { API_CONFIG } from "@/config/constants";
 // API URL from environment
 const API_URL = API_CONFIG.BASE_URL;
 
-// Check if we're in standalone mode
-const IS_STANDALONE = API_URL === 'standalone';
-
 // Константы для VAD (Voice Activity Detection)
 const VAD_THRESHOLD = 30; // Порог громкости для обнаружения голоса
 
@@ -1337,19 +1334,6 @@ const Voice = () => {
 
   const sendToLLM = useCallback(async (userMessage: string, retryCount: number = 0): Promise<string> => {
 
-    // Standalone mode: return mock response
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: returning mock LLM response');
-      setIsGeneratingResponse(false);
-      return `Здравствуйте! Я Галина, ваш AI-юрист. В демонстрационном режиме я готова ответить на ваши вопросы.
-
-Вы сказали: "${userMessage}"
-
-К сожалению, в автономном режиме я не могу предоставить полноценную юридическую консультацию, но вы можете ознакомиться с моими возможностями на главной странице приложения.
-
-Для получения реальной юридической помощи, пожалуйста, свяжитесь с командой Windexs.`;
-    }
-
     const MAX_RETRIES = 3; // Увеличили количество попыток
 
     const originalMessage = userMessage;
@@ -1856,20 +1840,6 @@ const Voice = () => {
   const speakText = useCallback(async (text: string) => {
 
     if (!text || !isSoundEnabled) return;
-
-    // Standalone mode: simulate TTS without actual API call
-    if (IS_STANDALONE) {
-      console.log('🏠 Standalone mode: simulating TTS for:', text.substring(0, 50) + '...');
-      setIsSpeaking(true);
-      // Simulate speaking duration (roughly 150 words per minute)
-      const words = text.split(' ').length;
-      const duration = Math.max(2000, words * 400); // Minimum 2 seconds, 400ms per word
-      setTimeout(() => {
-        setIsSpeaking(false);
-        console.log('✅ Simulated TTS completed');
-      }, duration);
-      return;
-    }
 
 
 
