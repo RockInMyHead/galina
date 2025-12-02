@@ -20,16 +20,13 @@ const getAPIBaseURL = (): string => {
     return 'https://lawyer.windexs.ru'; // Direct connection to production API
   }
 
-  // Production: Try production API first, fallback to local if needed
+  // Production: Standalone mode (no API dependencies)
   if (import.meta.env.PROD) {
-    const prodUrl = 'https://lawyer.windexs.ru/api';
-    const localUrl = 'http://localhost:3003/api';
+    console.log('🏠 Production mode: standalone operation (no API server required)');
+    console.log('🎯 All features work in demo mode without external dependencies');
 
-    console.log('⚠️ Production mode: trying', prodUrl, 'with fallback to', localUrl);
-    console.log('💡 If production API returns 403, check OPENAI_API_KEY on server');
-
-    // Return production URL - frontend will handle fallback logic
-    return prodUrl;
+    // Return special marker for standalone mode
+    return 'standalone';
   }
 
   // Fallback

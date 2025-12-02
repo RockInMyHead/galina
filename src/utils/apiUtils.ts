@@ -9,6 +9,12 @@ export const apiRequest = async <T = any>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   try {
+    // Check for standalone mode
+    if (API_CONFIG.BASE_URL === 'standalone') {
+      console.log('🏠 Standalone mode: mocking API request for', endpoint)
+      return mockApiResponse<T>(endpoint, options)
+    }
+
     const url = `${API_CONFIG.BASE_URL}${endpoint}`
     console.log('🔗 API Request:', url)
 
@@ -405,4 +411,81 @@ export const transcribeAudioWithWhisper = async (audioBlob: Blob): Promise<strin
     console.error('❌ Whisper transcription failed:', error)
     throw error
   }
+}
+
+/**
+ * Mock API responses for standalone mode
+ */
+function mockApiResponse<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  console.log('🎭 Mocking API response for:', endpoint)
+
+  // Simulate network delay
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // Mock responses based on endpoint
+      if (endpoint === '/auth/register') {
+        resolve({
+          success: true,
+          data: {
+            user: {
+              id: 'demo-user',
+              email: 'demo@galina.ai',
+              name: 'Demo User'
+            },
+            token: 'demo-jwt-token-for-testing'
+          }
+        })
+      } else if (endpoint === '/auth/login') {
+        resolve({
+          success: true,
+          data: {
+            user: {
+              id: 'demo-user',
+              email: 'demo@galina.ai',
+              name: 'Demo User'
+            },
+            token: 'demo-jwt-token-for-testing'
+          }
+        })
+      } else if (endpoint === '/user/profile') {
+        resolve({
+          success: true,
+          data: {
+            user: {
+              id: 'demo-user',
+              email: 'demo@galina.ai',
+              name: 'Demo User'
+            },
+            balance: { amount: 1500, currency: 'RUB' },
+            preferences: {
+              learning_style: 'visual',
+              difficulty_level: 'intermediate',
+              interests: ['юридические консультации']
+            }
+          }
+        })
+      } else if (endpoint === '/user/balance') {
+        resolve({
+          success: true,
+          data: { amount: 1500, currency: 'RUB' }
+        })
+      } else if (endpoint === '/chat') {
+        // Mock chat response - this will be handled by the actual LLM service
+        resolve({
+          success: false,
+          error: 'Chat functionality requires API server'
+        })
+      } else if (endpoint === '/tts') {
+        resolve({
+          success: false,
+          error: 'TTS functionality requires API server'
+        })
+      } else {
+        resolve({
+          success: false,
+          error: `Endpoint ${endpoint} not available in standalone mode`
+        })
+      }
+    }, 500) // Simulate 500ms delay
+  })
 }
