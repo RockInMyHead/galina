@@ -16,8 +16,8 @@ const getAPIBaseURL = (): string => {
 
   // Development: Use production API directly
   if (import.meta.env.DEV) {
-    console.log('✅ Development mode: using production API https://lawyer.windexs.ru');
-    return 'https://lawyer.windexs.ru'; // Direct connection to production API
+    console.log('✅ Development mode: using production API https://lawyer.windexs.ru/api');
+    return 'https://lawyer.windexs.ru/api'; // Direct connection to production API
   }
 
   // Production: Use production API with real database
