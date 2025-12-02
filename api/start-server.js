@@ -33,11 +33,23 @@ if (!allFilesExist) {
   process.exit(1);
 }
 
-// Проверяем базу данных
+// Проверяем базу данных и запускаем миграции автоматически
 const dbPath = './prisma/galina.db';
+const { execSync } = require('child_process');
+
+console.log('\n📋 Проверка базы данных...');
 if (!fs.existsSync(dbPath)) {
-  console.log('\n⚠️  База данных не инициализирована. Выполните:');
-  console.log('npm run db:push');
+  console.log('⚠️  База данных отсутствует. Создание новой...');
+  try {
+    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit', env: process.env });
+    console.log('✅ База данных успешно создана и мигрирована');
+  } catch (error) {
+    console.error('❌ Ошибка создания базы данных:', error.message);
+  }
+} else {
+  console.log('✅ Файл базы данных найден');
+  // Опционально: можно запустить deploy миграции, если нужно обновить схему
+  // execSync('npx prisma migrate deploy', { stdio: 'inherit', env: process.env });
 }
 
 // Запускаем сервер
