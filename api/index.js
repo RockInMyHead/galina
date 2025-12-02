@@ -541,9 +541,11 @@ const corsAllowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
+  'http://localhost:3003',
   'http://localhost:3004',
   'http://localhost:4000',
   'http://localhost:5173',
+  'http://localhost:8080'
 ];
 
 const corsOptions = {
@@ -1725,6 +1727,39 @@ app.post('/chat/message', async (req, res) => {
 });
 
 // Получить информацию о пользователе
+// Демо-профиль для демо-режима (без аутентификации)
+app.get('/user/profile/demo', async (req, res) => {
+  try {
+    console.log('📋 Demo profile request');
+
+    // Возвращаем демо-профиль
+    const demoProfile = {
+      user: {
+        id: 'demo-user',
+        email: 'demo@galina.ai',
+        name: 'Демо Пользователь',
+        createdAt: new Date().toISOString(),
+      },
+      balance: {
+        amount: 1500,
+        currency: 'RUB'
+      },
+      preferences: {
+        learning_style: 'visual',
+        difficulty_level: 'intermediate',
+        interests: ['юридические консультации', 'документы', 'права потребителя']
+      },
+      messages: [],
+      files: []
+    };
+
+    res.json(demoProfile);
+  } catch (error) {
+    console.error('❌ Demo profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.get('/user/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;

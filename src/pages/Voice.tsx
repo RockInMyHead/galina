@@ -79,7 +79,7 @@ const Voice = () => {
   const navigate = useNavigate();
 
   const { token: authToken } = useAuth();
-  const token = authToken || localStorage.getItem('galina-token');
+  const token = authToken || localStorage.getItem('galina-token') || 'demo-token'; // Fallback для демо-режима
 
   const { toast } = useToast();
 
@@ -336,7 +336,7 @@ const Voice = () => {
 
         headers: {
 
-          'Authorization': `Bearer ${token}`
+          ...(token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
 
         },
 
@@ -1281,11 +1281,14 @@ const Voice = () => {
 
     try {
 
-      const response = await fetch(`${API_URL}/user/profile`, {
+      // Используем демо-профиль для демо-режима
+      const profileEndpoint = token === 'demo-token' ? '/user/profile/demo' : '/user/profile';
+
+      const response = await fetch(`${API_URL}${profileEndpoint}`, {
 
         headers: {
 
-          'Authorization': `Bearer ${token}`
+          ...(token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
 
         }
 
@@ -1492,9 +1495,9 @@ const Voice = () => {
 
 
 
-      if (!token) {
-        console.warn('⚠️ Токен не найден, работаем в демо-режиме (без авторизации)');
-        // Продолжаем работу без токена - API может поддерживать демо-режим
+      if (!token || token === 'demo-token') {
+        console.warn('⚠️ Работаем в демо-режиме (без авторизации)');
+        // Продолжаем работу в демо-режиме
       }
 
 
@@ -1572,7 +1575,7 @@ const Voice = () => {
 
             'Content-Type': 'application/json',
 
-            ...(token && { 'Authorization': `Bearer ${token}` })
+            ...(token && token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
 
           },
 
@@ -1848,276 +1851,145 @@ const Voice = () => {
 
     try {
 
-      console.log('🔊 Генерация озвучки для:', text);
+      console.log('🔊 Генерация озвучки для:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+
+      // Разбиваем длинный текст на части (OpenAI TTS ограничение ~4096 символов)
+      const MAX_CHUNK_LENGTH = 4000; // Безопасный лимит
+
+      let textChunks: string[] = [];
+
+      if (text.length <= MAX_CHUNK_LENGTH) {
+        textChunks = [text];
+      } else {
+        console.log('📝 Текст слишком длинный, разбиваем на части...');
+
+        // Разбиваем по абзацам, затем по предложениям
+        const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+        let currentChunk = '';
+        for (const paragraph of paragraphs) {
+          if ((currentChunk + paragraph).length <= MAX_CHUNK_LENGTH) {
+            currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+          } else {
+            if (currentChunk) {
+              textChunks.push(currentChunk);
+            }
+            // Если абзац сам по себе слишком длинный, разбиваем по предложениям
+            if (paragraph.length > MAX_CHUNK_LENGTH) {
+              const sentences = paragraph.split(/(?<=[.!?])\s+/);
+              let sentenceChunk = '';
+              for (const sentence of sentences) {
+                if ((sentenceChunk + sentence).length <= MAX_CHUNK_LENGTH) {
+                  sentenceChunk += (sentenceChunk ? ' ' : '') + sentence;
+                } else {
+                  if (sentenceChunk) {
+                    textChunks.push(sentenceChunk);
+                  }
+                  sentenceChunk = sentence;
+                }
+              }
+              if (sentenceChunk) {
+                textChunks.push(sentenceChunk);
+              }
+            } else {
+              currentChunk = paragraph;
+            }
+          }
+        }
+        if (currentChunk) {
+          textChunks.push(currentChunk);
+        }
+
+        console.log(`📦 Разбили текст на ${textChunks.length} частей`);
+      }
 
       isPlayingAudioRef.current = true;
 
+      // Озвучиваем каждую часть последовательно
+      for (let i = 0; i < textChunks.length; i++) {
+        const chunk = textChunks[i];
+        console.log(`🔊 Озвучиваем часть ${i + 1}/${textChunks.length}: ${chunk.substring(0, 50)}...`);
 
+        // Инициализируем прогресс озвучки для текущей части
+        ttsProgressRef.current = {
+          startTime: Date.now(),
+          text: chunk,
+          duration: chunk.length * 60, // Грубая оценка: 60мс на символ
+          words: chunk.split(' '),
+          currentWordIndex: 0
+        };
 
-      // Инициализируем прогресс озвучки
-
-      ttsProgressRef.current = {
-
-        startTime: Date.now(),
-
-        text: text,
-
-        duration: text.length * 60, // Грубая оценка: 60мс на символ
-
-        words: text.split(' '),
-
-        currentWordIndex: 0
-
-      };
-
-
-
-      const response = await fetch(`${API_URL}/tts`, {
-
-        method: 'POST',
-
-        headers: {
-
-          'Content-Type': 'application/json',
-
-          'Authorization': `Bearer ${token}`
-
-        },
-
-        body: JSON.stringify({
-
-          text,
-
-          voice: 'nova', // Используем голос nova (как в описании)
-
-          model: 'tts-1-hd', // HD модель для лучшего качества
-
-          speed: 0.95 // Скорость речи (0.25 - 4.0)
-
-        })
-
-      });
-
-
-
-      // Проверяем прерывание
-
-      if (generationIdRef.current !== startGenId) {
-
-        console.log('🛑 Озвучка прервана до начала воспроизведения');
-
-        return;
-
-      }
-
-
-
-      if (!response.ok) {
-
-        throw new Error('Failed to generate speech');
-
-      }
-
-
-
-      const audioBlob = await response.blob();
-
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      const audio = new Audio(audioUrl);
-
-      currentAudioRef.current = audio;
-
-
-
-      // Event handlers
-
-      audio.onplay = () => {
-
-        console.log('🔊 Озвучка начата');
-
-        // Устанавливаем isSpeaking = true только когда аудио реально начинает играть
-
-        setIsSpeaking(true);
-
-        console.log('🔘 isSpeaking установлен в true - видео должно запуститься');
-
-
-
-        // Для браузеров кроме Safari - останавливаем распознавание когда начинается TTS
-        // В Safari распознавание остается активным для автоматического прерывания TTS
-
-        const shouldStop = !isSafari() && speechRecognitionRef.current;
-
-        console.log('🔍 Проверка остановки SR:', {
-
-          isSafari: isSafari(),
-
-          hasSpeechRecognition: !!speechRecognitionRef.current,
-
-          shouldStop,
-
-          note: isSafari() ? 'Safari: распознавание остается активным для прерывания TTS' : 'Не-Safari: останавливаем распознавание'
-
+        const response = await fetch(`${API_URL}/tts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
+          },
+          body: JSON.stringify({
+            text: chunk,
+            voice: 'nova', // Используем голос nova (как в описании)
+            model: 'tts-1-hd', // HD модель для лучшего качества
+            speed: 0.95 // Скорость речи (0.25 - 4.0)
+          })
         });
 
-
-
-        if (shouldStop) {
-
-          try {
-
-            console.log('⏸️ Останавливаем распознавание на время TTS (не Safari)');
-
-            speechRecognitionRef.current.stop();
-
-          } catch (e) {
-
-            console.warn('⚠️ Ошибка остановки распознавания:', e);
-
-          }
-
+        // Проверяем прерывание между частями
+        if (generationIdRef.current !== startGenId) {
+          console.log('🛑 Озвучка прервана между частями');
+          return;
         }
 
-      };
-
-
-
-      audio.onended = () => {
-
-        console.log('✅ Озвучка завершена');
-
-        URL.revokeObjectURL(audioUrl);
-
-        currentAudioRef.current = null;
-
-        isPlayingAudioRef.current = false;
-
-        setIsSpeaking(false);
-
-
-
-        // Сбрасываем прогресс озвучки
-
-        ttsProgressRef.current = null;
-
-
-
-        // Для браузеров кроме Safari - перезапускаем распознавание после TTS
-        // В Safari распознавание остается активным постоянно
-
-        if (!isSafari() && speechRecognitionRef.current) {
-
-          setTimeout(() => {
-
-            try {
-
-              console.log('▶️ Перезапускаем распознавание после TTS (не Safari)');
-
-              speechRecognitionRef.current?.start();
-
-            } catch (e: any) {
-
-              if (e.name !== 'InvalidStateError') {
-
-                console.warn('⚠️ Ошибка перезапуска распознавания:', e);
-
-              }
-
-            }
-
-          }, 300); // Небольшая задержка для стабильности
-
-        } else if (isSafari()) {
-
-          console.log('ℹ️ Safari: распознавание остается активным');
-
+        if (!response.ok) {
+          console.error('❌ TTS API error for chunk:', response.status, response.statusText);
+          // Продолжаем со следующей частью вместо полной остановки
+          continue;
         }
 
-      };
+        // Получаем аудио и воспроизводим
+        const audioBlob = await response.blob();
 
-
-
-      audio.onerror = (event) => {
-
-        console.error('❌ Ошибка воспроизведения аудио:', event);
-
-        URL.revokeObjectURL(audioUrl);
-
-        currentAudioRef.current = null;
-
-        isPlayingAudioRef.current = false;
-
-        setIsSpeaking(false);
-
-
-
-        // Сбрасываем прогресс озвучки
-
-        ttsProgressRef.current = null;
-
-
-
-        // Для браузеров кроме Safari - перезапускаем распознавание после ошибки
-        // В Safari распознавание остается активным постоянно
-
-        if (!isSafari() && speechRecognitionRef.current) {
-
-          setTimeout(() => {
-
-            try {
-
-              console.log('▶️ Перезапускаем распознавание после ошибки (не Safari)');
-
-              speechRecognitionRef.current?.start();
-
-            } catch (e: any) {
-
-              if (e.name !== 'InvalidStateError') {
-
-                console.warn('⚠️ Ошибка перезапуска:', e);
-
-              }
-
-            }
-
-          }, 300);
-
-        } else if (isSafari()) {
-
-          console.log('ℹ️ Safari: распознавание остается активным после ошибки');
-
+        // Проверяем прерывание перед воспроизведением
+        if (generationIdRef.current !== startGenId) {
+          console.log('🛑 Озвучка прервана перед воспроизведением');
+          return;
         }
 
 
 
-        toast({
+        // Воспроизводим текущую часть
+        await new Promise<void>((resolve) => {
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
 
-          title: "Ошибка озвучки",
+          audio.onplay = () => {
+            console.log(`🔊 Озвучка части ${i + 1} начата`);
+            setIsSpeaking(true);
+          };
 
-          description: "Не удалось воспроизвести аудио",
+          audio.onended = () => {
+            console.log(`✅ Озвучка части ${i + 1} завершена`);
+            URL.revokeObjectURL(audioUrl);
+            resolve();
+          };
 
-          variant: "destructive"
+          audio.onerror = (event) => {
+            console.error(`❌ Ошибка воспроизведения части ${i + 1}:`, event);
+            URL.revokeObjectURL(audioUrl);
+            resolve(); // Продолжаем со следующей частью
+          };
 
+          audio.play().catch((error) => {
+            console.error(`❌ Ошибка запуска воспроизведения части ${i + 1}:`, error);
+            URL.revokeObjectURL(audioUrl);
+            resolve();
+          });
         });
-
-      };
-
-
-
-      // Проверяем прерывание перед воспроизведением
-
-      if (generationIdRef.current !== startGenId) {
-
-        console.log('🛑 Озвучка прервана перед play()');
-
-        return;
-
       }
 
-
-
-      await audio.play();
+      console.log('✅ Все части текста озвучены');
+      setIsSpeaking(false);
+      isPlayingAudioRef.current = false;
+      ttsProgressRef.current = null;
 
 
 

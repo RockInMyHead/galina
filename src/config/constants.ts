@@ -14,10 +14,10 @@ const getAPIBaseURL = (): string => {
     return import.meta.env.VITE_API_BASE_URL;
   }
 
-  // Development: Use /api prefix to work with Vite proxy
+  // Development: Use production API directly
   if (import.meta.env.DEV) {
-    console.log('✅ Development mode: using /api (will be proxied to localhost:3003)');
-    return '/api'; // Vite proxy will forward to localhost:3003
+    console.log('✅ Development mode: using production API https://lawyer.windexs.ru');
+    return 'https://lawyer.windexs.ru'; // Direct connection to production API
   }
 
   // Production: Try production API first, fallback to local if needed
@@ -487,6 +487,12 @@ export const EXAMPLE_QUESTIONS = [
 export const PDF_CONFIG = {
   WORKER_SRC: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
   LIBRARY_SRC: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+} as const;
+
+// Google AI Studio (Gemini) Configuration
+export const GEMINI_CONFIG = {
+  API_KEY: import.meta.env.VITE_GEMINI_API_KEY || '',
+  API_URL: 'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent',
 } as const;
 
 // Local Storage Keys

@@ -87,10 +87,13 @@ class SyncService {
     // Check if user is authenticated before syncing
     const userData = userStorage.get()
     if (!userData || !userData.token) {
-      console.log('🔄 Skipping sync - user not authenticated')
+      // Не логируем это как ошибку - это нормальное поведение для неавторизованных пользователей
+      // Логируем только в режиме разработки для отладки
+      if (import.meta.env.DEV) {
+        console.debug('🔄 Skipping sync - user not authenticated')
+      }
       result.success = false
       result.errors.push('User not authenticated')
-      console.log('🔄 Sync completed: 0 items synced, 1 error (not authenticated)')
       return result
     }
 
@@ -114,9 +117,20 @@ class SyncService {
 
       if (result.errors.length > 0) {
         result.success = false
+        // Логируем только если есть реальные ошибки (не просто отсутствие авторизации)
+        const realErrors = result.errors.filter(e => e !== 'User not authenticated')
+        if (realErrors.length > 0) {
+          console.warn(`🔄 Sync completed with errors: ${result.syncedItems} items synced, ${realErrors.length} errors`)
+        } else if (import.meta.env.DEV) {
+          // В режиме разработки логируем даже отсутствие авторизации
+          console.debug(`🔄 Sync skipped: user not authenticated`)
+        }
+      } else {
+        // Логируем успешную синхронизацию только в режиме разработки
+        if (import.meta.env.DEV && result.syncedItems > 0) {
+          console.log(`🔄 Sync completed: ${result.syncedItems} items synced`)
+        }
       }
-
-      console.log(`🔄 Sync completed: ${result.syncedItems} items synced, ${result.errors.length} errors`)
     } catch (error) {
       result.success = false
       result.errors.push(`Sync failed: ${error}`)

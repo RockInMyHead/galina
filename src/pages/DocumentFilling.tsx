@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { FileEdit, FileText, CheckCircle2, ArrowRight, Scan, Camera, X, RotateCw, ZoomIn, Upload, MessageSquare, Download, RefreshCw } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { DOCUMENT_TEMPLATES, PDF_CONFIG, API_CONFIG } from "@/config/constants";
+import { DOCUMENT_TEMPLATES, PDF_CONFIG, API_CONFIG, GEMINI_CONFIG } from "@/config/constants";
 import * as pdfjsLib from 'pdfjs-dist';
 import ReactMarkdown from 'react-markdown';
 import { extractTextFromPDF } from "@/utils/fileUtils";
@@ -492,6 +492,13 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       return;
     }
 
+    // Проверка наличия API ключа
+    if (!GEMINI_CONFIG.API_KEY) {
+      console.error('❌ Google AI Studio API ключ не настроен. Установите VITE_GEMINI_API_KEY в переменных окружения.');
+      setScanResult('Ошибка: Google AI Studio API ключ не настроен. Пожалуйста, обратитесь к администратору.');
+      return;
+    }
+
     setIsSendingToNanaBanana(true);
     console.log('🎨 Отправляем данные в Google AI Studio (Gemini)...');
 
@@ -503,7 +510,8 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
       // Подготавливаем изображение для Gemini API (убираем data:image/jpeg;base64, префикс)
       const imageDataForGemini = scannedImageData.replace(/^data:image\/[a-z]+;base64,/, '');
 
-      const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=AIzaSyC6hXULlNleQKFlwip_MVw1HnMa-ys81ZM', {
+      const apiUrl = `${GEMINI_CONFIG.API_URL}?key=${GEMINI_CONFIG.API_KEY}`;
+      const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -512,24 +520,10 @@ ${extractedText ? `Извлеченный текст из PDF: "${extractedText.
           contents: [{
             parts: [
         {
-                text: `Ты - профессиональный помощник по заполнению юридических документов. Твоя задача - взять изображение пустого документа и данные для заполнения, и создать полностью заполненный документ.
-
-ИНСТРУКЦИИ:
-1. Посмотри на изображение документа и найди места для заполнения (пустые поля, линии, пробелы)
-2. Используй предоставленные данные для заполнения соответствующих полей
-3. Создай документ, где все поля заполнены нужными значениями
-4. Представь результат как полностью готовый документ с заполненными полями
-
-ВАЖНЫЕ ТРЕБОВАНИЯ:
-- Заполни ТОЛЬКО те поля, которые есть в предоставленных данных
-- Если поле не заполнено ([НЕ ЗАПОЛНЕНО]), оставь его пустым в документе
-- Сохрани структуру и формат оригинального документа
-- Верни результат в читаемом текстовом формате
+                text: `Используя изображения заполни документ моими данными, пиши красивыми и понятным рукописным текстом синим цветом
 
 ДАННЫЕ ДЛЯ ЗАПОЛНЕНИЯ:
-${filledFieldsPrompt}
-
-Верни полностью заполненный документ в текстовом формате.`
+${filledFieldsPrompt}`
               },
               {
                 inline_data: {
@@ -552,6 +546,19 @@ ${filledFieldsPrompt}
       console.log('📥 Ответ от Google AI Studio:', geminiData);
 
       const resultDocument = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || 'Не удалось получить результат от Google AI Studio';
+
+      // Создаем "документ" из результата и заменяем изображение
+      // Поскольку Gemini возвращает текст, создаем текстовый документ в формате PDF-like
+      const filledDocumentText = `ЗАПОЛНЕННЫЙ ДОКУМЕНТ
+
+${resultDocument}
+
+Создано через Nana Banana Pro
+Дата: ${new Date().toLocaleString('ru-RU')}`;
+
+      // Для отображения создаем data URL с текстом (пока не настоящий PDF)
+      const textDataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(filledDocumentText)}`;
+      setCapturedImage(textDataUrl);
 
       setNanaBananaResult(resultDocument);
       setScanResult(resultDocument);
@@ -936,13 +943,29 @@ ${filledFieldsPrompt}
               {/* Отображение захваченного изображения */}
               {capturedImage && (
                 <div className="mb-6">
-                  <h3 className="font-medium mb-2">Захваченное изображение:</h3>
+                  <h3 className="font-medium mb-2">
+                    {capturedImage.startsWith('data:application/pdf') ? 'Заполненный документ (PDF):' :
+                     capturedImage.startsWith('data:text/plain') ? 'Заполненный документ (текст):' :
+                     'Захваченное изображение:'}
+                  </h3>
                   <div className="border rounded-lg p-2 bg-gray-50">
-                    <img
-                      src={capturedImage}
-                      alt="Captured document"
-                      className="max-w-full h-auto rounded"
-                    />
+                    {capturedImage.startsWith('data:application/pdf') ? (
+                      <iframe
+                        src={capturedImage}
+                        className="w-full h-96 rounded"
+                        title="Filled document PDF"
+                      />
+                    ) : capturedImage.startsWith('data:text/plain') ? (
+                      <div className="bg-white border rounded p-4 max-h-96 overflow-y-auto font-mono text-sm">
+                        <pre className="whitespace-pre-wrap">{decodeURIComponent(capturedImage.split(',')[1])}</pre>
+                      </div>
+                    ) : (
+                      <img
+                        src={capturedImage}
+                        alt="Captured document"
+                        className="max-w-full h-auto rounded"
+                      />
+                    )}
                   </div>
                   <div className="flex gap-2 mt-3">
                     <Button

@@ -11,6 +11,7 @@ import DocumentAnalysis from "./pages/DocumentAnalysis";
 import DocumentFilling from "./pages/DocumentFilling";
 import Chat from "./pages/Chat";
 import Voice from "./pages/Voice";
+import VoiceLawyer from "./pages/VoiceLawyer";
 import Consultation from "./pages/Consultation";
 import Documents from "./pages/Documents";
 import Login from "./pages/Login";
@@ -88,6 +89,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Voice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/voice-lawyer"
+              element={
+                <ProtectedRoute>
+                  <VoiceLawyer />
                 </ProtectedRoute>
               }
             />

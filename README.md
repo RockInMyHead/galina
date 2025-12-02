@@ -53,9 +53,20 @@ cd galina
 2. Установите зависимости:
 ```bash
 npm install
+cd api && npm install && cd ..
 ```
 
-3. Запустите проект:
+3. Настройте переменные окружения:
+```bash
+# Создайте файл .env в корне проекта (для фронтенда)
+# Добавьте Google AI Studio API ключ (опционально, для функции заполнения документов):
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
+
+# Настройте API сервер (файл api/.env):
+# См. api/env.production.example для примера
+```
+
+4. Запустите проект:
 ```bash
 # Frontend (порт 3000)
 npm run dev
