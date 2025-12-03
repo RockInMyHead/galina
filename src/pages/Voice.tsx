@@ -1631,6 +1631,8 @@ const Voice = () => {
 
       try {
 
+        console.log('🌐 Отправка HTTP запроса к:', endpoint);
+
         response = await fetch(endpoint, {
 
           method: 'POST',
@@ -1647,9 +1649,19 @@ const Voice = () => {
 
         });
 
+        console.log('📡 Получен HTTP ответ, статус:', response.status, response.statusText);
+
       } catch (fetchError) {
 
         console.error('❌ Fetch error:', fetchError);
+
+        addLog('error', `Ошибка сети при запросе к LLM: ${fetchError.message}`, {
+
+          error: fetchError.message,
+
+          endpoint
+
+        });
 
         throw fetchError;
 
@@ -1663,6 +1675,8 @@ const Voice = () => {
 
         console.log('🛑 Генерация была прервана пользователем во время запроса к LLM');
 
+        addLog('error', 'Генерация прервана пользователем во время запроса к LLM');
+
         return '';
 
       }
@@ -1672,6 +1686,16 @@ const Voice = () => {
       if (!response.ok) {
 
         console.error('❌ Server returned error:', response.status, response.statusText);
+
+        addLog('error', `API вернул ошибку: ${response.status} ${response.statusText}`, {
+
+          status: response.status,
+
+          statusText: response.statusText,
+
+          endpoint
+
+        });
 
         if (response.status === 401) {
 
@@ -1709,6 +1733,8 @@ const Voice = () => {
 
         console.log('📦 Parsed JSON response:', data);
 
+        addLog('info', 'Ответ от API успешно распарсен как JSON');
+
       } catch (parseError) {
 
         // Если не вышло, проверяем, не SSE ли это (Server-Sent Events)
@@ -1716,6 +1742,8 @@ const Voice = () => {
         if (textData.trim().startsWith('data:')) {
 
           console.log('🌊 Обнаружен SSE поток, собираем сообщение...');
+
+          addLog('info', 'Обнаружен потоковый ответ (SSE), обрабатываем чанки');
 
           const lines = textData.split('\n');
 
@@ -1753,11 +1781,15 @@ const Voice = () => {
 
                 // Игнорируем битые чанки
 
+                console.warn('⚠️ Пропущен битый SSE чанк:', jsonStr.substring(0, 50));
+
               }
 
             }
 
           }
+
+          addLog('info', `Собрано ${fullMessage.length} символов из SSE потока`);
 
 
 
@@ -1768,6 +1800,12 @@ const Voice = () => {
           console.error('❌ JSON Parse Error:', parseError);
 
           console.error('❌ Failed content:', textData.substring(0, 200) + '...');
+
+          addLog('error', `Не удалось распарсить ответ от API: ${parseError.message}`, {
+
+            responsePreview: textData.substring(0, 200)
+
+          });
 
           throw new Error('Invalid JSON response from server');
 
@@ -1797,7 +1835,17 @@ const Voice = () => {
       console.log('🤖 Ответ от LLM получен (длина):', responseContent?.length);
       console.log('📝 Контент ответа:', responseContent?.substring(0, 100) + '...');
 
-      addLog('llm', `Получен ответ от LLM (${responseContent?.length || 0} символов): "${responseContent?.substring(0, 100)}${responseContent?.length > 100 ? '...' : ''}"`);
+      addLog('llm', `Успешно получен ответ от LLM (${responseContent?.length || 0} символов): "${responseContent?.substring(0, 100)}${responseContent?.length > 100 ? '...' : ''}"`, {
+
+        responseLength: responseContent?.length || 0,
+
+        hasChoices: !!data.choices,
+
+        hasMessage: !!data.message,
+
+        model: data.model || 'unknown'
+
+      });
 
       // Мониторинг ответа
       // monitorLLMResponse(
@@ -1813,11 +1861,25 @@ const Voice = () => {
 
         console.warn('⚠️ Получен пустой ответ от LLM');
 
+        addLog('error', `Получен пустой ответ от LLM${retryCount > 0 ? ` (попытка ${retryCount + 1})` : ''}`, {
 
+          responseData: data,
+
+          responseType: typeof data,
+
+          hasChoices: !!data.choices,
+
+          hasMessage: !!data.message,
+
+          hasContent: !!data.content
+
+        });
 
         if (retryCount < MAX_RETRIES) {
 
           console.log(`🔄 Запуск повторной попытки ${retryCount + 1}...`);
+
+          addLog('info', `Повторная попытка запроса к LLM (${retryCount + 1}/${MAX_RETRIES + 1})`);
 
           // Экспоненциальная задержка перед повтором
 
@@ -1830,6 +1892,8 @@ const Voice = () => {
         } else {
 
           console.error('❌ Все попытки получения ответа исчерпаны');
+
+          addLog('error', 'Все попытки получения ответа от LLM исчерпаны');
 
           // Если все попытки исчерпаны, возвращаем нейтральную фразу
 
@@ -1857,7 +1921,15 @@ const Voice = () => {
 
       console.error('❌ Ошибка общения с LLM:', error);
 
+      addLog('error', `Ошибка при запросе к LLM${retryCount > 0 ? ` (попытка ${retryCount + 1})` : ''}: ${error.message}`, {
 
+        error: error.message,
+
+        retryCount,
+
+        endpoint
+
+      });
 
       // Retry при ошибке сети
 
@@ -1865,13 +1937,15 @@ const Voice = () => {
 
         console.log(`🔄 Ошибка сети, повторная попытка ${retryCount + 1}...`);
 
+        addLog('info', `Повторная попытка после ошибки (${retryCount + 1}/${MAX_RETRIES + 1})`);
+
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         return sendToLLM(originalMessage, retryCount + 1);
 
       }
 
-
+      addLog('error', 'Все попытки запроса к LLM исчерпаны');
 
       toast({
 
