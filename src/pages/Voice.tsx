@@ -2,7 +2,7 @@ import Navigation from "@/components/Navigation";
 
 import { useParams, useNavigate } from "react-router-dom";
 
-import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -13,6 +13,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
 import AssistantOrb from "@/components/AssistantOrb";
+
+import LogsPanel from "@/components/LogsPanel";
 
 import { API_CONFIG } from "@/config/constants";
 
@@ -113,6 +115,34 @@ const Voice = () => {
   const [useFallbackTranscription, setUseFallbackTranscription] = useState(false);
 
   const [transcriptDisplay, setTranscriptDisplay] = useState<string>("");
+
+  // Logs state
+  const [conversationLogs, setConversationLogs] = useState<Array<{
+    id: string;
+    timestamp: Date;
+    type: 'speech' | 'recognition' | 'llm' | 'tts' | 'error' | 'info';
+    message: string;
+    details?: any;
+  }>>([]);
+
+  const [showLogs, setShowLogs] = useState(false);
+
+  // Logs management functions
+  const addLog = useCallback((type: 'speech' | 'recognition' | 'llm' | 'tts' | 'error' | 'info', message: string, details?: any) => {
+    const logEntry = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      type,
+      message,
+      details
+    };
+
+    setConversationLogs(prev => [...prev.slice(-49), logEntry]); // Keep last 50 entries
+  }, []);
+
+  const clearLogs = useCallback(() => {
+    setConversationLogs([]);
+  }, []);
 
 
 
@@ -320,6 +350,8 @@ const Voice = () => {
 
       console.log('🎤 Отправка аудио на транскрибацию через OpenAI Whisper...');
 
+      addLog('recognition', 'Отправка аудио на транскрибацию через OpenAI Whisper');
+
       setIsTranscribing(true);
 
 
@@ -360,6 +392,8 @@ const Voice = () => {
 
       console.log('✅ Транскрибация завершена:', data.text);
 
+      addLog('recognition', `Транскрибация завершена: "${data.text?.substring(0, 50)}${data.text?.length > 50 ? '...' : ''}"`);
+
       return data.text || null;
 
     } catch (error) {
@@ -395,6 +429,8 @@ const Voice = () => {
     try {
 
       console.log('🎤 Запуск fallback записи (MediaRecorder)...');
+
+      addLog('info', 'Запуск резервной записи речи (MediaRecorder API)');
 
 
 
@@ -494,6 +530,8 @@ const Voice = () => {
 
         console.log('🛑 Fallback запись остановлена, chunks:', audioChunksRef.current.length);
 
+        addLog('info', `Запись остановлена, получено ${audioChunksRef.current.length} аудио фрагментов`);
+
 
 
         // Stop all tracks
@@ -527,6 +565,12 @@ const Voice = () => {
         // Transcribe using OpenAI
 
         const text = await transcribeWithOpenAI(audioBlob);
+
+        if (text) {
+
+          addLog('recognition', `Распознано: "${text}"`, { length: text.length });
+
+        }
 
         resolve(text);
 
@@ -696,6 +740,8 @@ const Voice = () => {
         setTranscriptDisplay(transcript);
 
         console.log('👤 Финальный распознанный текст:', transcript);
+
+        addLog('recognition', `Распознано через Web Speech API: "${transcript}"`, { length: transcript.length });
 
         // Для Safari: дополнительная проверка прерывания TTS при финальном результате
         if (isSafari() && isPlayingAudioRef.current) {
@@ -930,6 +976,8 @@ const Voice = () => {
 
       console.log('🛑 Остановка записи...');
 
+      addLog('info', 'Остановка записи речи');
+
       setIsRecording(false);
 
       setIsTranscribing(false);
@@ -1029,6 +1077,8 @@ const Voice = () => {
 
       console.log('🎤 Запуск записи...');
 
+      addLog('info', 'Запуск записи речи');
+
       setTranscriptDisplay("");
 
 
@@ -1050,6 +1100,8 @@ const Voice = () => {
           setIsRecording(true);
 
           console.log('🎤 Fallback запись начата');
+
+          addLog('info', 'Резервная запись речи успешно запущена');
 
         }
 
@@ -1106,6 +1158,8 @@ const Voice = () => {
 
 
         console.log('🎤 Запись начата');
+
+        addLog('info', 'Запись речи успешно запущена');
 
       } catch (error) {
 
@@ -1345,6 +1399,16 @@ const Voice = () => {
     console.log('📏 Длина сообщения:', userMessage.length);
 
     console.log('🤖 Используется модель:', VOICE_CHAT_LLM_MODEL);
+
+    addLog('llm', `Отправка запроса к LLM${retryCount > 0 ? ` (попытка ${retryCount + 1})` : ''}: "${userMessage.substring(0, 100)}${userMessage.length > 100 ? '...' : ''}"`, {
+
+      model: VOICE_CHAT_LLM_MODEL,
+
+      length: userMessage.length,
+
+      retryCount
+
+    });
 
 
 
@@ -1733,6 +1797,8 @@ const Voice = () => {
       console.log('🤖 Ответ от LLM получен (длина):', responseContent?.length);
       console.log('📝 Контент ответа:', responseContent?.substring(0, 100) + '...');
 
+      addLog('llm', `Получен ответ от LLM (${responseContent?.length || 0} символов): "${responseContent?.substring(0, 100)}${responseContent?.length > 100 ? '...' : ''}"`);
+
       // Мониторинг ответа
       // monitorLLMResponse(
       //   userMessage,
@@ -1852,6 +1918,8 @@ const Voice = () => {
     try {
 
       console.log('🔊 Генерация озвучки для:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+
+      addLog('tts', `Генерация озвучки для текста (${text.length} символов)`);
 
       // Разбиваем длинный текст на части (OpenAI TTS ограничение ~4096 символов)
       const MAX_CHUNK_LENGTH = 4000; // Безопасный лимит
@@ -1990,6 +2058,8 @@ const Voice = () => {
       setIsSpeaking(false);
       isPlayingAudioRef.current = false;
       ttsProgressRef.current = null;
+
+      addLog('tts', 'Озвучивание завершено успешно');
 
 
 
@@ -2234,7 +2304,17 @@ const Voice = () => {
 
       {/* Controls */}
 
-      <div className="absolute bottom-8 left-0 right-0 z-50 flex items-center justify-center space-x-6 md:space-x-12 px-4 pb-safe">
+      <div className="absolute bottom-8 left-0 right-0 z-50 flex items-center justify-center space-x-4 md:space-x-8 px-4 pb-safe">
+
+        {/* Logs Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`w-10 h-10 md:w-12 md:h-12 rounded-full transition-all duration-300 border ${showLogs ? 'bg-primary text-primary-foreground' : 'bg-background border-border text-foreground hover:bg-accent'}`}
+          onClick={() => setShowLogs(!showLogs)}
+        >
+          <FileText className="w-4 h-4 md:w-5 md:h-5" />
+        </Button>
 
         {/* Sound Toggle */}
 
@@ -2309,6 +2389,14 @@ const Voice = () => {
         </Button>
 
         </div>
+
+      {/* Logs Panel */}
+      <LogsPanel
+        logs={conversationLogs}
+        isVisible={showLogs}
+        onClose={() => setShowLogs(false)}
+        onClear={clearLogs}
+      />
 
               </div>
 
