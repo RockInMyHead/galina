@@ -120,7 +120,7 @@ export class WebSocketService {
   private isInGreetingFlow: boolean = false;
 
   constructor(
-    url: string = 'ws://localhost:3003/ws',
+    url: string = 'wss://lawyer.windexs.ru/ws',
     autoReconnect: boolean = true,
     reconnectInterval: number = 3000,
     maxReconnectAttempts: number = 5

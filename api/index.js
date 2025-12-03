@@ -194,13 +194,24 @@ async function initializeDemoUser() {
 
 // Initialize database and demo user
 async function initializeServer() {
-  console.log('🚀 Starting server initialization...');
-  await initializeDatabase();
-  await initializeDemoUser();
-  console.log('🚀 Server initialization completed');
+  try {
+    console.log('🚀 Starting server initialization...');
+    await initializeDatabase();
+    await initializeDemoUser();
+    console.log('🚀 Server initialization completed');
 
-  // Start the server only after initialization
-  startServer();
+    // Start the server only after initialization
+    startServer();
+  } catch (error) {
+    console.error('❌ Server initialization failed:', error);
+    console.error('Stack:', error.stack);
+    // Don't exit in production, let the server try to start anyway
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
+    // In production, try to start server anyway
+    startServer();
+  }
 }
 
 // Start server function
@@ -666,17 +677,10 @@ const PORT = process.env.PORT || 1042;
 // Configure CORS for development and production
 const corsAllowedOrigins = [
   'https://lawyer.windexs.ru',
+  'https://lawyer.windexs.ru',
   'http://lawyer.windexs.ru',
   'https://lawyer.windexs.ru:1041',
-  'http://lawyer.windexs.ru:1041',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:3003',
-  'http://localhost:3004',
-  'http://localhost:4000',
-  'http://localhost:5173',
-  'http://localhost:8080'
+  'http://lawyer.windexs.ru:1041'
 ];
 
 const corsOptions = {
@@ -2469,14 +2473,25 @@ process.on('SIGTERM', async () => {
 
 // Start server function
 function startServer() {
-  // Create HTTP server
-  const server = app.listen(PORT, () => {
-    console.log(`🚀 API server running on port ${PORT}`);
-    console.log(`📊 Database: ${process.env.DATABASE_URL}`);
-  });
+  try {
+    // Create HTTP server
+    // Listen on 0.0.0.0 for Docker/production compatibility
+    const HOST = process.env.HOST || '0.0.0.0';
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`🚀 API server running on ${HOST}:${PORT}`);
+      console.log(`📊 Database: ${process.env.DATABASE_URL}`);
+      console.log(`✅ Server is ready to accept connections`);
+    });
 
-// Create WebSocket server
-const wss = new WebSocket.Server({ server });
+    server.on('error', (error) => {
+      console.error('❌ Server error:', error);
+      if (error.code === 'EADDRINUSE') {
+        console.error(`⚠️  Port ${PORT} is already in use`);
+      }
+    });
+
+    // Create WebSocket server
+    const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('🔗 WebSocket client connected');

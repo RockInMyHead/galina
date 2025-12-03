@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 3002,
-    allowedHosts: ['localhost'],
+    allowedHosts: ['localhost', 'lawyer.windexs.ru'],
     hmr: process.env.NODE_ENV === 'development' ? {
       // Настройки для WebSocket HMR - исправлено для Safari
       port: 3003, // Фиксированный порт для HMR
