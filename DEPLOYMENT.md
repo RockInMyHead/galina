@@ -21,8 +21,8 @@ cd api
 cp .env.production .env
 
 # Отредактируйте переменные:
-# OPENAI_API_KEY - ваш API ключ OpenAI
-# JWT_SECRET - случайный секрет для JWT (измените!)
+# OPENAI_API_KEY - ваш API ключ OpenAI (обязательно)
+# JWT_SECRET - случайный секрет для JWT (опционально - генерируется автоматически)
 # DATABASE_URL - оставьте как есть (file:./prisma/galina.db)
 ```
 

@@ -7,6 +7,12 @@ const { PrismaClient } = require('@prisma/client');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const WebSocket = require('ws');
 require('dotenv').config({ path: './.env' });
+// Generate JWT secret if missing (for production convenience)
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = require('crypto').randomBytes(64).toString('hex');
+  console.log('🔐 Generated JWT secret for production');
+}
+
 console.log('🔧 Environment variables loaded:', {
   DATABASE_URL: process.env.DATABASE_URL ? '✓ Set' : '✗ Missing',
   JWT_SECRET: process.env.JWT_SECRET ? '✓ Set' : '✗ Missing',
