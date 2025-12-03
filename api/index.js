@@ -16,8 +16,13 @@ console.log('🔧 Environment variables loaded:', {
 
 // Standalone mode disabled - using real database
 const IS_STANDALONE = false;
+
+// Check for auto-initialization (default: true, can be disabled)
+const AUTO_INIT_DB = process.env.AUTO_INIT_DB !== 'false';
+
 console.log('💾 API running with SQLite database');
 console.log('📊 Database URL:', process.env.DATABASE_URL);
+console.log('🔧 Auto-initialization:', AUTO_INIT_DB ? 'enabled' : 'disabled');
 
 // Configure proxy agent for external requests
 const proxyHost = process.env.PROXY_HOST || '185.68.187.20';
@@ -44,6 +49,98 @@ const prisma = IS_STANDALONE ? null : new PrismaClient();
 // Environment loaded successfully
 console.log('Database URL:', process.env.DATABASE_URL);
 
+// Initialize database schema automatically
+async function initializeDatabase() {
+  if (IS_STANDALONE) {
+    console.log('🏠 Skipping database initialization in standalone mode');
+    return;
+  }
+
+  if (!AUTO_INIT_DB) {
+    console.log('🔧 Auto-initialization disabled, skipping database setup');
+    return;
+  }
+
+  try {
+    console.log('🔧 Checking database schema...');
+
+    // Check if database file exists first
+    const fs = require('fs');
+    const path = require('path');
+
+    // Handle both relative and absolute paths
+    let dbPath = process.env.DATABASE_URL.replace('file:', '');
+    if (!path.isAbsolute(dbPath)) {
+      dbPath = path.resolve(process.cwd(), dbPath);
+    }
+
+    console.log('🔍 Checking database path:', dbPath);
+    const dbExists = fs.existsSync(dbPath);
+
+    // Ensure the directory exists
+    const dbDir = path.dirname(dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+      console.log('📁 Created database directory:', dbDir);
+    }
+
+    if (!dbExists) {
+      console.log('⚠️  Database file not found, creating schema...');
+
+      // Use spawn instead of execSync for better control
+      const { spawn } = require('child_process');
+      const fullDbUrl = `file:${dbPath}`;
+      const child = spawn('npx', ['prisma', 'db', 'push', '--accept-data-loss'], {
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: fullDbUrl },
+        stdio: 'pipe'
+      });
+
+      return new Promise((resolve) => {
+        child.on('close', (code) => {
+          if (code === 0) {
+            console.log('✅ Database schema created successfully');
+            resolve();
+          } else {
+            console.error('❌ Failed to create database schema (exit code:', code, ')');
+            console.log('🔧 Please run: npm run db:push manually');
+            resolve();
+          }
+        });
+
+        child.on('error', (error) => {
+          console.error('❌ Failed to start prisma command:', error.message);
+          resolve();
+        });
+      });
+    } else {
+      console.log('✅ Database file exists');
+
+      // Try to query a table to verify schema is valid
+      try {
+        const userCount = await prisma.user.count();
+        console.log(`✅ Database schema valid (${userCount} users found)`);
+      } catch (queryError) {
+        console.log('⚠️  Database schema may be outdated, updating...');
+
+        // Update schema if needed
+        const { execSync } = require('child_process');
+        try {
+          execSync('npx prisma db push --accept-data-loss', {
+            stdio: 'pipe',
+            env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }
+          });
+          console.log('✅ Database schema updated successfully');
+        } catch (pushError) {
+          console.error('❌ Failed to update database schema:', pushError.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error initializing database:', error.message);
+  }
+}
+
 // Initialize demo user on startup
 async function initializeDemoUser() {
   if (IS_STANDALONE) {
@@ -52,11 +149,14 @@ async function initializeDemoUser() {
   }
 
   try {
+    console.log('👤 Checking demo user...');
+
     const existingUser = await prisma.user.findFirst({
       where: { email: 'demo@galina.ai' }
     });
 
     if (!existingUser) {
+      console.log('👤 Creating demo user...');
       const hashedPassword = await bcrypt.hash('demo123', 10);
       const demoUser = await prisma.user.create({
         data: {
@@ -75,16 +175,30 @@ async function initializeDemoUser() {
       });
 
       console.log('✅ Demo user created with initial balance');
+      console.log('📧 Email: demo@galina.ai');
+      console.log('🔑 Password: demo123');
     } else {
       console.log('✅ Demo user already exists');
     }
   } catch (error) {
     console.error('❌ Error initializing demo user:', error);
+    // Don't exit process, just log error
   }
 }
 
-// Initialize demo user
-initializeDemoUser();
+// Initialize database and demo user
+async function initializeServer() {
+  console.log('🚀 Starting server initialization...');
+  await initializeDatabase();
+  await initializeDemoUser();
+  console.log('🚀 Server initialization completed');
+
+  // Start the server only after initialization
+  startServer();
+}
+
+// Start server function
+function startServer() {
 
 // In-memory conversation storage for GPT-5.1 (since it doesn't support conversation history)
 const conversationMemory = new Map();
@@ -2347,11 +2461,13 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Create HTTP server
-const server = app.listen(PORT, () => {
-  console.log(`🚀 API server running on port ${PORT}`);
-  console.log(`📊 Database: ${process.env.DATABASE_URL}`);
-});
+// Start server function
+function startServer() {
+  // Create HTTP server
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 API server running on port ${PORT}`);
+    console.log(`📊 Database: ${process.env.DATABASE_URL}`);
+  });
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
@@ -2582,3 +2698,17 @@ Response should be in Russian language.`;
     console.error('⚠️ WebSocket error:', error);
   });
 });
+
+}
+
+}
+
+// Initialize database and start server
+initializeServer().catch(error => {
+  console.error('❌ Server initialization failed:', error);
+  // Don't exit process in production, just log error
+  if (process.env.NODE_ENV !== 'production') {
+    process.exit(1);
+  }
+});
+
