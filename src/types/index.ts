@@ -12,6 +12,7 @@ export interface User {
 
 export interface AuthContextType {
   user: User | null
+  token: string | null
   login: (email: string, password: string) => Promise<boolean>
   register: (email: string, password: string, name?: string) => Promise<boolean>
   logout: () => void

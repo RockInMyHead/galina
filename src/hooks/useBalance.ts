@@ -20,7 +20,11 @@ export const useBalance = () => {
       setError(null)
 
       if (!token) {
-        throw new Error('No authentication token')
+        // No token - use localStorage fallback
+        const localBalance = balanceStorage.get()
+        setBalance(localBalance)
+        setIsLoading(false)
+        return localBalance
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
@@ -52,7 +56,7 @@ export const useBalance = () => {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [token])
 
   // Update balance via API
   const updateBalanceAPI = useCallback(async (newBalance: number) => {
@@ -61,7 +65,11 @@ export const useBalance = () => {
       setError(null)
 
       if (!token) {
-        throw new Error('No authentication token')
+        // No token - use localStorage fallback
+        setBalance(newBalance)
+        balanceStorage.set(newBalance)
+        setIsLoading(false)
+        return newBalance
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
@@ -98,7 +106,7 @@ export const useBalance = () => {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [token])
 
   const addToBalance = async (amount: number) => {
     const newBalance = balance + amount
@@ -112,7 +120,9 @@ export const useBalance = () => {
       setError(null)
 
       if (!token) {
-        throw new Error('No authentication token')
+        // No token - use localStorage only
+        setIsLoading(false)
+        return newBalance
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
@@ -170,7 +180,9 @@ export const useBalance = () => {
       setError(null)
 
       if (!token) {
-        throw new Error('No authentication token')
+        // No token - use localStorage only
+        setIsLoading(false)
+        return newBalance
       }
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {

@@ -18,21 +18,22 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     // Проверяем, есть ли сохраненная сессия при загрузке
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('galina-token')
+        const tokenFromStorage = localStorage.getItem('galina-token')
         const savedUser = localStorage.getItem('galina-user')
 
-        if (token && savedUser) {
+        if (tokenFromStorage && savedUser) {
           // Проверяем токен через API
           try {
             const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`, {
               headers: {
-                'Authorization': `Bearer ${token}`,
+                'Authorization': `Bearer ${tokenFromStorage}`,
                 'Content-Type': 'application/json',
               },
             })
@@ -45,6 +46,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   name: data.user.name
                 }
                 setUser(apiUser)
+                setToken(tokenFromStorage)
                 setIsLoading(false)
                 return
               }
@@ -62,11 +64,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // Если токен недействителен или отсутствует, пробуем localStorage как fallback
-        if (savedUser && !token) {
+        if (savedUser && !tokenFromStorage) {
           const parsedUser = JSON.parse(savedUser) as User
           // Валидация сохраненных данных
           if (parsedUser.id && parsedUser.email && parsedUser.name) {
             setUser(parsedUser)
+            setToken(null)
           } else {
             // Очистка поврежденных данных
             localStorage.removeItem('galina-user')
@@ -106,6 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         setUser(apiUser)
+        setToken(data.token)
         // Сохраняем токен и пользователя
         localStorage.setItem('galina-user', JSON.stringify(apiUser))
         localStorage.setItem('galina-token', data.token)
@@ -145,6 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         setUser(apiUser)
+        setToken(data.token)
         // Сохраняем токен и пользователя
         localStorage.setItem('galina-user', JSON.stringify(apiUser))
         localStorage.setItem('galina-token', data.token)
@@ -165,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = (): void => {
     try {
       setUser(null)
+      setToken(null)
       localStorage.removeItem('galina-user')
       localStorage.removeItem('galina-token')
     } catch (error) {
@@ -174,6 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
+    token,
     login,
     register,
     logout,
