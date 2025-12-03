@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { balanceStorage } from '@/utils/storageUtils'
 import { API_CONFIG } from '@/config/constants'
-import { syncService } from '@/utils/syncService'
 import { useAuth } from '@/contexts/AuthContext'
 
 /**
@@ -154,11 +153,15 @@ export const useBalance = () => {
 
       // Add to offline queue if offline
       if (!navigator.onLine) {
-        syncService.addToOfflineQueue({
-          type: 'balance_update',
-          data: { amount, operation: 'add' }
+        import('@/utils/syncService').then(({ syncService }) => {
+          syncService.addToOfflineQueue({
+            type: 'balance_update',
+            data: { amount, operation: 'add' }
+          })
+          console.log('📋 Balance update queued for offline sync')
+        }).catch(err => {
+          console.error('Failed to import syncService:', err)
         })
-        console.log('📋 Balance update queued for offline sync')
       }
 
       // Return locally calculated value
@@ -214,11 +217,15 @@ export const useBalance = () => {
 
       // Add to offline queue if offline
       if (!navigator.onLine) {
-        syncService.addToOfflineQueue({
-          type: 'balance_update',
-          data: { amount, operation: 'subtract' }
+        import('@/utils/syncService').then(({ syncService }) => {
+          syncService.addToOfflineQueue({
+            type: 'balance_update',
+            data: { amount, operation: 'subtract' }
+          })
+          console.log('📋 Balance update queued for offline sync')
+        }).catch(err => {
+          console.error('Failed to import syncService:', err)
         })
-        console.log('📋 Balance update queued for offline sync')
       }
 
       // Return locally calculated value

@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react'
 import { ChatMessageType } from '@/types/chat'
 import { API_CONFIG } from '@/config/constants'
 import { chatStorage } from '@/utils/storageUtils'
-import { syncService } from '@/utils/syncService'
 
 interface UseChatAPIResult {
   messages: ChatMessageType[]
@@ -126,20 +125,24 @@ export const useChatAPI = (): UseChatAPIResult => {
 
       // Add to offline queue if offline
       if (!navigator.onLine) {
-        syncService.addToOfflineQueue({
-          type: 'chat_message',
-          data: {
-            content,
-            role,
-            files: files.map(file => ({
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              content: file.content
-            }))
-          }
+        import('@/utils/syncService').then(({ syncService }) => {
+          syncService.addToOfflineQueue({
+            type: 'chat_message',
+            data: {
+              content,
+              role,
+              files: files.map(file => ({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                content: file.content
+              }))
+            }
+          })
+          console.log('📋 Message queued for offline sync')
+        }).catch(err => {
+          console.error('Failed to import syncService:', err)
         })
-        console.log('📋 Message queued for offline sync')
       }
 
       // Return locally created message
