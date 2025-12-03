@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio --port 5555",
     "db:test": "node test-db.js",
-    "db:migrate-data": "node migrate-data.js"
+    "db:migrate-data": "node migrate-data.js",
+    "create-demo-user": "node create-demo-user.js"
   },
   "dependencies": {
     "@langchain/community": "^1.0.4",

@@ -1,52 +1,45 @@
-require('dotenv').config({ path: '.env.local' });
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
+
 const prisma = new PrismaClient();
 
 async function createDemoUser() {
   try {
-    console.log('👤 Создание демо-пользователя...');
+    console.log('🔍 Проверяем существующего демо-пользователя...');
 
-    const user = await prisma.user.upsert({
-      where: { email: 'demo@galina.ai' },
-      update: {},
-      create: {
-        id: 'demo-user-id', // Фиксированный ID для API
-        email: 'demo@galina.ai',
+    const existingUser = await prisma.user.findUnique({
+      where: { email: 'demo@example.com' }
+    });
+
+    if (existingUser) {
+      console.log('✅ Демо-пользователь уже существует:', existingUser.email);
+      return;
+    }
+
+    console.log('👤 Создаем демо-пользователя...');
+
+    const hashedPassword = await bcrypt.hash('demo123', 10);
+
+    const demoUser = await prisma.user.create({
+      data: {
+        email: 'demo@example.com',
         name: 'Demo User',
-      },
+        password: hashedPassword,
+      }
     });
-    console.log('✅ Пользователь создан:', user);
 
-    // Создаем баланс
-    const balance = await prisma.userBalance.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: {
-        userId: user.id,
-        amount: 1000,
-      },
+    // Создаем баланс для пользователя
+    await prisma.userBalance.create({
+      data: {
+        userId: demoUser.id,
+        amount: 1500 // Initial balance
+      }
     });
-    console.log('✅ Баланс создан:', balance.amount);
 
-    // Создаем приветственное сообщение
-    const welcomeMessage = await prisma.chatMessage.upsert({
-      where: {
-        id: 'welcome-message'
-      },
-      update: {},
-      create: {
-        id: 'welcome-message',
-        content: 'Здравствуйте! Я Галина, ваш AI-юрист. Задайте мне любой юридический вопрос, и я постараюсь помочь вам с профессиональной консультацией.',
-        role: 'assistant',
-        userId: user.id,
-      },
-    });
-    console.log('✅ Приветственное сообщение создано');
-
-    console.log('🎉 Демо-пользователь успешно создан!');
-    console.log('📊 User ID:', user.id);
-    console.log('📧 Email:', user.email);
-    console.log('💰 Баланс:', balance.amount);
+    console.log('✅ Демо-пользователь создан успешно!');
+    console.log('📧 Email: demo@example.com');
+    console.log('🔑 Password: demo123');
+    console.log('💰 Баланс: 1500 RUB');
 
   } catch (error) {
     console.error('❌ Ошибка создания демо-пользователя:', error);
