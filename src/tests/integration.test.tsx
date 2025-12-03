@@ -103,7 +103,7 @@ describe('API Integration Tests', () => {
       expect(screen.getByText('Loading...')).toBeInTheDocument()
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3003/user/balance')
+        expect(mockFetch).toHaveBeenCalledWith('https://lawyer.windexs.ru/api/user/balance')
       })
 
       await waitFor(() => {
@@ -171,7 +171,7 @@ describe('API Integration Tests', () => {
       await userEvent.click(button)
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3003/user/balance', {
+        expect(mockFetch).toHaveBeenCalledWith('https://lawyer.windexs.ru/api/user/balance', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ amount: 100, operation: 'add' })
@@ -217,7 +217,7 @@ describe('API Integration Tests', () => {
       await userEvent.click(button)
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3003/chat/history')
+        expect(mockFetch).toHaveBeenCalledWith('https://lawyer.windexs.ru/api/chat/history')
       })
 
       await waitFor(() => {
@@ -262,7 +262,7 @@ describe('API Integration Tests', () => {
       await userEvent.click(button)
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3003/chat/message', {
+        expect(mockFetch).toHaveBeenCalledWith('https://lawyer.windexs.ru/api/chat/message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -341,7 +341,7 @@ describe('API Integration Tests', () => {
       )
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://127.0.0.1:3003/user/profile')
+        expect(mockFetch).toHaveBeenCalledWith('https://lawyer.windexs.ru/api/user/profile')
       })
 
       await waitFor(() => {

@@ -112,7 +112,7 @@ const Voice = () => {
 
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  const [useFallbackTranscription, setUseFallbackTranscription] = useState(false);
+  const [useFallbackTranscription, setUseFallbackTranscription] = useState(true); // Always use OpenAI Whisper
 
   const [transcriptDisplay, setTranscriptDisplay] = useState<string>("");
 
@@ -146,7 +146,6 @@ const Voice = () => {
 
 
 
-  const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
 
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -202,7 +201,7 @@ const Voice = () => {
 
 
 
-  // Fallback recording refs (for browsers without Web Speech API)
+  // OpenAI recording refs (primary transcription method)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -328,21 +327,10 @@ const Voice = () => {
 
   // Check if Web Speech API is available
 
-  const isWebSpeechAvailable = useCallback(() => {
-
-    const SpeechRecognition = window.SpeechRecognition ||
-
-      (window as any).webkitSpeechRecognition ||
-
-      (window as any).mozSpeechRecognition;
-
-    return !!SpeechRecognition;
-
-  }, []);
 
 
 
-  // Transcribe audio using OpenAI Whisper API (fallback for browsers without Web Speech API)
+  // Transcribe audio using OpenAI Whisper API (primary transcription method)
 
   const transcribeWithOpenAI = useCallback(async (audioBlob: Blob): Promise<string | null> => {
 
@@ -422,15 +410,15 @@ const Voice = () => {
 
 
 
-  // Start fallback recording (MediaRecorder + OpenAI Whisper)
+  // Start OpenAI recording (MediaRecorder + OpenAI Whisper)
 
   const startFallbackRecording = useCallback(async () => {
 
     try {
 
-      console.log('🎤 Запуск fallback записи (MediaRecorder)...');
+      console.log('🎤 Запуск записи через OpenAI (MediaRecorder)...');
 
-      addLog('info', 'Запуск резервной записи речи (MediaRecorder API)');
+      addLog('info', 'Запуск записи речи через OpenAI (MediaRecorder API)');
 
 
 
@@ -490,7 +478,7 @@ const Voice = () => {
 
     } catch (error) {
 
-      console.error('❌ Ошибка запуска fallback записи:', error);
+      console.error('❌ Ошибка запуска записи через OpenAI:', error);
 
       toast({
 
@@ -510,7 +498,7 @@ const Voice = () => {
 
 
 
-  // Stop fallback recording and transcribe
+  // Stop OpenAI recording and transcribe
 
   const stopFallbackRecording = useCallback(async () => {
 
@@ -586,23 +574,15 @@ const Voice = () => {
 
 
 
-  // Initialize Web Speech API
+  // Legacy Web Speech API initialization (removed - now using OpenAI only)
 
-  const initializeSpeechRecognition = useCallback(() => {
 
-    // Check if Web Speech API is supported (Chrome, Safari, Firefox, Edge)
-
-    const SpeechRecognition = window.SpeechRecognition ||
-
-      (window as any).webkitSpeechRecognition ||
-
-      (window as any).mozSpeechRecognition; // Firefox support
 
 
 
     if (!SpeechRecognition) {
 
-      console.log('⚠️ Web Speech API не поддерживается, будет использоваться OpenAI Whisper');
+      console.log('✅ Используется OpenAI Whisper для транскрибации');
 
       setUseFallbackTranscription(true);
 
@@ -676,13 +656,6 @@ const Voice = () => {
 
       setTimeout(() => {
 
-        if (isPlayingAudioRef.current && speechRecognitionRef.current) {
-
-          console.log('🔍 Проверяем на эхо при начале аудио...');
-
-          // Здесь можно добавить дополнительную логику анализа
-
-        }
 
       }, 100);
 
@@ -741,7 +714,7 @@ const Voice = () => {
 
         console.log('👤 Финальный распознанный текст:', transcript);
 
-        addLog('recognition', `Распознано через Web Speech API: "${transcript}"`, { length: transcript.length });
+        addLog('recognition', `Распознано через OpenAI Whisper: "${transcript}"`, { length: transcript.length });
 
         // Для Safari: дополнительная проверка прерывания TTS при финальном результате
         if (isSafari() && isPlayingAudioRef.current) {
@@ -862,25 +835,6 @@ const Voice = () => {
 
           // Double-check we still want to be recording
 
-          if (speechRecognitionRef.current && isRecording) {
-
-            try {
-
-              speechRecognitionRef.current.start();
-
-              console.log('✅ Перезапуск успешен');
-
-            } catch (e: any) {
-
-              if (e.name !== 'InvalidStateError') {
-
-                console.error('❌ Ошибка перезапуска:', e);
-
-              }
-
-            }
-
-          }
 
         }, 1000); // Longer delay for error recovery
 
@@ -890,79 +844,12 @@ const Voice = () => {
 
 
 
-    speechRecognitionRef.current = recognition;
 
-    console.log('✅ Web Speech API инициализирован');
-
-    return recognition;
-
-  }, [isRecording, isMicEnabled, isSoundEnabled]);
 
 
 
   // Start speech recognition
 
-  const startSpeechRecognition = useCallback(() => {
-
-    if (!speechRecognitionRef.current) {
-
-      console.log('❌ Speech recognition не инициализирован');
-
-      return;
-
-    }
-
-
-
-    console.log('🎙️ Попытка запуска распознавания речи...', {
-
-      isRecording,
-
-      isTranscribing,
-
-      recognitionState: speechRecognitionRef.current ? 'exists' : 'null'
-
-    });
-
-
-
-    try {
-
-      console.log('🎙️ Запуск распознавания речи...');
-
-      speechRecognitionRef.current.start();
-
-      console.log('✅ start() вызван успешно');
-
-    } catch (error: any) {
-
-      // Handle "already started" error gracefully
-
-      if (error.name === 'InvalidStateError') {
-
-        console.log('ℹ️ Распознавание речи уже запущено, продолжаем');
-
-        return;
-
-      }
-
-      console.error('❌ Ошибка запуска speech recognition:', error);
-
-      console.error('❌ Детали ошибки:', {
-
-        message: error.message,
-
-        name: error.name,
-
-        stack: error.stack
-
-      });
-
-      setIsTranscribing(false);
-
-    }
-
-  }, [isRecording, isTranscribing]);
 
 
 
@@ -984,11 +871,10 @@ const Voice = () => {
 
 
 
-      // Check if using fallback (OpenAI Whisper) mode
+      // Always use OpenAI Whisper for transcription
+      {
 
-      if (useFallbackTranscription || !isWebSpeechAvailable()) {
-
-        // Stop fallback recording and transcribe
+        // Stop OpenAI recording and transcribe
 
         const transcript = await stopFallbackRecording();
 
@@ -1033,24 +919,6 @@ const Voice = () => {
 
         }
 
-      } else {
-
-        // Web Speech API mode
-
-        if (speechRecognitionRef.current) {
-
-          try {
-
-            speechRecognitionRef.current.stop();
-
-          } catch (error) {
-
-            console.log('Speech recognition already stopped');
-
-          }
-
-        }
-
       }
 
     } else {
@@ -1075,119 +943,68 @@ const Voice = () => {
 
 
 
-      console.log('🎤 Запуск записи...');
+      console.log('🎤 Запуск записи (OpenAI режим)...');
 
-      addLog('info', 'Запуск записи речи');
+      addLog('info', 'Запуск записи речи через OpenAI');
 
       setTranscriptDisplay("");
 
 
 
-      // Check if Web Speech API is available
-
-      if (!isWebSpeechAvailable()) {
-
-        console.log('🔄 Используется fallback режим (OpenAI Whisper)');
-
-        setUseFallbackTranscription(true);
 
 
 
-        const started = await startFallbackRecording();
-
-        if (started) {
-
-          setIsRecording(true);
-
-          console.log('🎤 Fallback запись начата');
-
-          addLog('info', 'Резервная запись речи успешно запущена');
-
-        }
-
-        return;
-
-      }
 
 
 
-      try {
-
-        // Initialize Web Speech API if not already done
-
-        if (!speechRecognitionRef.current) {
-
-          const recognition = initializeSpeechRecognition();
-
-          if (!recognition) {
-
-            // Fallback to OpenAI Whisper if Web Speech API fails
-
-            console.log('🔄 Переключение на fallback режим (OpenAI Whisper)');
-
-            setUseFallbackTranscription(true);
 
 
 
-            const started = await startFallbackRecording();
-
-            if (started) {
-
-              setIsRecording(true);
-
-              console.log('🎤 Fallback запись начата');
-
-            }
-
-            return;
-
-          }
-
-        }
 
 
 
-        setIsRecording(true);
 
+      // Always use OpenAI Whisper - no Web Speech API
+      console.log('🔄 Используется OpenAI Whisper для транскрибации');
 
+      setUseFallbackTranscription(true);
 
-        // Start speech recognition
+      const started = await startFallbackRecording();
 
-        startSpeechRecognition();
+      if (started) {
 
+        console.log('🎤 Запись через OpenAI начата');
 
-
-        console.log('🎤 Запись начата');
-
-        addLog('info', 'Запись речи успешно запущена');
-
-      } catch (error) {
-
-        console.error('❌ Ошибка запуска записи:', error);
-
-
-
-        // Try fallback on error
-
-        console.log('🔄 Ошибка Web Speech API, переключение на fallback');
-
-        setUseFallbackTranscription(true);
-
-
-
-        const started = await startFallbackRecording();
-
-        if (started) {
-
-          setIsRecording(true);
-
-        }
+        addLog('info', 'Запись речи через OpenAI успешно запущена');
 
       }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     }
 
-  }, [isRecording, isMicEnabled, toast]);
+  }, [isRecording, isMicEnabled, useFallbackTranscription, stopFallbackRecording, sendToLLM, speakText, stopCurrentTTS, toast, addLog]);
 
 
 
@@ -1215,23 +1032,10 @@ const Voice = () => {
 
         // Stop Web Speech API if active
 
-        if (speechRecognitionRef.current) {
-
-          try {
-
-            speechRecognitionRef.current.stop();
-
-          } catch (error) {
-
-            console.log('Speech recognition already stopped');
-
-          }
-
-        }
 
 
 
-        // Stop fallback recording if active
+        // Stop OpenAI recording if active
 
         if (mediaRecorderRef.current) {
 
@@ -2214,15 +2018,6 @@ const Voice = () => {
 
     return () => {
 
-      if (speechRecognitionRef.current) {
-
-        try {
-
-          speechRecognitionRef.current.stop();
-
-        } catch (e) { }
-
-      }
 
       if (currentAudioRef.current) {
 
@@ -2377,29 +2172,6 @@ const Voice = () => {
 
                 // Перезапускаем распознавание
 
-                if (speechRecognitionRef.current) {
-
-                  setTimeout(() => {
-
-                    try {
-
-                      console.log('▶️ Перезапуск распознавания после прерывания кнопкой');
-
-                      speechRecognitionRef.current?.start();
-
-                    } catch (e: any) {
-
-                      if (e.name !== 'InvalidStateError') {
-
-                        console.warn('⚠️ Ошибка перезапуска:', e);
-
-                      }
-
-                    }
-
-                  }, 100);
-
-                }
 
               }}
 
