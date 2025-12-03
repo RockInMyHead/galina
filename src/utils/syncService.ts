@@ -19,6 +19,29 @@ interface OfflineOperation {
   retries: number
 }
 
+/**
+ * Helper function to get the auth token from localStorage
+ */
+const getAuthToken = (): string | null => {
+  try {
+    return localStorage.getItem('galina-token')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Helper function to clear auth data from localStorage
+ */
+const clearAuthData = () => {
+  try {
+    localStorage.removeItem('galina-token')
+    localStorage.removeItem('galina-user')
+  } catch (e) {
+    console.error('Failed to clear auth data:', e)
+  }
+}
+
 class SyncService {
   private syncInterval: number = 30000 // 30 seconds
   private intervalId: NodeJS.Timeout | null = null
@@ -85,8 +108,9 @@ class SyncService {
     }
 
     // Check if user is authenticated before syncing
+    const token = getAuthToken()
     const userData = userStorage.get()
-    if (!userData || !userData.token) {
+    if (!userData || !token) {
       // Не логируем это как ошибку - это нормальное поведение для неавторизованных пользователей
       // Логируем только в режиме разработки для отладки
       if (import.meta.env.DEV) {
@@ -151,6 +175,11 @@ class SyncService {
     }
 
     try {
+      const token = getAuthToken()
+      if (!token) {
+        return result // Skip if no token
+      }
+
       const localMessages = chatStorage.get() || []
 
       // Get last sync timestamp from localStorage
@@ -158,12 +187,18 @@ class SyncService {
       const lastSync = localStorage.getItem(lastSyncKey)
       const since = lastSync ? new Date(lastSync) : new Date(0)
 
-      // Fetch new messages from API
-      const response = await fetch(`${API_CONFIG.BASE_URL}/chat/history?since=${since.toISOString()}`)
+      // Fetch new messages from API with Authorization header
+      const response = await fetch(`${API_CONFIG.BASE_URL}/chat/history?since=${since.toISOString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
       if (!response.ok) {
-        if (response.status === 401) {
-          // User not authenticated, skip sync
-          console.log('👤 User not authenticated, skipping chat sync')
+        if (response.status === 401 || response.status === 403) {
+          // User not authenticated or token invalid, clear auth data and skip sync
+          console.log('👤 Token invalid, clearing auth data and skipping chat sync')
+          clearAuthData()
           return result
         }
         throw new Error(`Failed to fetch chat history: ${response.status}`)
@@ -205,11 +240,22 @@ class SyncService {
     }
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`)
+      const token = getAuthToken()
+      if (!token) {
+        return result // Skip if no token
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
       if (!response.ok) {
-        if (response.status === 401) {
-          // User not authenticated, skip sync
-          console.log('👤 User not authenticated, skipping balance sync')
+        if (response.status === 401 || response.status === 403) {
+          // User not authenticated or token invalid, clear auth data and skip sync
+          console.log('👤 Token invalid, clearing auth data and skipping balance sync')
+          clearAuthData()
           return result
         }
         throw new Error(`Failed to fetch balance: ${response.status}`)
@@ -243,11 +289,22 @@ class SyncService {
     }
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`)
+      const token = getAuthToken()
+      if (!token) {
+        return result // Skip if no token
+      }
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
       if (!response.ok) {
-        if (response.status === 401) {
-          // User not authenticated, skip sync
-          console.log('👤 User not authenticated, skipping profile sync')
+        if (response.status === 401 || response.status === 403) {
+          // User not authenticated or token invalid, clear auth data and skip sync
+          console.log('👤 Token invalid, clearing auth data and skipping profile sync')
+          clearAuthData()
           return result
         }
         throw new Error(`Failed to fetch user profile: ${response.status}`)
@@ -370,13 +427,25 @@ class SyncService {
    * Execute balance update operation
    */
   private async executeBalanceUpdate(data: { amount: number; operation: string }) {
+    const token = getAuthToken()
+    if (!token) {
+      throw new Error('No auth token available')
+    }
+
     const response = await fetch(`${API_CONFIG.BASE_URL}/user/balance`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       body: JSON.stringify(data)
     })
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        clearAuthData()
+        throw new Error('Token invalid')
+      }
       throw new Error(`Balance update failed: ${response.status}`)
     }
   }
@@ -385,13 +454,25 @@ class SyncService {
    * Execute chat message operation
    */
   private async executeChatMessage(data: { content: string; role: string; files: any[] }) {
+    const token = getAuthToken()
+    if (!token) {
+      throw new Error('No auth token available')
+    }
+
     const response = await fetch(`${API_CONFIG.BASE_URL}/chat/message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
       body: JSON.stringify(data)
     })
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        clearAuthData()
+        throw new Error('Token invalid')
+      }
       throw new Error(`Chat message send failed: ${response.status}`)
     }
   }
@@ -422,10 +503,17 @@ class SyncService {
     try {
       const stored = localStorage.getItem('galina-offline-queue')
       if (stored) {
-        this.offlineQueue = JSON.parse(stored)
+        const parsed = JSON.parse(stored)
+        // Validate that parsed data is an array
+        if (Array.isArray(parsed)) {
+          this.offlineQueue = parsed
+        } else {
+          console.warn('Invalid offline queue format, resetting')
+          this.offlineQueue = []
+        }
       }
     } catch (error) {
-      console.error('Failed to load offline queue:', error)
+      console.warn('Failed to load offline queue:', error)
       this.offlineQueue = []
     }
   }

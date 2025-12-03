@@ -2,6 +2,19 @@ import { API_CONFIG } from '@/config/constants'
 import { ApiResponse, ChatApiResponse } from '@/types'
 
 /**
+ * Helper function to clear auth data on 403 errors
+ */
+const clearAuthOnForbidden = () => {
+  try {
+    localStorage.removeItem('galina-token')
+    localStorage.removeItem('galina-user')
+    console.warn('🔐 Auth data cleared due to 403 Forbidden response')
+  } catch (e) {
+    console.warn('Failed to clear auth data:', e)
+  }
+}
+
+/**
  * Generic API request wrapper
  */
 export const apiRequest = async <T = any>(
@@ -12,17 +25,29 @@ export const apiRequest = async <T = any>(
     const url = `${API_CONFIG.BASE_URL}${endpoint}`
     console.log('🔗 API Request:', url)
 
+    // Add Authorization header if token exists
+    const token = localStorage.getItem('galina-token')
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    }
+    if (token && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     })
 
     console.log('📡 API Response status:', response.status)
 
     if (!response.ok) {
+      // Handle 401/403 by clearing auth data
+      if (response.status === 401 || response.status === 403) {
+        clearAuthOnForbidden()
+      }
+
       const errorData = await response.json().catch(() => ({}))
       const errorMsg = `HTTP ${response.status}: ${response.statusText}${
         errorData.error?.message ? ` - ${errorData.error.message}` : ''

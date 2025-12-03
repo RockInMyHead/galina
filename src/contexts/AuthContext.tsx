@@ -24,22 +24,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Проверяем, есть ли сохраненная сессия при загрузке
     const initializeAuth = async () => {
-      try {
-        const tokenFromStorage = localStorage.getItem('galina-token')
-        const savedUser = localStorage.getItem('galina-user')
+      let tokenFromStorage: string | null = null
+      let savedUser: string | null = null
 
+      try {
+        tokenFromStorage = localStorage.getItem('galina-token')
+        savedUser = localStorage.getItem('galina-user')
+      } catch (storageError) {
+        console.warn('Failed to access localStorage:', storageError)
+        setIsLoading(false)
+        return
+      }
+
+      try {
         if (tokenFromStorage && savedUser) {
           // Проверяем токен через API
           try {
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
             const response = await fetch(`${API_CONFIG.BASE_URL}/user/profile`, {
               headers: {
                 'Authorization': `Bearer ${tokenFromStorage}`,
                 'Content-Type': 'application/json',
               },
+              signal: controller.signal,
             })
+
+            clearTimeout(timeoutId)
+
             if (response.ok) {
               const data = await response.json()
-              if (data.user) {
+              if (data && data.user) {
                 const apiUser: User = {
                   id: data.user.id,
                   email: data.user.email,
@@ -50,35 +66,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setIsLoading(false)
                 return
               }
-            } else {
-              // Если ответ не OK (401, 403, 500 и т.д.), очищаем сессию
-              console.warn('Token validation failed, status:', response.status)
+            }
+
+            // Если ответ не OK (401, 403, 500 и т.д.), очищаем сессию
+            console.warn('Token validation failed, status:', response.status)
+            try {
               localStorage.removeItem('galina-token')
               localStorage.removeItem('galina-user')
+            } catch (e) {
+              console.warn('Failed to clear localStorage:', e)
             }
           } catch (apiError) {
-            console.warn('Token validation failed, clearing session:', apiError)
-            localStorage.removeItem('galina-token')
-            localStorage.removeItem('galina-user')
+            // Handle abort error separately
+            if (apiError instanceof Error && apiError.name === 'AbortError') {
+              console.warn('Token validation request timed out')
+            } else {
+              console.warn('Token validation failed, clearing session:', apiError)
+            }
+            try {
+              localStorage.removeItem('galina-token')
+              localStorage.removeItem('galina-user')
+            } catch (e) {
+              console.warn('Failed to clear localStorage:', e)
+            }
           }
         }
 
         // Если токен недействителен или отсутствует, пробуем localStorage как fallback
         if (savedUser && !tokenFromStorage) {
-          const parsedUser = JSON.parse(savedUser) as User
-          // Валидация сохраненных данных
-          if (parsedUser.id && parsedUser.email && parsedUser.name) {
-            setUser(parsedUser)
-            setToken(null)
-          } else {
-            // Очистка поврежденных данных
+          try {
+            const parsedUser = JSON.parse(savedUser) as User
+            // Валидация сохраненных данных
+            if (parsedUser && parsedUser.id && parsedUser.email && parsedUser.name) {
+              setUser(parsedUser)
+              setToken(null)
+            } else {
+              // Очистка поврежденных данных
+              localStorage.removeItem('galina-user')
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse saved user:', parseError)
             localStorage.removeItem('galina-user')
           }
         }
       } catch (error) {
         console.warn('Failed to load saved user session:', error)
-        localStorage.removeItem('galina-user')
-        localStorage.removeItem('galina-token')
+        try {
+          localStorage.removeItem('galina-user')
+          localStorage.removeItem('galina-token')
+        } catch (e) {
+          console.warn('Failed to clear localStorage:', e)
+        }
       } finally {
         setIsLoading(false)
       }
