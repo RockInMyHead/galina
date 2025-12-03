@@ -1633,23 +1633,38 @@ const Voice = () => {
 
         console.log('🌐 Отправка HTTP запроса к:', endpoint);
 
-        response = await fetch(endpoint, {
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        ...(token && token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
+      };
 
-          method: 'POST',
+      console.log('📨 Заголовки запроса:', {
+        'Content-Type': requestHeaders['Content-Type'],
+        'Authorization': requestHeaders['Authorization'] ? 'Bearer [TOKEN]' : 'none',
+        tokenLength: token?.length || 0,
+        isDemoToken: token === 'demo-token'
+      });
 
-          headers: {
+      addLog('info', `Отправка запроса к ${endpoint}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': !!requestHeaders['Authorization']
+        },
+        tokenProvided: !!(token && token !== 'demo-token'),
+        bodyLength: JSON.stringify(body).length
+      });
 
-            'Content-Type': 'application/json',
+      response = await fetch(endpoint, {
 
-            ...(token && token !== 'demo-token' && { 'Authorization': `Bearer ${token}` })
+        method: 'POST',
 
-          },
+        headers: requestHeaders,
 
-          body: JSON.stringify(body)
+        body: JSON.stringify(body)
 
-        });
+      });
 
-        console.log('📡 Получен HTTP ответ, статус:', response.status, response.statusText);
+      console.log('📡 Получен HTTP ответ, статус:', response.status, response.statusText);
 
       } catch (fetchError) {
 
@@ -1693,17 +1708,43 @@ const Voice = () => {
 
           statusText: response.statusText,
 
-          endpoint
+          endpoint,
+
+          tokenProvided: !!(token && token !== 'demo-token'),
+
+          tokenPrefix: token && token !== 'demo-token' ? token.substring(0, 10) + '...' : 'none',
+
+          contentType: 'application/json'
 
         });
 
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
+
+          const isForbidden = response.status === 403;
+
+          addLog('error', `${isForbidden ? 'Доступ запрещен (403)' : 'Не авторизован (401)'}: проверьте токен`, {
+
+            status: response.status,
+
+            tokenProvided: !!(token && token !== 'demo-token'),
+
+            tokenLength: token?.length || 0,
+
+            isDemoToken: token === 'demo-token',
+
+            suggestion: isForbidden ? 'Возможно, токен истек или недостаточно прав' : 'Требуется авторизация'
+
+          });
 
           toast({
 
-            title: "Ошибка авторизации",
+            title: isForbidden ? "Доступ запрещен" : "Ошибка авторизации",
 
-            description: "Сессия истекла. Пожалуйста, обновите страницу.",
+            description: isForbidden ?
+
+              "Недостаточно прав доступа. Попробуйте переавторизоваться." :
+
+              "Сессия истекла. Пожалуйста, обновите страницу.",
 
             variant: "destructive"
 
@@ -1927,7 +1968,7 @@ const Voice = () => {
 
         retryCount,
 
-        endpoint
+        endpoint: endpoint || `${API_URL}/chat`
 
       });
 
