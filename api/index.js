@@ -2471,148 +2471,40 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Start server function
-function startServer() {
-  try {
-    // Create HTTP server
-    // Listen on 0.0.0.0 for Docker/production compatibility
-    const HOST = process.env.HOST || '0.0.0.0';
-    const server = app.listen(PORT, HOST, () => {
-      console.log(`🚀 API server running on ${HOST}:${PORT}`);
-      console.log(`📊 Database: ${process.env.DATABASE_URL}`);
-      console.log(`✅ Server is ready to accept connections`);
-    });
+  // Start the HTTP server
+  const HOST = process.env.HOST || '0.0.0.0';
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`🚀 API server running on ${HOST}:${PORT}`);
+    console.log(`📊 Database: ${process.env.DATABASE_URL}`);
+    console.log(`✅ Server is ready to accept connections`);
+  });
 
-    server.on('error', (error) => {
-      console.error('❌ Server error:', error);
-      if (error.code === 'EADDRINUSE') {
-        console.error(`⚠️  Port ${PORT} is already in use`);
-      }
-    });
+  server.on('error', (error) => {
+    console.error('❌ Server error:', error);
+    if (error.code === 'EADDRINUSE') {
+      console.error(`⚠️  Port ${PORT} is already in use`);
+    }
+  });
 
-    // Create WebSocket server
-    const wss = new WebSocket.Server({ server });
+  // Create WebSocket server
+  const wss = new WebSocket.Server({ server });
 
-wss.on('connection', (ws) => {
-  console.log('🔗 WebSocket client connected');
+  wss.on('connection', (ws) => {
+    console.log('🔗 WebSocket client connected');
 
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      console.log('📨 WebSocket message received:', data.type);
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('📨 WebSocket message received:', data.type);
 
-      switch (data.type) {
-        case 'greeting':
-          // Generate greeting message
-          console.log('🎭 Processing greeting request');
+        switch (data.type) {
+          case 'greeting':
+            // Generate greeting message
+            console.log('🎭 Processing greeting request');
 
-          const greetingPrompt = `You are Galina, a professional legal assistant. This is the start of a conversation with a user. Please provide a brief, friendly greeting in Russian that introduces yourself as a legal assistant and invites the user to ask their legal questions. Keep it under 50 words.`;
+            const greetingPrompt = `You are Galina, a professional legal assistant. This is the start of a conversation with a user. Please provide a brief, friendly greeting in Russian that introduces yourself as a legal assistant and invites the user to ask their legal questions. Keep it under 50 words.`;
 
-          const greetingResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              messages: [{ role: 'user', content: greetingPrompt }],
-              max_tokens: 150,
-              temperature: 0.7,
-            }),
-          });
-
-          if (greetingResponse.ok) {
-            const result = await greetingResponse.json();
-            const greetingText = result.choices[0].message.content;
-
-            console.log('🎭 Greeting generated:', greetingText);
-
-            // Send greeting as TTS
-            ws.send(JSON.stringify({
-              type: 'tts_start',
-              text: greetingText
-            }));
-
-            // For demo, also send as LLM response
-            ws.send(JSON.stringify({
-              type: 'llm_response',
-              text: greetingText
-            }));
-
-            // End TTS
-            setTimeout(() => {
-              ws.send(JSON.stringify({
-                type: 'tts_end'
-              }));
-            }, 2000); // Simulate TTS duration
-          }
-          break;
-
-        case 'audio':
-          // Handle audio transcription and LLM processing
-          console.log('🎤 Processing audio message');
-
-          try {
-            // Audio comes as base64 string in data.audio_data
-            const audioBase64 = data.audio_data;
-            if (!audioBase64) {
-              throw new Error('No audio data provided');
-            }
-
-            console.log('🎵 Transcribing audio...');
-
-            // Convert base64 to buffer for Whisper API
-            const audioBuffer = Buffer.from(audioBase64, 'base64');
-
-            // Transcribe audio using Whisper API
-            const transcriptionResponse = await fetchWithProxy('https://api.openai.com/v1/audio/transcriptions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-              },
-              body: (() => {
-                const formData = new FormData();
-                formData.append('file', new Blob([audioBuffer], { type: 'audio/wav' }), 'audio.wav');
-                formData.append('model', 'whisper-1');
-                formData.append('language', 'ru'); // Russian language
-                return formData;
-              })(),
-            });
-
-            if (!transcriptionResponse.ok) {
-              throw new Error(`Whisper API error: ${transcriptionResponse.status}`);
-            }
-
-            const transcriptionResult = await transcriptionResponse.json();
-            const transcribedText = transcriptionResult.text?.trim();
-
-            console.log('📝 Transcription result:', transcribedText);
-
-            if (!transcribedText) {
-              ws.send(JSON.stringify({
-                type: 'error',
-                message: 'No speech detected in audio'
-              }));
-              return;
-            }
-
-            // Send transcription result to client
-            ws.send(JSON.stringify({
-              type: 'transcription',
-              text: transcribedText
-            }));
-
-            console.log('🤖 Sending to LLM...');
-
-            // Process with ChatGPT
-            const llmPrompt = `You are Galina, a professional legal assistant in Russia. A user asked: "${transcribedText}"
-
-Please provide a helpful, accurate response in Russian. Be professional, concise, and focus on legal aspects. If the question is not legal-related, politely redirect to legal topics.
-
-Response should be in Russian language.`;
-
-            const llmResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
+            const greetingResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -2620,107 +2512,209 @@ Response should be in Russian language.`;
               },
               body: JSON.stringify({
                 model: 'gpt-4o-mini',
-                messages: [{ role: 'user', content: llmPrompt }],
-                max_tokens: 500,
+                messages: [{ role: 'user', content: greetingPrompt }],
+                max_tokens: 150,
                 temperature: 0.7,
               }),
             });
 
-            if (!llmResponse.ok) {
-              throw new Error(`ChatGPT API error: ${llmResponse.status}`);
+            if (greetingResponse.ok) {
+              const result = await greetingResponse.json();
+              const greetingText = result.choices[0].message.content;
+
+              console.log('🎭 Greeting generated:', greetingText);
+
+              // Send greeting as TTS
+              ws.send(JSON.stringify({
+                type: 'tts_start',
+                text: greetingText
+              }));
+
+              // For demo, also send as LLM response
+              ws.send(JSON.stringify({
+                type: 'llm_response',
+                text: greetingText
+              }));
+
+              // End TTS
+              setTimeout(() => {
+                ws.send(JSON.stringify({
+                  type: 'tts_end'
+                }));
+              }, 2000); // Simulate TTS duration
             }
+            break;
 
-            const llmResult = await llmResponse.json();
-            const responseText = llmResult.choices[0].message.content;
+          case 'audio':
+            // Handle audio transcription and LLM processing
+            console.log('🎤 Processing audio message');
 
-            console.log('💬 LLM response:', responseText);
+            try {
+              // Audio comes as base64 string in data.audio_data
+              const audioBase64 = data.audio_data;
+              if (!audioBase64) {
+                throw new Error('No audio data provided');
+              }
 
-            // Send LLM response to client
-            ws.send(JSON.stringify({
-              type: 'llm_response',
-              text: responseText
-            }));
+              console.log('🎵 Transcribing audio...');
 
-            // Generate TTS for the response
-            console.log('🔊 Generating TTS...');
+              // Convert base64 to buffer for Whisper API
+              const audioBuffer = Buffer.from(audioBase64, 'base64');
 
-            const ttsResponse = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'tts-1',
-                input: responseText,
-                voice: 'nova', // Female voice
-                response_format: 'wav',
-              }),
-            });
+              // Transcribe audio using Whisper API
+              const transcriptionResponse = await fetchWithProxy('https://api.openai.com/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                },
+                body: (() => {
+                  const formData = new FormData();
+                  formData.append('file', new Blob([audioBuffer], { type: 'audio/wav' }), 'audio.wav');
+                  formData.append('model', 'whisper-1');
+                  formData.append('language', 'ru'); // Russian language
+                  return formData;
+                })(),
+              });
 
-            if (ttsResponse.ok) {
-              const audioBuffer = await ttsResponse.arrayBuffer();
-              const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+              if (!transcriptionResponse.ok) {
+                throw new Error(`Whisper API error: ${transcriptionResponse.status}`);
+              }
 
-              console.log('🎵 TTS generated, sending complete audio file...');
+              const transcriptionResult = await transcriptionResponse.json();
+              const transcribedText = transcriptionResult.text?.trim();
 
-              // Send TTS start
+              console.log('📝 Transcription result:', transcribedText);
+
+              if (!transcribedText) {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'No speech detected in audio'
+                }));
+                return;
+              }
+
+              // Send transcription result to client
               ws.send(JSON.stringify({
-                type: 'tts_start'
+                type: 'transcription',
+                text: transcribedText
               }));
 
-              // Send complete audio file
+              console.log('🤖 Sending to LLM...');
+
+              // Process with ChatGPT
+              const llmPrompt = `You are Galina, a professional legal assistant in Russia. A user asked: "${transcribedText}"
+
+Please provide a helpful, accurate response in Russian. Be professional, concise, and focus on legal aspects. If the question is not legal-related, politely redirect to legal topics.
+
+Response should be in Russian language.`;
+
+              const llmResponse = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o-mini',
+                  messages: [{ role: 'user', content: llmPrompt }],
+                  max_tokens: 500,
+                  temperature: 0.7,
+                }),
+              });
+
+              if (!llmResponse.ok) {
+                throw new Error(`ChatGPT API error: ${llmResponse.status}`);
+              }
+
+              const llmResult = await llmResponse.json();
+              const responseText = llmResult.choices[0].message.content;
+
+              console.log('💬 LLM response:', responseText);
+
+              // Send LLM response to client
               ws.send(JSON.stringify({
-                type: 'tts_audio',
-                audio_data: audioBase64,
-                format: 'wav'
+                type: 'llm_response',
+                text: responseText
               }));
 
-              // Send TTS end
-              ws.send(JSON.stringify({
-                type: 'tts_end'
-              }));
+              // Generate TTS for the response
+              console.log('🔊 Generating TTS...');
 
-              console.log('✅ Audio processing complete');
-            } else {
-              console.warn('⚠️ TTS generation failed, sending text-only response');
+              const ttsResponse = await fetchWithProxy('https://api.openai.com/v1/audio/speech', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'tts-1',
+                  input: responseText,
+                  voice: 'nova', // Female voice
+                  response_format: 'wav',
+                }),
+              });
+
+              if (ttsResponse.ok) {
+                const audioBuffer = await ttsResponse.arrayBuffer();
+                const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+
+                console.log('🎵 TTS generated, sending complete audio file...');
+
+                // Send TTS start
+                ws.send(JSON.stringify({
+                  type: 'tts_start'
+                }));
+
+                // Send complete audio file
+                ws.send(JSON.stringify({
+                  type: 'tts_audio',
+                  audio_data: audioBase64,
+                  format: 'wav'
+                }));
+
+                // Send TTS end
+                ws.send(JSON.stringify({
+                  type: 'tts_end'
+                }));
+
+                console.log('✅ Audio processing complete');
+              } else {
+                console.warn('⚠️ TTS generation failed, sending text-only response');
+              }
+
+            } catch (error) {
+              console.error('❌ Audio processing error:', error);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: `Audio processing failed: ${error.message}`
+              }));
             }
+            break;
 
-          } catch (error) {
-            console.error('❌ Audio processing error:', error);
+          default:
+            console.log('⚠️ Unknown message type:', data.type);
             ws.send(JSON.stringify({
               type: 'error',
-              message: `Audio processing failed: ${error.message}`
+              message: `Unknown message type: ${data.type}`
             }));
-          }
-          break;
-
-        default:
-          console.log('⚠️ Unknown message type:', data.type);
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: `Unknown message type: ${data.type}`
-          }));
+        }
+      } catch (error) {
+        console.error('WebSocket message processing error:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Message processing failed'
+        }));
       }
-    } catch (error) {
-      console.error('WebSocket message processing error:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Message processing failed'
-      }));
-    }
-  });
+    });
 
-  ws.on('close', () => {
-    console.log('🔌 WebSocket client disconnected');
-  });
+    ws.on('close', () => {
+      console.log('🔌 WebSocket client disconnected');
+    });
 
-  ws.on('error', (error) => {
-    console.error('⚠️ WebSocket error:', error);
+    ws.on('error', (error) => {
+      console.error('⚠️ WebSocket error:', error);
+    });
   });
-});
-
-}
 
 }
 
