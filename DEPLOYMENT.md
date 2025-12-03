@@ -1,215 +1,171 @@
-# 🚀 Развертывание проекта Galina на сервере
+# 🚀 Развертывание проекта Galina
 
-## 📋 Обзор
-Проект состоит из:
-- **Frontend**: React + TypeScript приложение (собирается в статические файлы)
-- **API**: Node.js Express сервер для обработки запросов к OpenAI
-- **База данных**: SQLite (включается в API)
+## 📋 Быстрый старт
 
-## 🔧 Подготовка сервера
-
-### Системные требования
-- Ubuntu/Debian сервер
-- Node.js 16+
-- PM2 для управления процессами
-- Nginx для проксирования
-- Git
-
-### Установка зависимостей
+### 1. Клонирование репозитория
 ```bash
-# Обновление системы
-sudo apt update && sudo apt upgrade -y
-
-# Установка Node.js
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Установка PM2 глобально
-sudo npm install -g pm2
-
-# Установка Nginx
-sudo apt install nginx -y
-
-# Установка Git
-sudo apt install git -y
+git clone https://github.com/RockInMyHead/galina.git
+cd galina
 ```
 
-## 📦 Развертывание
-
-### Способ 1: Автоматический (рекомендуется)
-
+### 2. Установка зависимостей
 ```bash
-# На локальной машине
-./deploy.sh
+npm install
+cd api && npm install && cd ..
 ```
 
-### Способ 2: Ручное развертывание
-
-#### 1. Сборка проекта локально
+### 3. Настройка переменных окружения
 ```bash
-npm run build
+# В папке api/ создайте .env файл
+cd api
+cp .env.production .env
+
+# Отредактируйте переменные:
+# OPENAI_API_KEY - ваш API ключ OpenAI
+# JWT_SECRET - случайный секрет для JWT (измените!)
+# DATABASE_URL - оставьте как есть (file:./prisma/galina.db)
 ```
 
-#### 2. Копирование на сервер
+### 4. Запуск сервера
 ```bash
-# Создание директорий на сервере
-ssh -p 1040 sve@77.37.146.116 "mkdir -p ~/galina/{frontend,api,logs}"
-
-# Копирование файлов
-rsync -avz -e "ssh -p 1040" ./dist/ sve@77.37.146.116:~/galina/frontend/
-rsync -avz -e "ssh -p 1040" ./api/ sve@77.37.146.116:~/galina/api/
-rsync -avz -e "ssh -p 1040" ./package*.json sve@77.37.146.116:~/galina/
-rsync -avz -e "ssh -p 1040" ./.env sve@77.37.146.116:~/galina/ 2>/dev/null || true
+# Из корневой папки проекта
+npm start
 ```
 
-#### 3. Настройка на сервере
-```bash
-# Подключение к серверу
-ssh -p 1040 sve@77.37.146.116
+## ✨ Что происходит автоматически
 
-# Установка зависимостей
-cd ~/galina
-npm install --production
-cd api && npm install --production
+### 🗄️ Инициализация базы данных
+При первом запуске сервер **автоматически**:
+- ✅ Создает файл базы данных `api/prisma/galina.db`
+- ✅ Выполняет миграции (создает таблицы)
+- ✅ Создает демо-пользователя
 
-# Копирование конфигурационных файлов
-cp ~/galina/ecosystem.config.js ~/galina/
-cp ~/galina/nginx.conf ~/galina/
+### 👤 Демо-пользователь
+```
+Email: demo@galina.ai
+Пароль: demo123
 ```
 
-## ⚙️ Настройка сервисов
+### 🌐 Доступ к приложению
+- **Frontend:** `http://localhost:3002`
+- **API:** `http://localhost:3004`
+- **Voice Chat:** `http://localhost:3002/voice-lawyer`
 
-### PM2 (управление API сервером)
+## 🔧 Ручное управление (если нужно)
+
+### Остановка сервера
 ```bash
-# На сервере
-cd ~/galina
-pm2 start ecosystem.config.js
+# Найти процесс
+ps aux | grep node
+
+# Остановить
+kill <PID>
+# или
+npm stop
+```
+
+### Пересоздание базы данных
+```bash
+cd api
+rm prisma/galina.db
+npm run db:push
+npm run create-demo-user
+```
+
+### Просмотр базы данных
+```bash
+cd api
+npm run db:studio
+```
+
+## 📦 Production развертывание
+
+### На сервере:
+```bash
+# 1. Установить Node.js и npm
+# 2. Клонировать репозиторий
+git clone https://github.com/RockInMyHead/galina.git
+
+# 3. Установить зависимости
+cd galina
+npm install
+cd api && npm install && cd ..
+
+# 4. Настроить переменные окружения
+cd api
+cp .env.production .env
+# Отредактировать OPENAI_API_KEY и JWT_SECRET
+
+# 5. Запустить через PM2 (рекомендуется)
+npm install -g pm2
+pm2 start npm --name "galina" -- start
 pm2 save
 pm2 startup
 ```
 
-### Nginx (веб-сервер)
-```bash
-# На сервере от root
-sudo cp ~/galina/nginx.conf /etc/nginx/sites-available/lawyer.windexs.ru
-sudo ln -s /etc/nginx/sites-available/lawyer.windexs.ru /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+### Nginx конфигурация (пример):
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Frontend
+    location / {
+        proxy_pass http://localhost:3002;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # API
+    location /api {
+        proxy_pass http://localhost:3004;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
 ```
 
-## 🔐 SSL сертификат (Let's Encrypt)
+## 🚨 Возможные проблемы
 
+### База данных не создается
 ```bash
-# Установка certbot
-sudo apt install certbot python3-certbot-nginx -y
+# Проверить права на запись
+ls -la api/prisma/
 
-# Получение сертификата
-sudo certbot --nginx -d lawyer.windexs.ru
-
-# Проверка обновления сертификатов
-sudo certbot renew --dry-run
+# Создать вручную
+cd api
+mkdir -p prisma
+npm run db:push
 ```
 
-## 🔍 Проверка развертывания
-
-### Проверка API
+### Сервер не запускается
 ```bash
-curl https://lawyer.windexs.ru:1042/health
-curl https://lawyer.windexs.ru:1041/api/health
+# Проверить порты
+lsof -i :3002
+lsof -i :3004
+
+# Проверить логи
+npm run direct 2>&1 | head -n 50
 ```
 
-### Проверка frontend
+### API возвращает 500 ошибку
 ```bash
-curl https://lawyer.windexs.ru
+# Проверить переменные окружения
+cd api && cat .env
+
+# Проверить базу данных
+npm run db:test
+
+# Проверить API вручную
+curl http://localhost:3004/health
 ```
 
-### Проверка PM2
-```bash
-pm2 status
-pm2 logs galina-api
-```
+## 📞 Поддержка
 
-## 📊 Мониторинг
+Если возникли проблемы:
+1. Проверьте логи сервера
+2. Убедитесь, что все переменные окружения настроены
+3. Проверьте права доступа к файлам
+4. Попробуйте пересоздать базу данных
 
-### Просмотр логов
-```bash
-# PM2 логи
-pm2 logs galina-api
-
-# Nginx логи
-sudo tail -f /var/log/nginx/lawyer.windexs.ru.access.log
-sudo tail -f /var/log/nginx/lawyer.windexs.ru.error.log
-```
-
-### Управление процессами
-```bash
-# Перезапуск API
-pm2 restart galina-api
-
-# Остановка всех процессов
-pm2 stop all
-
-# Просмотр статуса
-pm2 monit
-```
-
-## 🔧 Обновление проекта
-
-### Автоматическое обновление
-```bash
-# На локальной машине
-./deploy.sh
-```
-
-### Ручное обновление
-```bash
-# Остановка сервисов
-ssh -p 1040 sve@77.37.146.116 "pm2 stop all"
-
-# Сборка и копирование
-npm run build
-rsync -avz -e "ssh -p 1040" ./dist/ sve@77.37.146.116:~/galina/frontend/
-rsync -avz -e "ssh -p 1040" ./api/ sve@77.37.146.116:~/galina/api/
-
-# Запуск сервисов
-ssh -p 1040 sve@77.37.146.116 "cd ~/galina && pm2 start ecosystem.config.js"
-```
-
-## 🚨 Устранение неисправностей
-
-### API не отвечает
-```bash
-# Проверка порта
-netstat -tlnp | grep 1041
-
-# Проверка PM2
-pm2 status
-pm2 logs galina-api --lines 50
-```
-
-### Frontend не загружается
-```bash
-# Проверка Nginx
-sudo nginx -t
-sudo systemctl status nginx
-
-# Проверка файлов
-ls -la ~/galina/frontend/
-```
-
-### Проблемы с SSL
-```bash
-# Проверка сертификата
-sudo certbot certificates
-
-# Обновление сертификатов
-sudo certbot renew
-```
-
-## 📞 Контакты
-При возникновении проблем проверьте логи и обратитесь к администратору сервера.
-
-## ✅ Финальная проверка
-После развертывания приложение будет доступно по адресу:
-- **Frontend**: https://lawyer.windexs.ru
-- **API**: https://lawyer.windexs.ru (проксируется на порт 1041)
+**Репозиторий:** `https://github.com/RockInMyHead/galina.git`
