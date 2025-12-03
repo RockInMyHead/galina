@@ -45,7 +45,7 @@ const clearAuthData = () => {
 class SyncService {
   private syncInterval: number = 30000 // 30 seconds
   private intervalId: NodeJS.Timeout | null = null
-  private isOnline: boolean = navigator.onLine
+  private isOnline: boolean = typeof navigator !== 'undefined' ? navigator.onLine : true
   private offlineQueue: OfflineOperation[] = []
   private maxRetries: number = 3
 
@@ -58,6 +58,11 @@ class SyncService {
    * Setup network status listeners
    */
   private setupNetworkListeners() {
+    // Only setup listeners in browser environment
+    if (typeof window === 'undefined') {
+      return
+    }
+
     window.addEventListener('online', () => {
       this.isOnline = true
       this.startPeriodicSync()
