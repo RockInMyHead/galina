@@ -1,44 +1,67 @@
 // API Configuration
 const getAPIBaseURL = (): string => {
-  console.log('🔧 API URL Configuration:', {
-    VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-    DEV: import.meta.env.DEV,
-    PROD: import.meta.env.PROD,
-    MODE: import.meta.env.MODE,
-    NODE_ENV: process.env.NODE_ENV
-  });
+  try {
+    // Check if import.meta.env is available
+    const hasImportMeta = typeof globalThis !== 'undefined' &&
+                         globalThis.hasOwnProperty('import') &&
+                         (globalThis as any).import &&
+                         (globalThis as any).import.meta &&
+                         (globalThis as any).import.meta.env;
 
-  // Use environment variable if available (highest priority)
-  if (import.meta.env.VITE_API_BASE_URL) {
-    console.log('✅ Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
-    return import.meta.env.VITE_API_BASE_URL;
+    // Use environment variable if available (highest priority)
+    if (hasImportMeta && (globalThis as any).import.meta.env.VITE_API_BASE_URL) {
+      return (globalThis as any).import.meta.env.VITE_API_BASE_URL;
+    }
+
+    // Development: Use production API directly
+    if (hasImportMeta && (globalThis as any).import.meta.env.DEV) {
+      return 'https://lawyer.windexs.ru/api'; // Direct connection to production API
+    }
+
+    // Production: Use production API with real database
+    if (hasImportMeta && (globalThis as any).import.meta.env.PROD) {
+      return 'https://lawyer.windexs.ru/api';
+    }
+
+    // Fallback
+    return '/api';
+  } catch (error) {
+    // Fallback if import.meta is not available
+    return '/api';
   }
-
-  // Development: Use production API directly
-  if (import.meta.env.DEV) {
-    console.log('✅ Development mode: using production API https://lawyer.windexs.ru/api');
-    return 'https://lawyer.windexs.ru/api'; // Direct connection to production API
-  }
-
-  // Production: Use production API with real database
-  if (import.meta.env.PROD) {
-    const prodUrl = 'https://lawyer.windexs.ru/api';
-    console.log('🏭 Production mode: using real API with database at', prodUrl);
-
-    // Return production URL for real database operations
-    return prodUrl;
-  }
-
-  // Fallback
-  console.log('⚠️ Fallback: using /api');
-  return '/api';
 };
 
-export const API_CONFIG = {
-  BASE_URL: getAPIBaseURL(),
-  OPENAI_API_VERSION: 'v1',
-  TIMEOUT: 30000,
-} as const;
+// Initialize API_CONFIG safely
+let _apiConfig: typeof API_CONFIG;
+const getAPIConfig = () => {
+  if (!_apiConfig) {
+    const baseURL = getAPIBaseURL();
+    // Only log in development
+    try {
+      const hasImportMeta = typeof globalThis !== 'undefined' &&
+                           globalThis.hasOwnProperty('import') &&
+                           (globalThis as any).import &&
+                           (globalThis as any).import.meta &&
+                           (globalThis as any).import.meta.env;
+
+      if (hasImportMeta && (globalThis as any).import.meta.env.DEV) {
+        console.log('🔧 API URL Configuration - Base URL:', baseURL);
+        console.log('✅ Using API Base URL:', baseURL);
+      }
+    } catch (error) {
+      // Ignore logging errors in production
+    }
+
+    _apiConfig = {
+      BASE_URL: baseURL,
+      OPENAI_API_VERSION: 'v1',
+      TIMEOUT: 30000,
+    } as const;
+  }
+  return _apiConfig;
+};
+
+export const API_CONFIG = getAPIConfig();
 
 // File Upload Configuration
 export const FILE_CONFIG = {
@@ -487,8 +510,22 @@ export const PDF_CONFIG = {
 } as const;
 
 // Google AI Studio (Gemini) Configuration
+const getGeminiAPIKey = () => {
+  try {
+    const hasImportMeta = typeof globalThis !== 'undefined' &&
+                         globalThis.hasOwnProperty('import') &&
+                         (globalThis as any).import &&
+                         (globalThis as any).import.meta &&
+                         (globalThis as any).import.meta.env;
+
+    return hasImportMeta ? (globalThis as any).import.meta.env.VITE_GEMINI_API_KEY || '' : '';
+  } catch (error) {
+    return '';
+  }
+};
+
 export const GEMINI_CONFIG = {
-  API_KEY: import.meta.env.VITE_GEMINI_API_KEY || '',
+  API_KEY: getGeminiAPIKey(),
   API_URL: 'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent',
 } as const;
 
