@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { ChatMessageType } from '@/types/chat'
+import { ChatMessage as ChatMessageType } from '@/types/chat'
 import { API_CONFIG } from '@/config/constants'
 import { chatStorage } from '@/utils/storageUtils'
 

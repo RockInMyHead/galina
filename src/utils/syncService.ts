@@ -1,4 +1,4 @@
-import { ChatMessageType } from '@/types/chat'
+import { ChatMessage as ChatMessageType } from '@/types/chat'
 import { API_CONFIG } from '@/config/constants'
 import { chatStorage, balanceStorage, userStorage } from './storageUtils'
 
