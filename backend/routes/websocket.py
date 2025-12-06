@@ -15,10 +15,10 @@ from fastapi import WebSocket, WebSocketDisconnect, BackgroundTasks
 from pydantic import BaseModel
 from datetime import datetime
 
-from ..services.transcription import WhisperTranscriber
-from ..services.llm import LLMClient
-from ..services.tts import TTSClient
-from ..services.conversation_storage import ConversationStorage
+from services.transcription import WhisperTranscriber
+from services.llm import LLMClient
+from services.tts import TTSClient
+from services.conversation_storage import ConversationStorage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1158,7 +1158,7 @@ class WebSocketManager:
             logger.info("Processing vision image with SmolVLM")
             
             # Import vision service (to avoid circular imports)
-            from ..services.vision import vision_service
+            from services.vision import vision_service
             
             # Create a descriptive prompt for the image
             prompt = "Describe this image in detail. Include information about objects, people, scenes, text, and any notable elements."

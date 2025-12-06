@@ -67,34 +67,34 @@ const Documents = () => {
           <div className="max-w-5xl mx-auto mb-16">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {documentServices.map((service, index) => (
-                <Card key={index} className="border-border/50 shadow-elegant hover:shadow-glow transition-smooth">
-                  <CardHeader className="text-center pb-4">
-                    <div className="flex justify-center mb-4">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-full ${service.color}`}>
-                        <service.icon className="h-6 w-6" />
+                <Link key={index} to={service.href} className="group block h-full no-underline">
+                  <Card className="h-full border-border/50 shadow-elegant transition-smooth hover:shadow-glow hover:border-primary/50 cursor-pointer">
+                    <CardHeader className="text-center pb-4">
+                      <div className="flex justify-center mb-4">
+                        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${service.color} transition-smooth group-hover:brightness-110`}>
+                          <service.icon className="h-6 w-6" />
+                        </div>
                       </div>
-                    </div>
-                    <CardTitle className="text-2xl">{service.title}</CardTitle>
-                    <CardDescription className="text-base">{service.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <ul className="space-y-2">
-                        {service.features.map((feature, idx) => (
-                          <li key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                      <Button asChild className="w-full shadow-elegant">
-                        <Link to={service.href}>
-                          Начать работу
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <CardTitle className="text-2xl">{service.title}</CardTitle>
+                      <CardDescription className="text-base">{service.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <ul className="space-y-2">
+                          {service.features.map((feature, idx) => (
+                            <li key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                        <Button asChild className="w-full shadow-elegant">
+                          <span>Начать работу</span>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
               ))}
             </div>
           </div>

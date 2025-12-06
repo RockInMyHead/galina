@@ -11,16 +11,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 # Import configuration
-from . import config
+import config
 
 # Import services
-from .services.transcription import WhisperTranscriber
-from .services.llm import LLMClient
-from .services.tts import TTSClient
-from .services.vision import vision_service
+from services.transcription import WhisperTranscriber
+from services.llm import LLMClient
+from services.tts import TTSClient
+from services.vision import vision_service
 
 # Import routes
-from .routes.websocket import websocket_endpoint
+from routes.websocket import websocket_endpoint
 
 # Configure logging
 logging.basicConfig(

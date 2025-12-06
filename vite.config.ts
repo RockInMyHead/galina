@@ -8,18 +8,25 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 3002,
-    allowedHosts: ['localhost', 'lawyer.windexs.ru'],
+    allowedHosts: ['lawyer.windexs.ru'],
     hmr: process.env.NODE_ENV === 'development' ? {
       // Настройки для WebSocket HMR - исправлено для Safari
-      port: 3003, // Фиксированный порт для HMR
-      host: 'localhost', // Используем localhost вместо 0.0.0.0
+      port: 3005, // Фиксированный порт для HMR (не конфликтует с API)
+      host: 'lawyer.windexs.ru', // Используем lawyer.windexs.ru вместо 0.0.0.0
       protocol: 'ws',
     } : false, // Отключаем HMR для production
     // Дополнительные настройки для стабильности WebSocket
     watch: {
       usePolling: false,
     },
-    // Прокси отключен - используем прямое подключение к production API
+    // Прокси для локальной разработки
+    proxy: {
+      '/api': {
+        target: 'https://lawyer.windexs.ru',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

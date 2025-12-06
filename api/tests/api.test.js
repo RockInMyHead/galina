@@ -6,7 +6,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { migrateData } = require('../migrate-local-data');
 
-const API_BASE_URL = 'http://localhost:3003';
+const API_BASE_URL = 'https://lawyer.windexs.ru';
 
 class ApiTester {
   constructor() {
