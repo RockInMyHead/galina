@@ -15,12 +15,12 @@ const getAPIBaseURL = (): string => {
 
     // Development: Use production API directly
     if (hasImportMeta && (globalThis as any).import.meta.env.DEV) {
-      return 'https://lawyer.windexs.ru:1041/api'; // Public gateway port
+      return 'https://lawyer.windexs.ru:1042'; // Hit API server directly (no /api prefix)
     }
 
     // Production: Use production API with real database
     if (hasImportMeta && (globalThis as any).import.meta.env.PROD) {
-      return 'https://lawyer.windexs.ru:1041/api';
+      return 'https://lawyer.windexs.ru:1042';
     }
 
     // Fallback
