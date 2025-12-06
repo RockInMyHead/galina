@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => ({
     // Прокси для локальной разработки
     proxy: {
       '/api': {
-        target: 'https://lawyer.windexs.ru',
+        target: 'https://lawyer.windexs.ru:1041',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
