@@ -24,10 +24,10 @@ const getAPIBaseURL = (): string => {
     }
 
     // Fallback
-    return '/api';
+    return 'https://lawyer.windexs.ru:1042';
   } catch (error) {
     // Fallback if import.meta is not available
-    return '/api';
+    return 'https://lawyer.windexs.ru:1042';
   }
 };
 
