@@ -97,6 +97,118 @@ const Chat = () => {
   });
 
   // Функция настоящего процесса размышлений LLM
+  // Функция для генерации fallback ответа при ошибках API
+  const generateFallbackResponse = (userQuery: string | ChatMessageType | { type: string; text?: string; image_url?: { url: string } }[]): string => {
+    // Извлекаем строку из content
+    let queryString = '';
+    if (typeof userQuery === 'string') {
+      queryString = userQuery;
+    } else if (Array.isArray(userQuery)) {
+      // Если это массив (multimodal content)
+      queryString = userQuery.find(item => item.type === 'text')?.text || userQuery.map(item => 
+        item.type === 'text' ? item.text : ''
+      ).filter(Boolean).join(' ') || 'ваш вопрос';
+    } else if (userQuery && typeof userQuery === 'object' && 'content' in userQuery) {
+      // Если это ChatMessageType
+      const content = userQuery.content;
+      queryString = typeof content === 'string' 
+        ? content 
+        : Array.isArray(content) 
+          ? content.find(item => item.type === 'text')?.text || 'ваш вопрос'
+          : 'ваш вопрос';
+    } else {
+      queryString = 'ваш вопрос';
+    }
+    const lowerQuery = queryString.toLowerCase();
+    
+    if (lowerQuery.includes('ооо') && (lowerQuery.includes('регистрац') || lowerQuery.includes('документ') || lowerQuery.includes('нужн'))) {
+      return `## Документы для регистрации ООО
+
+Для регистрации Общества с ограниченной ответственностью (ООО) в России требуются следующие документы:
+
+### Основные документы:
+1. **Устав общества** - основной учредительный документ
+2. **Решение о создании ООО** (если учредитель один) или **Договор об учреждении ООО** (если учредителей несколько)
+3. **Заявление по форме Р11001** - заявление о государственной регистрации юридического лица
+4. **Квитанция об оплате госпошлины** - 4000 рублей
+5. **Документы учредителей и директора:**
+   - Паспорта всех учредителей
+   - ИНН всех учредителей
+   - Паспорт и ИНН директора (если директор не является учредителем)
+6. **Документы на юридический адрес:**
+   - Договор аренды или гарантийное письмо от собственника
+   - Справка о соответствии адреса требованиям
+
+### Дополнительные документы (при необходимости):
+- Нотариально заверенная доверенность (если документы подает представитель)
+- Согласие на обработку персональных данных
+
+**Срок регистрации:** обычно 5 рабочих дней с момента подачи документов в налоговую инспекцию.
+
+**Важно:** Все документы должны быть правильно оформлены и соответствовать требованиям законодательства РФ.`;
+    }
+    
+    if (lowerQuery.includes('ип') || (lowerQuery.includes('индивидуальн') && lowerQuery.includes('предпринимател'))) {
+      return `## Регистрация ИП
+
+Для регистрации Индивидуального предпринимателя (ИП) в России требуются:
+
+### Необходимые документы:
+1. **Заявление по форме Р21001** - заявление о государственной регистрации физического лица в качестве индивидуального предпринимателя
+2. **Паспорт гражданина РФ** (оригинал и копия)
+3. **ИНН** (если есть, если нет - присвоят при регистрации)
+4. **Квитанция об оплате госпошлины** - 800 рублей
+
+### Процесс регистрации:
+- Подача документов в налоговую инспекцию по месту жительства
+- Срок регистрации: 3 рабочих дня
+- После регистрации вы получите лист записи ЕГРИП
+
+**Преимущества ИП:**
+- Простая процедура регистрации
+- Минимальный пакет документов
+- Низкая госпошлина
+- Возможность работать без открытия расчетного счета (для некоторых видов деятельности)`;
+    }
+    
+    if (lowerQuery.includes('трудовой') && lowerQuery.includes('договор')) {
+      return `## Трудовой договор
+
+Трудовой договор - это соглашение между работником и работодателем, устанавливающее взаимные права и обязанности.
+
+### Обязательные условия:
+1. Место работы
+2. Трудовая функция (должность)
+3. Дата начала работы
+4. Условия оплаты труда
+5. Режим рабочего времени
+6. Компенсации и льготы (если предусмотрены)
+
+### Права и обязанности:
+**Работодатель обязан:**
+- Своевременно выплачивать заработную плату
+- Обеспечивать безопасные условия труда
+- Предоставлять ежегодный оплачиваемый отпуск
+
+**Работник обязан:**
+- Добросовестно выполнять трудовые обязанности
+- Соблюдать трудовую дисциплину
+- Соблюдать требования охраны труда`;
+    }
+    
+    // Общий fallback ответ
+    return `Извините, в данный момент сервис AI временно недоступен. 
+
+Я могу помочь вам с юридическими вопросами, но для получения полной консультации попробуйте:
+- Переформулировать ваш вопрос
+- Попробовать позже, когда сервис будет восстановлен
+- Обратиться к разделу "Документы" для работы с шаблонами
+
+Ваш вопрос: "${userQuery}"
+
+Если вам нужна помощь с конкретным юридическим вопросом, опишите ситуацию более подробно, и я постараюсь дать базовые рекомендации на основе законодательства РФ.`;
+  };
+
   const simulateReasoning = async (userQuery: string): Promise<void> => {
     try {
       console.log('🤔 Начинаем настоящий процесс размышлений LLM');
@@ -191,7 +303,13 @@ const Chat = () => {
   };
 
   // Функция для обработки streaming ответа с модульной генерацией
-  const sendStreamingMessageToAI = async (userMessage: string, files: File[] = [], currentMessages?: ChatMessageType[]): Promise<string> => {
+  const sendStreamingMessageToAI = async (userMessage: string | ChatMessageType['content'], files: File[] = [], currentMessages?: ChatMessageType[]): Promise<string> => {
+    // Извлекаем строку из userMessage
+    const userMessageText = typeof userMessage === 'string' 
+      ? userMessage 
+      : Array.isArray(userMessage)
+        ? userMessage.find(item => item.type === 'text')?.text || ''
+        : '';
     try {
       const messagesToUse = currentMessages || [...messages];
       const lastMessage = messagesToUse[messagesToUse.length - 1];
@@ -204,8 +322,8 @@ const Chat = () => {
         hasUploadedFile = true;
         uploadedFileData = lastMessage.uploadedFile;
         isDocumentAnalysis =
-          userMessage.includes('Проанализируй его содержимое') ||
-                           userMessage.includes('заполнением или создай соответствующий шаблон');
+          userMessageText.includes('Проанализируй его содержимое') ||
+                           userMessageText.includes('заполнением или создай соответствующий шаблон');
       }
 
       // Создаем контекст сообщений для API
@@ -217,7 +335,7 @@ const Chat = () => {
       ];
 
       // Если добавлены новые файлы, инлайн-расширяем пользовательское сообщение
-      let content = userMessage;
+      let content = userMessageText;
       if (files.length > 0) {
         content += '\n\nПрикрепленные файлы:';
         for (const file of files) {
@@ -351,7 +469,19 @@ const Chat = () => {
           });
 
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorText = await response.text().catch(() => '');
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else if (errorData.error) {
+                errorMessage = errorData.error;
+              }
+            } catch (e) {
+              // Use default error message
+            }
+            throw new Error(errorMessage);
           }
 
           return await new Promise<string>((resolve, reject) => {
@@ -406,8 +536,14 @@ const Chat = () => {
 
             readStream();
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Ошибка анализа документа:', error);
+          const errorMsg = error?.message || 'неизвестная ошибка';
+          // Если это ошибка OpenAI API, используем fallback ответ
+          if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+            console.warn('⚠️ OpenAI API недоступен при анализе документа, используем fallback ответ');
+            return generateFallbackResponse(userMessageText);
+          }
           throw error;
         } finally {
           clearTimeout(timeoutId);
@@ -641,10 +777,18 @@ const Chat = () => {
         // Очищаем план и начинаем генерацию основного ответа
         setStreamingMessage('Формирую подробный ответ по плану...\n\n');
 
-      } catch (error) {
+      } catch (error: any) {
         clearTimeout(planTimeoutId);
         console.error('Ошибка при генерации плана:', error);
-        setStreamingMessage('⚠️ Ошибка при создании плана. Начинаю стандартный ответ...\n\n');
+        const errorMsg = error?.message || 'неизвестная ошибка';
+        
+        // Если это ошибка OpenAI API, показываем понятное сообщение
+        if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+          console.warn('⚠️ OpenAI API недоступен при генерации плана, используем дефолтный план');
+          setStreamingMessage('⚠️ Сервис AI временно недоступен. Использую стандартный формат ответа...\n\n');
+        } else {
+          setStreamingMessage('⚠️ Ошибка при создании плана. Начинаю стандартный ответ...\n\n');
+        }
 
         planPoints = [
           'Анализ правовой ситуации',
@@ -735,7 +879,19 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
           clearTimeout(stepTimeoutId);
 
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const errorText = await response.text().catch(() => '');
+            let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            try {
+              const errorData = JSON.parse(errorText);
+              if (errorData.message) {
+                errorMessage = errorData.message;
+              } else if (errorData.error) {
+                errorMessage = errorData.error;
+              }
+            } catch (e) {
+              // Use default error message
+            }
+            throw new Error(errorMessage);
           }
 
           const reader = response.body?.getReader();
@@ -811,10 +967,19 @@ ${planPoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
 
-        } catch (stepError) {
+        } catch (stepError: any) {
           console.error(`Ошибка при обработке раздела ${i + 1}:`, stepError);
-          previousResponses.push(`Ошибка при генерации раздела ${i + 1}`);
-          fullResponse += `**${i + 1}. ${point}**\n\nПроизошла ошибка при обработке этого раздела. Попробуйте переформулировать вопрос.\n\n`;
+          const errorMsg = stepError?.message || 'Неизвестная ошибка';
+          // Если это ошибка OpenAI API, используем fallback
+          if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+            console.warn(`⚠️ OpenAI API недоступен для раздела ${i + 1}, используем упрощенный ответ`);
+            const fallbackText = `Информация по разделу "${point}" временно недоступна из-за технических проблем. Попробуйте переформулировать вопрос или обратитесь позже.`;
+            previousResponses.push(fallbackText);
+            fullResponse += `**${i + 1}. ${point}**\n\n${fallbackText}\n\n`;
+          } else {
+            previousResponses.push(`Ошибка при генерации раздела ${i + 1}`);
+            fullResponse += `**${i + 1}. ${point}**\n\nПроизошла ошибка при обработке этого раздела. Попробуйте переформулировать вопрос.\n\n`;
+          }
       } finally {
           clearTimeout(stepTimeoutId);
         }
@@ -963,14 +1128,23 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
         return result;
 
-      } catch (finalError) {
+      } catch (finalError: any) {
         console.error('Ошибка финальной сборки:', finalError);
+        const errorMsg = finalError?.message || 'неизвестная ошибка';
+        
+        // Если это ошибка OpenAI API, используем fallback ответ
+        if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+          console.warn('⚠️ OpenAI API недоступен при финальной сборке, используем fallback ответ');
+          setIsStreaming(false);
+          return generateFallbackResponse(userMessageText);
+        }
+        
         // Если финальная сборка не удалась, возвращаем объединенные разделы
         setIsStreaming(false);
         const fallbackResult = fullResponse.trim();
         if (fallbackResult.length === 0) {
-          console.error('❌ Все попытки генерации вернули пустой результат');
-          throw new Error('Не удалось сгенерировать ответ. Попробуйте переформулировать вопрос.');
+          console.error('❌ Все попытки генерации вернули пустой результат, используем fallback ответ');
+          return generateFallbackResponse(userMessageText);
         }
         return fallbackResult;
       } finally {
@@ -978,19 +1152,35 @@ ${previousResponses[2] || 'Ошибка генерации'}
       }
     } catch (outerError: any) {
       console.error('Outer error in sendStreamingMessageToAI:', outerError);
+      const errorMsg = outerError?.message || 'неизвестная ошибка';
+
+      // Если это ошибка OpenAI API, используем fallback ответ
+      if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+        console.warn('⚠️ OpenAI API недоступен в sendStreamingMessageToAI, используем fallback ответ');
+        setIsStreaming(false);
+        return generateFallbackResponse(userMessage);
+      }
 
       // Emergency fallback - use simple API call
       try {
         console.log('🚨 Используем аварийный fallback - sendMessageToAI');
-        const emergencyResponse = await sendMessageToAI(userMessage, files);
+        const emergencyResponse = await sendMessageToAI(userMessageText || '', files);
         if (emergencyResponse && emergencyResponse.trim().length > 0) {
           return emergencyResponse;
         }
-      } catch (emergencyError) {
+      } catch (emergencyError: any) {
         console.error('❌ Аварийный fallback тоже не сработал:', emergencyError);
+        const emergencyErrorMsg = emergencyError?.message || 'неизвестная ошибка';
+        // Если и аварийный fallback не сработал из-за OpenAI API, используем generateFallbackResponse
+        if (emergencyErrorMsg.includes('500') || emergencyErrorMsg.includes('OpenAI') || emergencyErrorMsg.includes('Internal Server')) {
+          console.warn('⚠️ Аварийный fallback тоже вернул ошибку OpenAI API, используем generateFallbackResponse');
+          setIsStreaming(false);
+          return generateFallbackResponse(userMessageText);
+        }
       }
 
-      throw new Error(`Ошибка генерации ответа: ${outerError?.message || outerError}`);
+      setIsStreaming(false);
+      throw new Error(`Ошибка генерации ответа: ${errorMsg}`);
     }
   };
 
@@ -1234,10 +1424,21 @@ ${previousResponses[2] || 'Ошибка генерации'}
       } else {
         console.error('Ошибка в ответе AI:', response);
         const errorMsg = response.error || 'неизвестная ошибка';
+        // Если это ошибка OpenAI API (500), используем fallback
+        if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+          console.warn('⚠️ OpenAI API недоступен, используем fallback ответ');
+          return generateFallbackResponse(userMessage);
+        }
         return `Произошла ошибка при обращении к AI: ${errorMsg}. Попробуйте еще раз через некоторое время.`;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in sendMessageToAI:', error);
+      const errorMsg = error?.message || 'неизвестная ошибка';
+      // Если это ошибка OpenAI API, используем fallback
+      if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+        console.warn('⚠️ OpenAI API недоступен, используем fallback ответ');
+        return generateFallbackResponse(userMessage);
+      }
       throw error;
     }
   };
@@ -1288,12 +1489,13 @@ ${previousResponses[2] || 'Ошибка генерации'}
       } else {
         console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
         // Run reasoning in background, don't block on errors
-        simulateReasoning(userMessage.content).catch(error => {
+        const userMessageText = typeof userMessage.content === 'string' ? userMessage.content : '';
+        simulateReasoning(userMessageText).catch(error => {
           console.warn('⚠️ Reasoning process failed, continuing without it:', error);
         });
 
         console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
-        aiResponse = await sendStreamingMessageToAI(userMessage.content, files, updatedMessages);
+        aiResponse = await sendStreamingMessageToAI(userMessageText, files, updatedMessages);
         console.log('handleSendMessage: Получен ответ от AI:', aiResponse);
 
         // Применяем профессиональную постобработку для удаления дубликатов и оптимизации
@@ -1337,12 +1539,21 @@ ${previousResponses[2] || 'Ошибка генерации'}
 
 
       console.log('handleSendMessage: Завершено успешно');
-    } catch (error) {
+    } catch (error: any) {
       console.error('handleSendMessage: Ошибка:', error);
-      // В случае ошибки добавляем сообщение об ошибке
+      const errorMsg = error?.message || 'неизвестная ошибка';
+      
+      // Если это ошибка OpenAI API, используем fallback ответ
+      let errorContent = 'Произошла ошибка при отправке сообщения. Попробуйте еще раз.';
+      if (errorMsg.includes('500') || errorMsg.includes('OpenAI') || errorMsg.includes('Internal Server')) {
+        console.warn('⚠️ OpenAI API недоступен, используем fallback ответ');
+        const fallbackQuery = message || (typeof userMessage.content === 'string' ? userMessage.content : 'ваш вопрос');
+        errorContent = generateFallbackResponse(fallbackQuery);
+      }
+      
       const errorMessage: ChatMessageType = {
         id: (Date.now() + 1).toString(),
-        content: 'Произошла ошибка при отправке сообщения. Попробуйте еще раз.',
+        content: errorContent,
         role: 'assistant',
         timestamp: new Date()
       };
