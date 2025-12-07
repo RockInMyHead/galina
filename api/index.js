@@ -676,18 +676,8 @@ const PORT = process.env.PORT || 1042;
 
 // Configure CORS for development and production
 const corsAllowedOrigins = [
-  // Production domains
-  'https://lawyer.windexs.ru',
-  'http://lawyer.windexs.ru',
-  // API direct ports
-  'https://lawyer.windexs.ru:1042',
-  'http://lawyer.windexs.ru:1042',
-  // Gateway (legacy) if used
-  'https://lawyer.windexs.ru:1041',
-  'http://lawyer.windexs.ru:1041',
-  // Local development
-  'http://localhost:3002',
-  'http://127.0.0.1:3002'
+  // Публичный домен без локальных портов
+  'https://lawyer.windexs.ru'
 ];
 
 const corsOptions = {
