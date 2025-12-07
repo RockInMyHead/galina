@@ -1,34 +1,23 @@
 // API Configuration
 const getAPIBaseURL = (): string => {
-  try {
-    // Check if import.meta.env is available
-    const hasImportMeta = typeof globalThis !== 'undefined' &&
-                         globalThis.hasOwnProperty('import') &&
-                         (globalThis as any).import &&
-                         (globalThis as any).import.meta &&
-                         (globalThis as any).import.meta.env;
-
-    // Use environment variable if available (highest priority)
-    if (hasImportMeta && (globalThis as any).import.meta.env.VITE_API_BASE_URL) {
-      return (globalThis as any).import.meta.env.VITE_API_BASE_URL;
-    }
-
-    // Development: Use production API directly
-    if (hasImportMeta && (globalThis as any).import.meta.env.DEV) {
-      return 'https://lawyer.windexs.ru:1042'; // Hit API server directly (no /api prefix)
-    }
-
-    // Production: Use production API with real database
-    if (hasImportMeta && (globalThis as any).import.meta.env.PROD) {
-      return 'https://lawyer.windexs.ru:1042';
-    }
-
-    // Fallback
-    return 'https://lawyer.windexs.ru:1042';
-  } catch (error) {
-    // Fallback if import.meta is not available
-    return 'https://lawyer.windexs.ru:1042';
+  // 1) Highest priority: explicit Vite env variable
+  const envBaseUrl = (import.meta as any)?.env?.VITE_API_BASE_URL;
+  if (envBaseUrl) {
+    return envBaseUrl;
   }
+
+  // 2) Same-origin fallback for browser runtime to avoid CORS/port issues
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api`;
+  }
+
+  // 3) Node/test environment fallback
+  if (typeof process !== 'undefined' && process.env?.VITE_API_BASE_URL) {
+    return process.env.VITE_API_BASE_URL;
+  }
+
+  // 4) Safe default for production hosts
+  return 'https://lawyer.windexs.ru/api';
 };
 
 // Initialize API_CONFIG safely
