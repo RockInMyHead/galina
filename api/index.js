@@ -873,7 +873,14 @@ app.post('/chat', async (req, res) => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error('OpenAI API error:', response.status, errorData);
-          return res.status(response.status).json(errorData);
+          // Convert OpenAI API errors (401/403) to 500 to avoid confusion with user auth errors
+          const statusCode = (response.status === 401 || response.status === 403) ? 500 : response.status;
+          return res.status(statusCode).json({
+            error: 'OpenAI API error',
+            message: errorData.error?.message || errorData.message || 'Failed to process request with OpenAI API',
+            openai_status: response.status,
+            details: errorData
+          });
         }
 
         res.setHeader('Content-Type', 'text/event-stream');
@@ -1084,7 +1091,14 @@ app.post('/chat', async (req, res) => {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           console.error('OpenAI API error:', response.status, errorData);
-          return res.status(response.status).json(errorData);
+          // Convert OpenAI API errors (401/403) to 500 to avoid confusion with user auth errors
+          const statusCode = (response.status === 401 || response.status === 403) ? 500 : response.status;
+          return res.status(statusCode).json({
+            error: 'OpenAI API error',
+            message: errorData.error?.message || errorData.message || 'Failed to process request with OpenAI API',
+            openai_status: response.status,
+            details: errorData
+          });
         }
 
         const data = await response.json();
@@ -1123,7 +1137,14 @@ app.post('/chat', async (req, res) => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('OpenAI API error:', response.status, errorData);
-        return res.status(response.status).json(errorData);
+        // Convert OpenAI API errors (401/403) to 500 to avoid confusion with user auth errors
+        const statusCode = (response.status === 401 || response.status === 403) ? 500 : response.status;
+        return res.status(statusCode).json({
+          error: 'OpenAI API error',
+          message: errorData.error?.message || errorData.message || 'Failed to process request with OpenAI API',
+          openai_status: response.status,
+          details: errorData
+        });
       }
 
       console.log('Starting to stream response...');

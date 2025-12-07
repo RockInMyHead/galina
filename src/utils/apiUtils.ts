@@ -43,16 +43,22 @@ export const apiRequest = async <T = any>(
     console.log('📡 API Response status:', response.status)
 
     if (!response.ok) {
-      // Handle 401/403 by clearing auth data
-      if (response.status === 401 || response.status === 403) {
+      const errorData = await response.json().catch(() => ({}))
+      
+      // Only clear auth data for actual auth errors (401/403), not OpenAI API errors (500)
+      // OpenAI API errors are converted to 500 on the server to avoid confusion
+      if ((response.status === 401 || response.status === 403) && !errorData.openai_status) {
         clearAuthOnForbidden()
       }
 
-      const errorData = await response.json().catch(() => ({}))
-      const errorMsg = `HTTP ${response.status}: ${response.statusText}${
-        errorData.error?.message ? ` - ${errorData.error.message}` : ''
-      }`
+      const errorMsg = errorData.message || errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
       console.error('❌ API Error:', errorMsg)
+      
+      // Include OpenAI API status in error message if present
+      if (errorData.openai_status) {
+        console.error('🔑 OpenAI API returned status:', errorData.openai_status)
+      }
+      
       throw new Error(errorMsg)
     }
 

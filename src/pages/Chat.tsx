@@ -155,6 +155,12 @@ const Chat = () => {
         console.log('✅ Процесс размышлений завершен');
       } else {
         console.warn('⚠️ Не удалось сгенерировать размышления, используем fallback');
+        
+        // Check if error is related to OpenAI API
+        const errorMessage = reasoningResponse.error || '';
+        if (errorMessage.includes('OpenAI API') || errorMessage.includes('500')) {
+          console.warn('⚠️ OpenAI API error during reasoning, using fallback');
+        }
 
         // Fallback на простые шаги
         const fallbackSteps = [
@@ -165,7 +171,7 @@ const Chat = () => {
         ];
 
         for (const step of fallbackSteps) {
-      setReasoningText(step);
+          setReasoningText(step);
           await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
         }
       }
@@ -1281,7 +1287,10 @@ ${previousResponses[2] || 'Ошибка генерации'}
         console.log('handleSendMessage: Постобработка анализа завершена. Статистика:', processedResponse.statistics);
       } else {
         console.log('handleSendMessage: Запускаем настоящий процесс размышлений LLM');
-        await simulateReasoning(userMessage.content);
+        // Run reasoning in background, don't block on errors
+        simulateReasoning(userMessage.content).catch(error => {
+          console.warn('⚠️ Reasoning process failed, continuing without it:', error);
+        });
 
         console.log('handleSendMessage: Вызываем streaming sendMessageToAI');
         aiResponse = await sendStreamingMessageToAI(userMessage.content, files, updatedMessages);
