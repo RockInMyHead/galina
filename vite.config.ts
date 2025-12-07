@@ -22,11 +22,11 @@ export default defineConfig(({ mode }) => ({
     // Прокси для локальной разработки
     proxy: {
       '/api': {
-        // Проксируем без локальных портов, сразу на публичный домен
-        target: 'https://lawyer.windexs.ru',
+        // Ходим на боевой API напрямую, без localhost
+        target: 'https://lawyer.windexs.ru:1042',
         changeOrigin: true,
-        // Сохраняем префикс /api, чтобы внешняя точка /api/chat работала как в проде
-        rewrite: (path) => path,
+        // Удаляем префикс /api, т.к. бэкенд слушает без него
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
