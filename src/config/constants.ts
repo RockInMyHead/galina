@@ -8,7 +8,8 @@ const getAPIBaseURL = (): string => {
 
   // 2) Same-origin fallback for browser runtime to avoid CORS/port issues
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return `${window.location.origin}/api`;
+    // Фронтенд крутится на 443, API — на 1042 без префикса /api
+    return 'https://lawyer.windexs.ru:1042';
   }
 
   // 3) Node/test environment fallback
@@ -17,7 +18,7 @@ const getAPIBaseURL = (): string => {
   }
 
   // 4) Safe default for production hosts
-  return 'https://lawyer.windexs.ru/api';
+  return 'https://lawyer.windexs.ru:1042';
 };
 
 // Initialize API_CONFIG safely
