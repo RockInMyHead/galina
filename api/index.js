@@ -767,7 +767,7 @@ app.post('/chat', async (req, res) => {
     console.log('=== New Chat Request ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
-    const { messages, model = 'gpt-5.1', max_completion_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
+    const { messages, model = 'gpt-40', max_completion_tokens = 2000, temperature = 0.7, top_p = 1, presence_penalty = 0, frequency_penalty = 0, stream = false, reasoning = 'medium' } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
@@ -789,8 +789,8 @@ app.post('/chat', async (req, res) => {
               'Authorization': `Bearer ${apiKey}`,
               'Content-Type': 'application/json'
             },
-        body: JSON.stringify({
-          model: 'gpt-5.1',
+          body: JSON.stringify({
+          model: 'gpt-40',
           messages: [{ role: 'user', content: 'test' }],
           max_completion_tokens: 10
         })
@@ -853,7 +853,7 @@ app.post('/chat', async (req, res) => {
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-5.1',
+            model: model || 'gpt-40',
             messages: messages,
             max_completion_tokens: max_completion_tokens || 2000,
             stream: true
@@ -1263,17 +1263,17 @@ app.post('/chat', async (req, res) => {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
-    // Use GPT-5.1 Responses API for all requests
-    const finalModel = 'gpt-5.1';
+    // Use GPT-40 for all requests
+    const finalModel = model || 'gpt-40';
 
     // Regular response
-    console.log('🔄 Sending request to OpenAI GPT-5.1 Responses API...');
+    console.log('🔄 Sending request to OpenAI Chat Completions API...');
     console.log('📋 Model:', finalModel, isVisionRequest ? '(Vision API)' : '');
     console.log('💬 Messages count:', messages.length);
     console.log('🔑 API Key exists and valid:', !!apiKey && apiKeyValid);
 
-    // Use GPT-5.1 Chat Completions API (GPT-5.1 works through standard endpoint)
-    console.log('🔄 Using GPT-5.1 Chat Completions API...');
+    // Use OpenAI Chat Completions API
+    console.log('🔄 Using OpenAI Chat Completions API...');
       const response = await fetchWithProxy('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -1281,7 +1281,7 @@ app.post('/chat', async (req, res) => {
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-        model: 'gpt-5.1',
+        model: finalModel,
           messages: messages,
         max_completion_tokens: max_completion_tokens || 2000
         })
@@ -1307,7 +1307,14 @@ app.post('/chat', async (req, res) => {
           return res.status(200).json(mockResponse);
         }
 
-        return res.status(response.status).json({ error: 'Internal server error', details: errorData });
+        // Convert OpenAI API errors (401/403) to 500 to avoid confusion with user auth errors
+        const statusCode = (response.status === 401 || response.status === 403) ? 500 : response.status;
+        return res.status(statusCode).json({
+          error: 'OpenAI API error',
+          message: errorData.error?.message || errorData.message || 'Failed to process request with OpenAI API',
+          openai_status: response.status,
+          details: errorData
+        });
       }
 
       let data;
@@ -1360,7 +1367,7 @@ app.post('/chat', async (req, res) => {
           console.log('✅ Successfully extracted content:', content.substring(0, 100) + (content.length > 100 ? '...' : ''));
         }
       } catch (extractError) {
-        console.error('❌ Error extracting content from GPT-5.1 response:', extractError);
+        console.error('❌ Error extracting content from OpenAI response:', extractError);
         content = 'Ошибка при обработке ответа модели.';
       }
 
@@ -1368,7 +1375,7 @@ app.post('/chat', async (req, res) => {
         id: data.id || `resp-${Date.now()}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
-        model: 'gpt-5.1',
+        model: finalModel || model || 'gpt-40',
         choices: [{
           index: 0,
           message: {

@@ -4,61 +4,52 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, model = 'gpt-5.1', max_tokens = 2000, temperature = 0.7, reasoning = 'medium' } = req.body;
+    const { messages, model = 'gpt-40', max_tokens = 2000, temperature = 0.7, reasoning = 'medium' } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Messages array is required' });
     }
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-5.1',
-        reasoning: { effort: reasoning },
-        input: messages
+        model: model || 'gpt-40',
+        messages: messages,
+        max_tokens: max_tokens || 2000,
+        temperature: temperature || 0.7
       })
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      return res.status(response.status).json(errorData);
+      const errorData = await response.json().catch(() => ({ 
+        error: { message: `HTTP ${response.status}: ${response.statusText}` }
+      }));
+      console.error('OpenAI API error:', response.status, errorData);
+      return res.status(response.status >= 500 ? 500 : response.status).json({
+        error: 'OpenAI API error',
+        message: errorData.error?.message || errorData.message || 'Failed to process request with OpenAI API',
+        openai_status: response.status,
+        details: errorData
+      });
     }
 
     const data = await response.json();
 
-    // Convert new GPT-5.1 response format to legacy format for frontend compatibility
-    const legacyResponse = {
-      id: data.id || `resp-${Date.now()}`,
-      object: 'chat.completion',
-      created: Math.floor(Date.now() / 1000),
-      model: 'gpt-5.1',
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: data.output?.[0]?.content?.[0]?.text || 'Извините, произошла ошибка при обработке ответа.',
-          refusal: null
-        },
-        finish_reason: 'stop'
-      }],
-      usage: data.usage || {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0,
-        prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-        completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 }
-      },
-      service_tier: 'default',
-      system_fingerprint: null
-    };
-
-    res.status(200).json(legacyResponse);
+    // Return OpenAI response in standard format
+    res.status(200).json(data);
   } catch (error) {
     console.error('API Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message || 'An unexpected error occurred'
+    });
   }
 }
