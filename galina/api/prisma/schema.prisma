@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String   // Хэшированный пароль
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Связи
+  messages  ChatMessage[]
+  balance   UserBalance?
+  files     File[]
+  analyses  DocumentAnalysis[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  content   String
+  role      String   // 'user' | 'assistant'
+  timestamp DateTime @default(now())
+  userId    String
+
+  // Связи
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files     File[]
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  size        Int
+  url         String?  // для будущей интеграции с Supabase Storage
+  content     String?  // base64 для изображений или путь к файлу
+  userId      String
+  messageId   String?
+  createdAt   DateTime @default(now())
+
+  // Связи
+  user        User         @relation(fields: [userId], references: [id])
+  message     ChatMessage? @relation(fields: [messageId], references: [id])
+}
+
+model UserBalance {
+  id     String @id @default(cuid())
+  amount Int    @default(1000)
+  userId String @unique
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DocumentAnalysis {
+  id          String   @id @default(cuid())
+  title       String   // Пользовательское имя анализа
+  fileName    String   // Имя анализируемого файла
+  fileSize    Int      // Размер файла
+  analysis    String   // Результат анализа
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Связи
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

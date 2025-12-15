@@ -1,0 +1,35 @@
+{
+  "name": "galina-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node index.js",
+    "start": "node start-server.js",
+    "direct": "node index.js",
+    "diagnose": "node diagnose.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio --port 5555",
+    "db:test": "node test-db.js",
+    "db:migrate-data": "node migrate-data.js",
+    "create-demo-user": "node create-demo-user.js"
+  },
+  "dependencies": {
+    "@langchain/community": "^1.0.4",
+    "@langchain/core": "^1.0.6",
+    "@langchain/openai": "^1.1.2",
+    "@prisma/client": "^6.19.0",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "form-data": "^3.0.1",
+    "https-proxy-agent": "^7.0.6",
+    "jsonwebtoken": "^9.0.2",
+    "langchain": "^1.0.6",
+    "multer": "^2.0.2",
+    "prisma": "^6.19.0",
+    "ws": "^8.18.3"
+  }
+}

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safari Test - Галина AI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .test-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        button:hover { background: #0056b3; }
+        .info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .info h3 { margin-top: 0; color: #333; }
+        .info ul { margin: 10px 0; padding-left: 20px; }
+        .info li { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Тест Safari - Галина AI</h1>
+
+        <div id="connection-status" class="status warning">
+            🔄 Проверяем подключение...
+        </div>
+
+        <button onclick="testConnection()">🔍 Проверить подключение</button>
+        <button onclick="showReadme()">📖 Инструкции Safari</button>
+        <button onclick="openMainApp()">🚀 Открыть приложение</button>
+
+        <div class="info">
+            <h3>ℹ️ Информация для Safari</h3>
+            <ul>
+                <li><strong>Разрешите всплывающие окна</strong> для этого сайта</li>
+                <li><strong>Отключите "Предотвращать отслеживание между сайтами"</strong> в настройках приватности</li>
+                <li><strong>Очистите кэш браузера</strong> (Cmd+Alt+E)</li>
+                <li><strong>Попробуйте инкогнито режим</strong> (Cmd+Shift+N)</li>
+                <li><strong>Проверьте настройки CORS</strong> в DevTools</li>
+            </ul>
+
+            <p><strong>Если проблема persists:</strong> Используйте Chrome или Firefox для лучшей совместимости.</p>
+        </div>
+    </div>
+
+    <script>
+        let connectionTested = false;
+
+        function updateStatus(message, type = 'warning') {
+            const statusEl = document.getElementById('connection-status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+
+        async function testConnection() {
+            updateStatus('🔄 Тестируем подключение к серверу...', 'warning');
+
+            try {
+                // Test basic connectivity to Vite dev server
+                const response = await fetch('/', {
+                    method: 'GET',
+                    headers: {
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+
+                if (response.ok) {
+                    updateStatus('✅ Vite dev server доступен!', 'success');
+                    connectionTested = true;
+
+                    // Additional Safari-specific checks
+                    if (isSafari) {
+                        console.log('🧭 Safari detected - testing additional compatibility...');
+
+                        // Test CORS headers
+                        const corsHeaders = response.headers.get('access-control-allow-origin');
+                        if (corsHeaders && corsHeaders !== '*') {
+                            console.log('✅ CORS headers configured correctly');
+                        }
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Connection test failed:', error);
+
+                let errorMessage = '❌ Ошибка подключения: ';
+
+                if (error.message.includes('CORS')) {
+                    errorMessage += 'Safari блокирует CORS. Следуйте инструкциям выше.';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Не удается подключиться к Vite dev серверу. Проверьте, запущен ли сервер.';
+                } else if (error.message.includes('NetworkError')) {
+                    errorMessage += 'Сетевая ошибка Safari. Попробуйте:\n1. Cmd+Alt+E (очистить кэш)\n2. Перезагрузить страницу\n3. Использовать инкогнито режим';
+                } else {
+                    errorMessage += error.message;
+                }
+
+                updateStatus(errorMessage, 'error');
+            }
+        }
+
+        function showReadme() {
+            window.open('./SAFARI_README.md', '_blank');
+        }
+
+        function openMainApp() {
+            if (!connectionTested) {
+                alert('Сначала протестируйте подключение!');
+                return;
+            }
+
+            window.open('/', '_blank');
+        }
+
+        // Auto-test on page load
+        setTimeout(() => {
+            if (!connectionTested) {
+                testConnection();
+            }
+        }, 1000);
+
+        // Safari-specific detection
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        if (isSafari) {
+            console.log('🧭 Safari detected - applying compatibility measures');
+            document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, sans-serif';
+        }
+    </script>
+</body>
+</html>

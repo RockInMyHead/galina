@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 144 78% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 144 78% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 144 78% 15%;
+
+    --primary: 144 78% 32%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 144 78% 25%;
+
+    --secondary: 144 30% 96%;
+    --secondary-foreground: 144 78% 32%;
+
+    --muted: 144 20% 95%;
+    --muted-foreground: 144 30% 45%;
+
+    --accent: 144 60% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 144 20% 88%;
+    --input: 144 20% 88%;
+    --ring: 144 78% 32%;
+
+    --radius: 0.75rem;
+    
+    --gradient-hero: linear-gradient(135deg, hsl(144 78% 32%) 0%, hsl(144 60% 40%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(144 20% 98%) 0%, hsl(144 15% 95%) 100%);
+    --shadow-elegant: 0 10px 30px -10px hsl(144 78% 32% / 0.2);
+    --shadow-glow: 0 0 40px hsl(144 60% 45% / 0.15);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 144 30% 8%;
+    --foreground: 144 20% 95%;
+
+    --card: 144 25% 12%;
+    --card-foreground: 144 20% 95%;
+
+    --popover: 144 25% 12%;
+    --popover-foreground: 144 20% 95%;
+
+    --primary: 144 60% 52%;
+    --primary-foreground: 144 30% 8%;
+    --primary-hover: 144 60% 45%;
+
+    --secondary: 144 20% 18%;
+    --secondary-foreground: 144 20% 95%;
+
+    --muted: 144 20% 18%;
+    --muted-foreground: 144 25% 65%;
+
+    --accent: 144 60% 52%;
+    --accent-foreground: 144 30% 8%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 144 20% 95%;
+
+    --border: 144 20% 18%;
+    --input: 144 20% 18%;
+    --ring: 144 60% 52%;
+    
+    --gradient-hero: linear-gradient(135deg, hsl(144 30% 12%) 0%, hsl(144 40% 18%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(144 25% 14%) 0%, hsl(144 20% 18%) 100%);
+    --shadow-elegant: 0 10px 30px -10px hsl(144 60% 52% / 0.3);
+    --shadow-glow: 0 0 40px hsl(144 60% 52% / 0.25);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  /* Hide all video controls and play button overlay */
+  video::-webkit-media-controls {
+    display: none !important;
+  }
+  
+  video::-webkit-media-controls-enclosure {
+    display: none !important;
+  }
+  
+  video::-webkit-media-controls-panel {
+    display: none !important;
+  }
+  
+  video::-webkit-media-controls-play-button {
+    display: none !important;
+  }
+  
+  video::-webkit-media-controls-start-playback-button {
+    display: none !important;
+  }
+  
+  video::-webkit-media-controls-overlay-play-button {
+    display: none !important;
+  }
+  
+  video {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+  }
+}

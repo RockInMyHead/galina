@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+galina/.env
+galina/.env.production
+env_vars.sh
+
+# API Environment
+api/.env.local
+api/.env
+api/galina.db
+api/prisma/galina.db
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+test_*.txt
+template_test.txt
+
+# Vocalis temporary directory
+vocalis-temp/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+api/.env
